@@ -119,6 +119,11 @@ class Component:
     def to_dict(self) -> Dict[str, Any]:
         raise NotImplementedError
 
+    @classmethod
+    def from_payload(cls, payload: Dict[str, Any]) -> Self:
+        """Construct a Component from its raw payload as received from discord."""
+        raise NotImplementedError
+
 
 class ActionRow(Component, Generic[ComponentT]):
     """Represents an action row.
@@ -141,17 +146,23 @@ class ActionRow(Component, Generic[ComponentT]):
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
 
-    def __init__(self, data: ActionRowPayload) -> None:
-        self.type: ComponentType = try_enum(ComponentType, data["type"])
-        self.children: List[ComponentT] = [
-            _component_factory(d) for d in data.get("components", [])
-        ]
+    def __init__(self, type: ComponentType, children: List[ComponentT]) -> None:
+        self.type = type
+        self.children = children
 
     def to_dict(self) -> ActionRowPayload:
         return {
             "type": int(self.type),
             "components": [child.to_dict() for child in self.children],
         }  # type: ignore
+
+    @classmethod
+    def from_payload(cls, payload: ActionRowPayload) -> Self:
+        type: ComponentType = try_enum(ComponentType, payload["type"])
+        children: List[ComponentT] = [
+            _component_factory(d) for d in payload.get("components", ())
+        ]
+        return cls(type, children)
 
 
 class Button(Component):
@@ -194,18 +205,23 @@ class Button(Component):
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
 
-    def __init__(self, data: ButtonComponentPayload) -> None:
-        self.type: ComponentType = try_enum(ComponentType, data["type"])
-        self.style: ButtonStyle = try_enum(ButtonStyle, data["style"])
-        self.custom_id: Optional[str] = data.get("custom_id")
-        self.url: Optional[str] = data.get("url")
-        self.disabled: bool = data.get("disabled", False)
-        self.label: Optional[str] = data.get("label")
-        self.emoji: Optional[PartialEmoji]
-        try:
-            self.emoji = PartialEmoji.from_dict(data["emoji"])
-        except KeyError:
-            self.emoji = None
+    def __init__(
+        self,
+        type: ComponentType,
+        style: ButtonStyle,
+        custom_id: Optional[str] = None,
+        url: Optional[str] = None,
+        disabled: bool = False,
+        label: Optional[str] = None,
+        emoji: Optional[PartialEmoji] = None
+    ) -> None:
+        self.type = type
+        self.style = style
+        self.custom_id = custom_id
+        self.url = url
+        self.disabled = disabled
+        self.label = label
+        self.emoji = emoji
 
     def to_dict(self) -> ButtonComponentPayload:
         payload: ButtonComponentPayload = {
@@ -227,6 +243,23 @@ class Button(Component):
             payload["emoji"] = self.emoji.to_dict()
 
         return payload
+
+    @classmethod
+    def from_payload(cls, payload: ButtonComponentPayload) -> Self:
+        try:
+            emoji = PartialEmoji.from_dict(payload["emoji"])
+        except KeyError:
+            emoji = None
+
+        return cls(
+            type=try_enum(ComponentType, payload["type"]),
+            style=try_enum(ButtonStyle, payload["style"]),
+            custom_id=payload.get("custom_id"),
+            url=payload.get("url"),
+            disabled=payload.get("disabled", False),
+            label=payload.get("label"),
+            emoji=emoji
+        )
 
 
 class BaseSelectMenu(Component):
@@ -273,13 +306,21 @@ class BaseSelectMenu(Component):
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
 
-    def __init__(self, data: BaseSelectMenuPayload) -> None:
-        self.type: ComponentType = try_enum(ComponentType, data["type"])
-        self.custom_id: str = data["custom_id"]
-        self.placeholder: Optional[str] = data.get("placeholder")
-        self.min_values: int = data.get("min_values", 1)
-        self.max_values: int = data.get("max_values", 1)
-        self.disabled: bool = data.get("disabled", False)
+    def __init__(
+        self,
+        type: ComponentType,
+        custom_id: str,
+        placeholder: Optional[str] = None,
+        min_values: int = 1,
+        max_values: int = 1,
+        disabled: bool = False
+    ) -> None:
+        self.type = type
+        self.custom_id = custom_id
+        self.placeholder = placeholder
+        self.min_values = min_values
+        self.max_values = max_values
+        self.disabled = disabled
 
     def to_dict(self) -> BaseSelectMenuPayload:
         payload: BaseSelectMenuPayload = {
@@ -294,6 +335,17 @@ class BaseSelectMenu(Component):
             payload["placeholder"] = self.placeholder
 
         return payload
+
+    @classmethod
+    def from_payload(cls, payload: BaseSelectMenuPayload) -> Self:
+        return cls(
+            type=try_enum(ComponentType, payload["type"]),
+            custom_id=payload["custom_id"],
+            placeholder=payload.get("placeholder"),
+            min_values=payload.get("min_values", 1),
+            max_values=payload.get("max_values", 1),
+            disabled=payload.get("disabled", False)
+        )
 
 
 class StringSelectMenu(BaseSelectMenu):
@@ -330,16 +382,38 @@ class StringSelectMenu(BaseSelectMenu):
 
     __repr_info__: ClassVar[Tuple[str, ...]] = BaseSelectMenu.__repr_info__ + __slots__
 
-    def __init__(self, data: StringSelectMenuPayload) -> None:
-        super().__init__(data)
-        self.options: List[SelectOption] = [
-            SelectOption.from_dict(option) for option in data.get("options", [])
-        ]
+    def __init__(
+        self,
+        type: ComponentType,
+        custom_id: str,
+        placeholder: Optional[str] = None,
+        min_values: int = 1,
+        max_values: int = 1,
+        disabled: bool = False,
+        options: List[SelectOption] = MISSING
+    ) -> None:
+        super().__init__(
+            type=type,
+            custom_id=custom_id,
+            placeholder=placeholder,
+            min_values=min_values,
+            max_values=max_values,
+            disabled=disabled
+        )
+        self.options = [] if options is MISSING else options
 
     def to_dict(self) -> StringSelectMenuPayload:
         payload = cast("StringSelectMenuPayload", super().to_dict())
         payload["options"] = [op.to_dict() for op in self.options]
         return payload
+
+    @classmethod
+    def from_payload(cls, payload: StringSelectMenuPayload) -> Self:
+        self = super().from_payload(payload)
+        self.options = [
+            SelectOption.from_dict(option) for option in payload.get("options", [])
+        ]
+        return self
 
 
 SelectMenu = StringSelectMenu  # backwards compatibility
@@ -476,19 +550,41 @@ class ChannelSelectMenu(BaseSelectMenu):
 
     __repr_info__: ClassVar[Tuple[str, ...]] = BaseSelectMenu.__repr_info__ + __slots__
 
-    def __init__(self, data: ChannelSelectMenuPayload) -> None:
-        super().__init__(data)
-        # on the API side, an empty list is (currently) equivalent to no value
-        channel_types = data.get("channel_types")
-        self.channel_types: Optional[List[ChannelType]] = (
-            [try_enum(ChannelType, t) for t in channel_types] if channel_types else None
+    def __init__(
+        self,
+        type: ComponentType,
+        custom_id: str,
+        placeholder: Optional[str] = None,
+        min_values: int = 1,
+        max_values: int = 1,
+        disabled: bool = False,
+        channel_types: Optional[List[ChannelType]] = None
+        ) -> None:
+        super().__init__(
+            type=type,
+            custom_id=custom_id,
+            placeholder=placeholder,
+            min_values=min_values,
+            max_values=max_values,
+            disabled=disabled
         )
+        self.channel_types =channel_types
 
     def to_dict(self) -> ChannelSelectMenuPayload:
         payload = cast("ChannelSelectMenuPayload", super().to_dict())
         if self.channel_types:
             payload["channel_types"] = [t.value for t in self.channel_types]
         return payload
+
+    @classmethod
+    def from_payload(cls, payload: ChannelSelectMenuPayload) -> Self:
+        # on the API side, an empty list is (currently) equivalent to no value
+        channel_types = payload.get("channel_types")
+        self = super().from_payload(payload)
+        self.channel_types = (
+            [try_enum(ChannelType, t) for t in channel_types] if channel_types else None
+        )
+        return self
 
 
 class SelectOption:
@@ -640,18 +736,28 @@ class TextInput(Component):
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
 
-    def __init__(self, data: TextInputPayload) -> None:
-        style = data.get("style", TextInputStyle.short.value)
+    def __init__(
+        self,
+        type: ComponentType,
+        custom_id: str,
+        style: TextInputStyle = TextInputStyle.short,
+        label: Optional[str] = None,
+        placeholder: Optional[str] = None,
+        value: Optional[str] = None,
+        required: bool = True,
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None
+        ) -> None:
 
-        self.type: ComponentType = try_enum(ComponentType, data["type"])
-        self.custom_id: str = data["custom_id"]
-        self.style: TextInputStyle = try_enum(TextInputStyle, style)
-        self.label: Optional[str] = data.get("label")
-        self.placeholder: Optional[str] = data.get("placeholder")
-        self.value: Optional[str] = data.get("value")
-        self.required: bool = data.get("required", True)
-        self.min_length: Optional[int] = data.get("min_length")
-        self.max_length: Optional[int] = data.get("max_length")
+        self.type: ComponentType = type
+        self.custom_id: str = custom_id
+        self.style: TextInputStyle = style
+        self.label: Optional[str] = label
+        self.placeholder: Optional[str] = placeholder
+        self.value: Optional[str] = value
+        self.required: bool = required
+        self.min_length: Optional[int] = min_length
+        self.max_length: Optional[int] = max_length
 
     def to_dict(self) -> TextInputPayload:
         payload: TextInputPayload = {
@@ -676,6 +782,21 @@ class TextInput(Component):
 
         return payload
 
+    @classmethod
+    def from_payload(cls, payload: TextInputPayload) -> Self:
+        style = payload.get("style", TextInputStyle.short.value)
+        return cls(
+            type=try_enum(ComponentType, payload["type"]),
+            custom_id=payload["custom_id"],
+            style=try_enum(TextInputStyle, style),
+            label=payload.get("label"),
+            placeholder=payload.get("placeholder"),
+            value=payload.get("value"),
+            required =payload.get("required", True),
+            min_length=payload.get("min_length"),
+            max_length=payload.get("max_length")
+        )
+
 
 def _component_factory(data: ComponentPayload, *, type: Type[C] = Component) -> C:
     # NOTE: due to speed, this method does not use the ComponentType enum
@@ -683,21 +804,21 @@ def _component_factory(data: ComponentPayload, *, type: Type[C] = Component) -> 
     # NOTE: The type param is purely for type-checking, it has no implications on runtime behavior.
     component_type = data["type"]
     if component_type == 1:
-        return ActionRow(data)  # type: ignore
+        return ActionRow.from_payload(data)  # type: ignore
     elif component_type == 2:
-        return Button(data)  # type: ignore
+        return Button.from_payload(data)  # type: ignore
     elif component_type == 3:
-        return StringSelectMenu(data)  # type: ignore
+        return StringSelectMenu.from_payload(data)  # type: ignore
     elif component_type == 4:
-        return TextInput(data)  # type: ignore
+        return TextInput.from_payload(data)  # type: ignore
     elif component_type == 5:
-        return UserSelectMenu(data)  # type: ignore
+        return UserSelectMenu.from_payload(data)  # type: ignore
     elif component_type == 6:
-        return RoleSelectMenu(data)  # type: ignore
+        return RoleSelectMenu.from_payload(data)  # type: ignore
     elif component_type == 7:
-        return MentionableSelectMenu(data)  # type: ignore
+        return MentionableSelectMenu.from_payload(data)  # type: ignore
     elif component_type == 8:
-        return ChannelSelectMenu(data)  # type: ignore
+        return ChannelSelectMenu.from_payload(data)  # type: ignore
     else:
         assert_never(component_type)
         as_enum = try_enum(ComponentType, component_type)
