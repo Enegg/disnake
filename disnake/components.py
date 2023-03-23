@@ -152,9 +152,9 @@ class ActionRow(Component, Generic[ComponentT]):
 
     def to_dict(self) -> ActionRowPayload:
         return {
-            "type": int(self.type),
+            "type": self.type.value,
             "components": [child.to_dict() for child in self.children],
-        }  # type: ignore
+        }
 
     @classmethod
     def from_payload(cls, payload: ActionRowPayload) -> Self:
