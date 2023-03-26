@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from ..components import TextInput as TextInputComponent
-from ..enums import ComponentType, TextInputStyle
+from ..enums import TextInputStyle
 from ..utils import MISSING
 from .item import WrappedComponent
+
+if TYPE_CHECKING:
+    from ..types.components import ModalComponentPayload
 
 __all__ = ("TextInput",)
 
 
-class TextInput(WrappedComponent):
+class TextInput(WrappedComponent[ModalComponentPayload]):
     """Represents a UI text input.
 
     This can only be used in a :class:`~.ui.Modal`.
@@ -64,8 +67,7 @@ class TextInput(WrappedComponent):
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
     ) -> None:
-        self._underlying = TextInputComponent._raw_construct(
-            type=ComponentType.text_input,
+        self._underlying = TextInputComponent(
             style=style,
             label=label,
             custom_id=custom_id,

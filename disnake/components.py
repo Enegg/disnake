@@ -26,17 +26,21 @@ if TYPE_CHECKING:
 
     from .emoji import Emoji
     from .types.components import (
-        ActionRow as ActionRowPayload,
-        BaseSelectMenu as BaseSelectMenuPayload,
-        ButtonComponent as ButtonComponentPayload,
-        ChannelSelectMenu as ChannelSelectMenuPayload,
-        Component as ComponentPayload,
-        MentionableSelectMenu as MentionableSelectMenuPayload,
-        RoleSelectMenu as RoleSelectMenuPayload,
-        SelectOption as SelectOptionPayload,
-        StringSelectMenu as StringSelectMenuPayload,
-        TextInput as TextInputPayload,
-        UserSelectMenu as UserSelectMenuPayload,
+        ActionRowPayload,
+        BaseSelectMenuPayload,
+        ButtonPayload,
+        ChannelSelectMenuPayload,
+        ComponentPayload,
+        ConstrainedComponentPayloadT,
+        MentionableSelectMenuPayload,
+        MessageComponentPayload,
+        ModalComponentPayload,
+        RoleSelectMenuPayload,
+        SelectOptionPayload,
+        StringSelectMenuPayload,
+        TextInputPayload,
+        UrlButtonPayload,
+        UserSelectMenuPayload,
     )
 
 __all__ = (
@@ -56,6 +60,7 @@ __all__ = (
 
 C = TypeVar("C", bound="Component")
 
+AnyButton = Union["Button", "UrlButton"]
 AnySelectMenu = Union[
     "StringSelectMenu",
     "UserSelectMenu",
@@ -63,7 +68,7 @@ AnySelectMenu = Union[
     "MentionableSelectMenu",
     "ChannelSelectMenu",
 ]
-MessageComponent = Union["Button", "AnySelectMenu"]
+MessageComponent = Union[AnyButton, AnySelectMenu]
 
 if TYPE_CHECKING:  # TODO: remove when we add modal select support
     from typing_extensions import TypeAlias

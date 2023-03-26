@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from ..abc import MessageableChannel
     from ..app_commands import Choices
     from ..client import Client
+    from ..components import NestedMessageComponents, NestedModalComponents
     from ..embeds import Embed
     from ..ext.commands import AutoShardedBot, Bot
     from ..file import File
@@ -74,14 +75,13 @@ if TYPE_CHECKING:
     from ..mentions import AllowedMentions
     from ..state import ConnectionState
     from ..threads import Thread
-    from ..types.components import Modal as ModalPayload
+    from ..types.components import ModalPayload
     from ..types.interactions import (
         ApplicationCommandOptionChoice as ApplicationCommandOptionChoicePayload,
         Interaction as InteractionPayload,
         InteractionDataResolved as InteractionDataResolvedPayload,
     )
     from ..types.snowflake import Snowflake
-    from ..ui.action_row import Components, MessageUIComponent, ModalUIComponent
     from ..ui.modal import Modal
     from ..ui.view import View
     from .message import MessageInteraction
@@ -382,7 +382,7 @@ class Interaction:
         files: List[File] = MISSING,
         attachments: Optional[List[Attachment]] = MISSING,
         view: Optional[View] = MISSING,
-        components: Optional[Components[MessageUIComponent]] = MISSING,
+        components: Optional[NestedMessageComponents] = MISSING,
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: Optional[AllowedMentions] = None,
@@ -597,7 +597,7 @@ class Interaction:
         files: List[File] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
         view: View = MISSING,
-        components: Components[MessageUIComponent] = MISSING,
+        components: NestedMessageComponents = MISSING,
         tts: bool = False,
         ephemeral: bool = MISSING,
         suppress_embeds: bool = MISSING,
@@ -874,7 +874,7 @@ class InteractionResponse:
         files: List[File] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
         view: View = MISSING,
-        components: Components[MessageUIComponent] = MISSING,
+        components: NestedMessageComponents = MISSING,
         tts: bool = False,
         ephemeral: bool = MISSING,
         suppress_embeds: bool = MISSING,
@@ -1059,7 +1059,7 @@ class InteractionResponse:
         attachments: Optional[List[Attachment]] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
         view: Optional[View] = MISSING,
-        components: Optional[Components[MessageUIComponent]] = MISSING,
+        components: Optional[NestedMessageComponents] = MISSING,
     ) -> None:
         """|coro|
 
@@ -1283,7 +1283,7 @@ class InteractionResponse:
         *,
         title: str,
         custom_id: str,
-        components: Components[ModalUIComponent],
+        components: NestedModalComponents,
     ) -> None:
         ...
 
@@ -1293,7 +1293,7 @@ class InteractionResponse:
         *,
         title: Optional[str] = None,
         custom_id: Optional[str] = None,
-        components: Optional[Components[ModalUIComponent]] = None,
+        components: Optional[NestedModalComponents] = None,
     ) -> None:
         """|coro|
 
@@ -1486,7 +1486,7 @@ class InteractionMessage(Message):
         flags: MessageFlags = ...,
         allowed_mentions: Optional[AllowedMentions] = ...,
         view: Optional[View] = ...,
-        components: Optional[Components[MessageUIComponent]] = ...,
+        components: Optional[NestedMessageComponents] = ...,
     ) -> InteractionMessage:
         ...
 
@@ -1502,7 +1502,7 @@ class InteractionMessage(Message):
         flags: MessageFlags = ...,
         allowed_mentions: Optional[AllowedMentions] = ...,
         view: Optional[View] = ...,
-        components: Optional[Components[MessageUIComponent]] = ...,
+        components: Optional[NestedMessageComponents] = ...,
     ) -> InteractionMessage:
         ...
 
@@ -1518,7 +1518,7 @@ class InteractionMessage(Message):
         flags: MessageFlags = ...,
         allowed_mentions: Optional[AllowedMentions] = ...,
         view: Optional[View] = ...,
-        components: Optional[Components[MessageUIComponent]] = ...,
+        components: Optional[NestedMessageComponents] = ...,
     ) -> InteractionMessage:
         ...
 
@@ -1534,7 +1534,7 @@ class InteractionMessage(Message):
         flags: MessageFlags = ...,
         allowed_mentions: Optional[AllowedMentions] = ...,
         view: Optional[View] = ...,
-        components: Optional[Components[MessageUIComponent]] = ...,
+        components: Optional[NestedMessageComponents] = ...,
     ) -> InteractionMessage:
         ...
 
@@ -1551,7 +1551,7 @@ class InteractionMessage(Message):
         flags: MessageFlags = MISSING,
         allowed_mentions: Optional[AllowedMentions] = MISSING,
         view: Optional[View] = MISSING,
-        components: Optional[Components[MessageUIComponent]] = MISSING,
+        components: Optional[NestedMessageComponents] = MISSING,
     ) -> Message:
         """|coro|
 

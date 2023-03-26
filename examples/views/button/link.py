@@ -26,7 +26,7 @@ class Google(disnake.ui.View):
 
         # Link buttons cannot be made with the decorator, therefore we have to manually create one.
         # We add the url to the button, and add the button to the view.
-        self.add_item(disnake.ui.Button(label="Click Here", url=url))
+        self.add_item(disnake.ui.UrlButton(label="Click Here", url=url))
 
 
 bot = commands.Bot(command_prefix=commands.when_mentioned)

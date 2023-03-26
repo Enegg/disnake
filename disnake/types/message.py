@@ -7,7 +7,7 @@ from typing import List, Literal, Optional, TypedDict, Union
 from typing_extensions import NotRequired
 
 from .channel import ChannelType
-from .components import Component
+from .components import ActionRowPayload, MessageComponentPayload
 from .embed import Embed
 from .emoji import PartialEmoji
 from .interactions import InteractionMessageReference
@@ -100,7 +100,7 @@ class Message(TypedDict):
     referenced_message: NotRequired[Optional[Message]]
     interaction: NotRequired[InteractionMessageReference]
     thread: NotRequired[Thread]
-    components: NotRequired[List[Component]]
+    components: NotRequired[List[ActionRowPayload[MessageComponentPayload]]]
     sticker_items: NotRequired[List[StickerItem]]
     position: NotRequired[int]
 

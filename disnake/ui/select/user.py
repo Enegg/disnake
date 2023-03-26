@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Optional, Type, TypeVar, Union, overload
 
 from ...components import UserSelectMenu
-from ...enums import ComponentType
 from ...utils import MISSING
-from .base import BaseSelect, P, V_co, _create_decorator
+from .base import BaseSelect, P, V, _create_decorator
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -23,7 +22,7 @@ __all__ = (
 )
 
 
-class UserSelect(BaseSelect[UserSelectMenu, "Union[User, Member]", V_co]):
+class UserSelect(BaseSelect[UserSelectMenu, "Union[User, Member]", V]):
     """Represents a UI user select menu.
 
     This is usually represented as a drop down menu.
@@ -75,7 +74,7 @@ class UserSelect(BaseSelect[UserSelectMenu, "Union[User, Member]", V_co]):
 
     @overload
     def __init__(
-        self: UserSelect[V_co],
+        self: UserSelect[V],
         *,
         custom_id: str = ...,
         placeholder: Optional[str] = None,
@@ -98,7 +97,6 @@ class UserSelect(BaseSelect[UserSelectMenu, "Union[User, Member]", V_co]):
     ) -> None:
         super().__init__(
             UserSelectMenu,
-            ComponentType.user_select,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
@@ -131,7 +129,7 @@ def user_select(
     max_values: int = 1,
     disabled: bool = False,
     row: Optional[int] = None,
-) -> Callable[[ItemCallbackType[UserSelect[V_co]]], DecoratedItem[UserSelect[V_co]]]:
+) -> Callable[[ItemCallbackType[UserSelect[V]]], DecoratedItem[UserSelect[V]]]:
     ...
 
 

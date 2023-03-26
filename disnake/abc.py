@@ -65,6 +65,7 @@ if TYPE_CHECKING:
     from .asset import Asset
     from .channel import CategoryChannel, DMChannel, PartialMessageable
     from .client import Client
+    from .components import NestedMessageComponents
     from .embeds import Embed
     from .emoji import Emoji
     from .enums import InviteTarget
@@ -83,7 +84,6 @@ if TYPE_CHECKING:
         PermissionOverwrite as PermissionOverwritePayload,
     )
     from .types.threads import PartialForumTag as PartialForumTagPayload
-    from .ui.action_row import Components, MessageUIComponent
     from .ui.view import View
     from .user import ClientUser
     from .voice_region import VoiceRegion
@@ -1364,7 +1364,7 @@ class Messageable:
         reference: Union[Message, MessageReference, PartialMessage] = ...,
         mention_author: bool = ...,
         view: View = ...,
-        components: Components[MessageUIComponent] = ...,
+        components: NestedMessageComponents = ...,
     ) -> Message:
         ...
 
@@ -1385,7 +1385,7 @@ class Messageable:
         reference: Union[Message, MessageReference, PartialMessage] = ...,
         mention_author: bool = ...,
         view: View = ...,
-        components: Components[MessageUIComponent] = ...,
+        components: NestedMessageComponents = ...,
     ) -> Message:
         ...
 
@@ -1406,7 +1406,7 @@ class Messageable:
         reference: Union[Message, MessageReference, PartialMessage] = ...,
         mention_author: bool = ...,
         view: View = ...,
-        components: Components[MessageUIComponent] = ...,
+        components: NestedMessageComponents = ...,
     ) -> Message:
         ...
 
@@ -1427,7 +1427,7 @@ class Messageable:
         reference: Union[Message, MessageReference, PartialMessage] = ...,
         mention_author: bool = ...,
         view: View = ...,
-        components: Components[MessageUIComponent] = ...,
+        components: NestedMessageComponents = ...,
     ) -> Message:
         ...
 
@@ -1449,7 +1449,7 @@ class Messageable:
         reference: Optional[Union[Message, MessageReference, PartialMessage]] = None,
         mention_author: Optional[bool] = None,
         view: Optional[View] = None,
-        components: Optional[Components[MessageUIComponent]] = None,
+        components: Optional[NestedMessageComponents] = None,
     ):
         """|coro|
 

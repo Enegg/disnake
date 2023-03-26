@@ -29,6 +29,7 @@ from ..components import (
     MessageComponent,
     RoleSelectMenu as RoleSelectComponent,
     StringSelectMenu as StringSelectComponent,
+    UrlButton as UrlButtonComponent,
     UserSelectMenu as UserSelectComponent,
     _component_factory,
 )
@@ -61,6 +62,10 @@ def _component_to_item(component: MessageComponent) -> Item:
         from .button import Button
 
         return Button.from_component(component)
+    if isinstance(component, UrlButtonComponent):
+        from .button import UrlButton
+
+        return UrlButton.from_component(component)
     if isinstance(component, StringSelectComponent):
         from .select import StringSelect
 

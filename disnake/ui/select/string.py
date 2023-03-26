@@ -17,9 +17,8 @@ from typing import (
 )
 
 from ...components import SelectOption, StringSelectMenu
-from ...enums import ComponentType
 from ...utils import MISSING
-from .base import BaseSelect, P, V_co, _create_decorator
+from .base import BaseSelect, P, V, _create_decorator
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -47,7 +46,7 @@ def _parse_select_options(options: SelectOptionInput) -> List[SelectOption]:
     return [opt if isinstance(opt, SelectOption) else SelectOption(label=opt) for opt in options]
 
 
-class StringSelect(BaseSelect[StringSelectMenu, str, V_co]):
+class StringSelect(BaseSelect[StringSelectMenu, str, V]):
     """Represents a UI string select menu.
 
     This is usually represented as a drop down menu.
@@ -114,7 +113,7 @@ class StringSelect(BaseSelect[StringSelectMenu, str, V_co]):
 
     @overload
     def __init__(
-        self: StringSelect[V_co],
+        self: StringSelect[V],
         *,
         custom_id: str = ...,
         placeholder: Optional[str] = None,
@@ -139,7 +138,6 @@ class StringSelect(BaseSelect[StringSelectMenu, str, V_co]):
     ) -> None:
         super().__init__(
             StringSelectMenu,
-            ComponentType.string_select,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
@@ -256,7 +254,7 @@ def string_select(
     options: SelectOptionInput = ...,
     disabled: bool = False,
     row: Optional[int] = None,
-) -> Callable[[ItemCallbackType[StringSelect[V_co]]], DecoratedItem[StringSelect[V_co]]]:
+) -> Callable[[ItemCallbackType[StringSelect[V]]], DecoratedItem[StringSelect[V]]]:
     ...
 
 

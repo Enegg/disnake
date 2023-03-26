@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Optional, Type, TypeVar, overload
 
 from ...components import RoleSelectMenu
-from ...enums import ComponentType
 from ...utils import MISSING
-from .base import BaseSelect, P, V_co, _create_decorator
+from .base import BaseSelect, P, V, _create_decorator
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -22,7 +21,7 @@ __all__ = (
 )
 
 
-class RoleSelect(BaseSelect[RoleSelectMenu, "Role", V_co]):
+class RoleSelect(BaseSelect[RoleSelectMenu, "Role", V]):
     """Represents a UI user select menu.
 
     This is usually represented as a drop down menu.
@@ -74,7 +73,7 @@ class RoleSelect(BaseSelect[RoleSelectMenu, "Role", V_co]):
 
     @overload
     def __init__(
-        self: RoleSelect[V_co],
+        self: RoleSelect[V],
         *,
         custom_id: str = ...,
         placeholder: Optional[str] = None,
@@ -97,7 +96,6 @@ class RoleSelect(BaseSelect[RoleSelectMenu, "Role", V_co]):
     ) -> None:
         super().__init__(
             RoleSelectMenu,
-            ComponentType.role_select,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
@@ -130,7 +128,7 @@ def role_select(
     max_values: int = 1,
     disabled: bool = False,
     row: Optional[int] = None,
-) -> Callable[[ItemCallbackType[RoleSelect[V_co]]], DecoratedItem[RoleSelect[V_co]]]:
+) -> Callable[[ItemCallbackType[RoleSelect[V]]], DecoratedItem[RoleSelect[V]]]:
     ...
 
 

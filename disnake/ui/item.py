@@ -12,31 +12,41 @@ from typing import (
     Optional,
     Protocol,
     Tuple,
-    TypeVar,
     overload,
 )
 
 __all__ = ("Item", "WrappedComponent")
 
-ItemT = TypeVar("ItemT", bound="Item")
-V_co = TypeVar("V_co", bound="Optional[View]", covariant=True)
-
 if TYPE_CHECKING:
-    from typing_extensions import ParamSpec, Self
+    from typing_extensions import ParamSpec, Self, TypeVar
 
-    from ..components import NestedComponent
+    from ..components import Componentish, MessageComponent
     from ..enums import ComponentType
     from ..interactions import MessageInteraction
-    from ..types.components import Component as ComponentPayload
+    from ..types.components import ConstrainedComponentPayloadT
+    from ..types.components import MessageComponentPayload
     from .view import View
 
-    ItemCallbackType = Callable[[Any, ItemT, MessageInteraction], Coroutine[Any, Any, Any]]
-
 else:
+    from typing import TypeVar
     ParamSpec = TypeVar
 
+V = TypeVar("V", bound="Optional[View]", infer_variance=True, default=None)
+I = TypeVar("I", bound="Item", infer_variance=True)
+ItemCallbackType = Callable[[Any, I, MessageInteraction], Coroutine[Any, Any, Any]]
 
-class WrappedComponent(ABC):
+
+class Itemish(Componentish[ConstrainedComponentPayloadT], Protocol[ConstrainedComponentPayloadT]):
+    @property
+    def _underlying(self) -> Componentish[ConstrainedComponentPayloadT]:
+        ...
+
+    @property
+    def width(self) -> int:
+        ...
+
+
+class WrappedComponent(ABC, Generic[ConstrainedComponentPayloadT]):
     """Represents the base UI component that all UI components inherit from.
 
     The following classes implement this ABC:
@@ -52,7 +62,7 @@ class WrappedComponent(ABC):
 
     @property
     @abstractmethod
-    def _underlying(self) -> NestedComponent:
+    def _underlying(self) -> Componentish[ConstrainedComponentPayloadT]:
         ...
 
     @property
@@ -68,11 +78,11 @@ class WrappedComponent(ABC):
     def type(self) -> ComponentType:
         return self._underlying.type
 
-    def to_component_dict(self) -> ComponentPayload:
+    def to_dict(self) -> ConstrainedComponentPayloadT:
         return self._underlying.to_dict()
 
 
-class Item(WrappedComponent, Generic[V_co]):
+class Item(WrappedComponent[MessageComponentPayload], Generic[V]):
     """Represents the base UI item that all UI items inherit from.
 
     This class adds more functionality on top of the :class:`WrappedComponent` base class.
@@ -93,11 +103,11 @@ class Item(WrappedComponent, Generic[V_co]):
         ...
 
     @overload
-    def __init__(self: Item[V_co]) -> None:
+    def __init__(self: Item[V]) -> None:
         ...
 
     def __init__(self) -> None:
-        self._view: V_co = None  # type: ignore
+        self._view: V = None  # type: ignore
         self._row: Optional[int] = None
         self._rendered_row: Optional[int] = None
         # This works mostly well but there is a gotcha with
@@ -108,20 +118,22 @@ class Item(WrappedComponent, Generic[V_co]):
         # only called upon edit and we're mainly interested during initial creation time.
         self._provided_custom_id: bool = False
 
-    def refresh_component(self, component: NestedComponent) -> None:
+    def refresh_component(self, component: MessageComponent) -> None:
         return None
 
     def refresh_state(self, interaction: MessageInteraction) -> None:
         return None
 
     @classmethod
-    def from_component(cls, component: NestedComponent) -> Self:
+    def from_component(cls, component: MessageComponent) -> Self:
         return cls()
 
-    def is_dispatchable(self) -> bool:
+    @property
+    def dispatchable(self) -> bool:
         return False
 
-    def is_persistent(self) -> bool:
+    @property
+    def persistent(self) -> bool:
         return self._provided_custom_id
 
     @property
@@ -138,7 +150,7 @@ class Item(WrappedComponent, Generic[V_co]):
             raise ValueError("row cannot be negative or greater than or equal to 5")
 
     @property
-    def view(self) -> V_co:
+    def view(self) -> V:
         """Optional[:class:`View`]: The underlying view for this item."""
         return self._view
 
@@ -157,28 +169,25 @@ class Item(WrappedComponent, Generic[V_co]):
         pass
 
 
-I_co = TypeVar("I_co", bound=Item, covariant=True)
-
-
 # while the decorators don't actually return a descriptor that matches this protocol,
 # this protocol ensures that type checkers don't complain about statements like `self.button.disabled = True`,
 # which work as `View.__init__` replaces the handler with the item
-class DecoratedItem(Protocol[I_co]):
+class DecoratedItem(Protocol[I]):
     @overload
     def __get__(self, obj: None, objtype: Any) -> ItemCallbackType:
         ...
 
     @overload
-    def __get__(self, obj: Any, objtype: Any) -> I_co:
+    def __get__(self, obj: Any, objtype: Any) -> I:
         ...
 
 
-T_co = TypeVar("T_co", covariant=True)
+T = TypeVar("T", infer_variance=True)
 P = ParamSpec("P")
 
 
-class Object(Protocol[T_co, P]):
-    def __new__(cls) -> T_co:
+class Object(Protocol[T, P]):
+    def __new__(cls) -> T:
         ...
 
     def __init__(*args: P.args, **kwargs: P.kwargs) -> None:

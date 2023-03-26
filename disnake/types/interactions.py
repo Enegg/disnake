@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Dict, List, Literal, Optional, TypedDict, Unio
 from typing_extensions import NotRequired
 
 from .channel import ChannelType
-from .components import Component, Modal
+from .components import (
+    ActionRowPayload,
+    MessageComponentPayload,
+    ModalComponentPayload,
+    ModalPayload,
+)
 from .embed import Embed
 from .i18n import LocalizationDict
 from .member import Member, MemberWithUser
@@ -305,7 +310,7 @@ class InteractionApplicationCommandCallbackData(TypedDict, total=False):
     embeds: List[Embed]
     allowed_mentions: AllowedMentions
     flags: int
-    components: List[Component]
+    components: List[Union[ActionRowPayload[MessageComponentPayload], ActionRowPayload[ModalComponentPayload]]]
     # TODO: missing attachment field
 
 
@@ -318,7 +323,7 @@ InteractionResponseType = Literal[1, 4, 5, 6, 7]
 InteractionCallbackData = Union[
     InteractionApplicationCommandCallbackData,
     InteractionAutocompleteCallbackData,
-    Modal,
+    ModalPayload,
 ]
 
 

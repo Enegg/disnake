@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Optional, Type, TypeVar, Union, overload
 
 from ...components import MentionableSelectMenu
-from ...enums import ComponentType
 from ...utils import MISSING
-from .base import BaseSelect, P, V_co, _create_decorator
+from .base import BaseSelect, P, V, _create_decorator
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -24,7 +23,7 @@ __all__ = (
 )
 
 
-class MentionableSelect(BaseSelect[MentionableSelectMenu, "Union[User, Member, Role]", V_co]):
+class MentionableSelect(BaseSelect[MentionableSelectMenu, "Union[User, Member, Role]", V]):
     """Represents a UI mentionable (user/member/role) select menu.
 
     This is usually represented as a drop down menu.
@@ -76,7 +75,7 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, "Union[User, Member, R
 
     @overload
     def __init__(
-        self: MentionableSelect[V_co],
+        self: MentionableSelect[V],
         *,
         custom_id: str = ...,
         placeholder: Optional[str] = None,
@@ -99,7 +98,6 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, "Union[User, Member, R
     ) -> None:
         super().__init__(
             MentionableSelectMenu,
-            ComponentType.mentionable_select,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
@@ -132,7 +130,7 @@ def mentionable_select(
     max_values: int = 1,
     disabled: bool = False,
     row: Optional[int] = None,
-) -> Callable[[ItemCallbackType[MentionableSelect[V_co]]], DecoratedItem[MentionableSelect[V_co]]]:
+) -> Callable[[ItemCallbackType[MentionableSelect[V]]], DecoratedItem[MentionableSelect[V]]]:
     ...
 
 

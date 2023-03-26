@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Type, TypeVar, overload
 
 from ...components import ChannelSelectMenu
-from ...enums import ChannelType, ComponentType
+from ...enums import ChannelType
 from ...utils import MISSING
-from .base import BaseSelect, P, V_co, _create_decorator
+from .base import BaseSelect, P, V, _create_decorator
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -22,7 +22,7 @@ __all__ = (
 )
 
 
-class ChannelSelect(BaseSelect[ChannelSelectMenu, "InteractionChannel", V_co]):
+class ChannelSelect(BaseSelect[ChannelSelectMenu, "InteractionChannel", V]):
     """Represents a UI channel select menu.
 
     This is usually represented as a drop down menu.
@@ -80,7 +80,7 @@ class ChannelSelect(BaseSelect[ChannelSelectMenu, "InteractionChannel", V_co]):
 
     @overload
     def __init__(
-        self: ChannelSelect[V_co],
+        self: ChannelSelect[V],
         *,
         custom_id: str = ...,
         placeholder: Optional[str] = None,
@@ -105,7 +105,6 @@ class ChannelSelect(BaseSelect[ChannelSelectMenu, "InteractionChannel", V_co]):
     ) -> None:
         super().__init__(
             ChannelSelectMenu,
-            ComponentType.channel_select,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
@@ -156,7 +155,7 @@ def channel_select(
     disabled: bool = False,
     channel_types: Optional[List[ChannelType]] = None,
     row: Optional[int] = None,
-) -> Callable[[ItemCallbackType[ChannelSelect[V_co]]], DecoratedItem[ChannelSelect[V_co]]]:
+) -> Callable[[ItemCallbackType[ChannelSelect[V]]], DecoratedItem[ChannelSelect[V]]]:
     ...
 
 

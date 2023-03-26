@@ -19,7 +19,6 @@ from typing import (
 )
 
 from ...components import AnySelectMenu
-from ...enums import ComponentType
 from ...utils import MISSING
 from ..item import DecoratedItem, Item, Object
 
@@ -37,13 +36,13 @@ else:
 
 
 S_co = TypeVar("S_co", bound="BaseSelect", covariant=True)
-V_co = TypeVar("V_co", bound="Optional[View]", covariant=True)
+V = TypeVar("V", bound="Optional[View]", covariant=True)
 SelectMenuT = TypeVar("SelectMenuT", bound=AnySelectMenu)
 SelectValueT = TypeVar("SelectValueT")
 P = ParamSpec("P")
 
 
-class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
+class BaseSelect(Generic[SelectMenuT, SelectValueT, V], Item[V], ABC):
     """Represents an abstract UI select menu.
 
     This is usually represented as a drop down menu.
@@ -71,7 +70,6 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
     def __init__(
         self,
         underlying_type: Type[SelectMenuT],
-        component_type: ComponentType,
         *,
         custom_id: str,
         placeholder: Optional[str],
@@ -84,9 +82,8 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
         self._selected_values: List[SelectValueT] = []
         self._provided_custom_id = custom_id is not MISSING
         custom_id = os.urandom(16).hex() if custom_id is MISSING else custom_id
-        self._underlying = underlying_type._raw_construct(
+        self._underlying = underlying_type(
             custom_id=custom_id,
-            type=component_type,
             placeholder=placeholder,
             min_values=min_values,
             max_values=max_values,
@@ -164,7 +161,8 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
     def from_component(cls, component: SelectMenuT) -> Self:
         raise NotImplementedError
 
-    def is_dispatchable(self) -> bool:
+    @property
+    def dispatchable(self) -> bool:
         """Whether the select menu is dispatchable. This will always return ``True``.
 
         :return type: :class:`bool`

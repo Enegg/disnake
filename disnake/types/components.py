@@ -2,37 +2,51 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, TypedDict, Union
+from typing import Generic, List, Literal, TypeAlias, Union
 
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, TypedDict, TypeVar
 
 from .channel import ChannelType
 from .emoji import PartialEmoji
 
 ComponentType = Literal[1, 2, 3, 4, 5, 6, 7, 8]
-ButtonStyle = Literal[1, 2, 3, 4, 5]
+ButtonStyle = Literal[1, 2, 3, 4]
+UrlButtonStyle = Literal[5]
 TextInputStyle = Literal[1, 2]
 
 
-Component = Union["ActionRow", "ButtonComponent", "AnySelectMenu", "TextInput"]
+MessageComponentPayload = Union["AnyButtonPayload", "AnySelectMenuPayload"]
+NestedMessageComponentPayload = Union["ActionRowPayload[MessageComponentPayload]", MessageComponentPayload]
+ModalComponentPayload: TypeAlias = "TextInputPayload"
+NestedModalComponentPayload = Union["ActionRowPayload[ModalComponentPayload]", ModalComponentPayload]
+ComponentPayload = Union[NestedMessageComponentPayload, NestedModalComponentPayload]
+ConstrainedComponentPayloadT = TypeVar("ConstrainedComponentPayloadT", MessageComponentPayload, ModalComponentPayload, infer_variance=True)
 
 
-class ActionRow(TypedDict):
+class ActionRowPayload(TypedDict, Generic[ConstrainedComponentPayloadT]):
     type: Literal[1]
-    components: List[Component]
+    components: List[ConstrainedComponentPayloadT]
 
 
-class ButtonComponent(TypedDict):
+class ButtonPayload(TypedDict):
     type: Literal[2]
     style: ButtonStyle
     label: NotRequired[str]
     emoji: NotRequired[PartialEmoji]
-    custom_id: NotRequired[str]
-    url: NotRequired[str]
+    custom_id: str
     disabled: NotRequired[bool]
 
 
-class SelectOption(TypedDict):
+class UrlButtonPayload(TypedDict):
+    type: Literal[2]
+    style: UrlButtonStyle
+    label: NotRequired[str]
+    emoji: NotRequired[PartialEmoji]
+    url: str
+    disabled: NotRequired[bool]
+
+
+class SelectOptionPayload(TypedDict):
     label: str
     value: str
     description: NotRequired[str]
@@ -40,7 +54,7 @@ class SelectOption(TypedDict):
     default: NotRequired[bool]
 
 
-class _SelectMenu(TypedDict):
+class _SelectMenuPayload(TypedDict):
     custom_id: str
     placeholder: NotRequired[str]
     min_values: NotRequired[int]
@@ -48,48 +62,52 @@ class _SelectMenu(TypedDict):
     disabled: NotRequired[bool]
 
 
-class BaseSelectMenu(_SelectMenu):
+class BaseSelectMenuPayload(_SelectMenuPayload):
     type: Literal[3, 5, 6, 7, 8]
 
 
-class StringSelectMenu(_SelectMenu):
+class StringSelectMenuPayload(_SelectMenuPayload):
     type: Literal[3]
-    options: List[SelectOption]
+    options: List[SelectOptionPayload]
 
 
-class UserSelectMenu(_SelectMenu):
+class UserSelectMenuPayload(_SelectMenuPayload):
     type: Literal[5]
 
 
-class RoleSelectMenu(_SelectMenu):
+class RoleSelectMenuPayload(_SelectMenuPayload):
     type: Literal[6]
 
 
-class MentionableSelectMenu(_SelectMenu):
+class MentionableSelectMenuPayload(_SelectMenuPayload):
     type: Literal[7]
 
 
-class ChannelSelectMenu(_SelectMenu):
+class ChannelSelectMenuPayload(_SelectMenuPayload):
     type: Literal[8]
     channel_types: NotRequired[List[ChannelType]]
 
 
-AnySelectMenu = Union[
-    StringSelectMenu,
-    UserSelectMenu,
-    RoleSelectMenu,
-    MentionableSelectMenu,
-    ChannelSelectMenu,
+AnyButtonPayload = Union[
+    ButtonPayload,
+    UrlButtonPayload
+]
+AnySelectMenuPayload = Union[
+    StringSelectMenuPayload,
+    UserSelectMenuPayload,
+    RoleSelectMenuPayload,
+    MentionableSelectMenuPayload,
+    ChannelSelectMenuPayload,
 ]
 
 
-class Modal(TypedDict):
+class ModalPayload(TypedDict):
     title: str
     custom_id: str
-    components: List[ActionRow]
+    components: List[ActionRowPayload[ModalComponentPayload]]
 
 
-class TextInput(TypedDict):
+class TextInputPayload(TypedDict):
     type: Literal[4]
     custom_id: str
     style: TextInputStyle

@@ -67,6 +67,7 @@ if TYPE_CHECKING:
 
     from .abc import Snowflake, SnowflakeTime
     from .asset import AssetBytes
+    from .components import NestedMessageComponents
     from .embeds import Embed
     from .emoji import Emoji
     from .guild import Guild, GuildChannel as GuildChannelType
@@ -87,7 +88,6 @@ if TYPE_CHECKING:
     )
     from .types.snowflake import SnowflakeList
     from .types.threads import ThreadArchiveDurationLiteral
-    from .ui.action_row import Components, MessageUIComponent
     from .ui.view import View
     from .user import BaseUser, ClientUser, User
     from .voice_region import VoiceRegion
@@ -3343,7 +3343,7 @@ class ForumChannel(disnake.abc.GuildChannel, Hashable):
         stickers: Sequence[Union[GuildSticker, StickerItem]] = ...,
         allowed_mentions: AllowedMentions = ...,
         view: View = ...,
-        components: Components = ...,
+        components: NestedMessageComponents = ...,
         reason: Optional[str] = None,
     ) -> ThreadWithMessage:
         ...
@@ -3364,7 +3364,7 @@ class ForumChannel(disnake.abc.GuildChannel, Hashable):
         stickers: Sequence[Union[GuildSticker, StickerItem]] = ...,
         allowed_mentions: AllowedMentions = ...,
         view: View = ...,
-        components: Components = ...,
+        components: NestedMessageComponents = ...,
         reason: Optional[str] = None,
     ) -> ThreadWithMessage:
         ...
@@ -3385,7 +3385,7 @@ class ForumChannel(disnake.abc.GuildChannel, Hashable):
         stickers: Sequence[Union[GuildSticker, StickerItem]] = ...,
         allowed_mentions: AllowedMentions = ...,
         view: View = ...,
-        components: Components = ...,
+        components: NestedMessageComponents = ...,
         reason: Optional[str] = None,
     ) -> ThreadWithMessage:
         ...
@@ -3406,7 +3406,7 @@ class ForumChannel(disnake.abc.GuildChannel, Hashable):
         stickers: Sequence[Union[GuildSticker, StickerItem]] = ...,
         allowed_mentions: AllowedMentions = ...,
         view: View = ...,
-        components: Components = ...,
+        components: NestedMessageComponents = ...,
         reason: Optional[str] = None,
     ) -> ThreadWithMessage:
         ...
@@ -3428,7 +3428,7 @@ class ForumChannel(disnake.abc.GuildChannel, Hashable):
         stickers: Sequence[Union[GuildSticker, StickerItem]] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
         view: View = MISSING,
-        components: Components[MessageUIComponent] = MISSING,
+        components: NestedMessageComponents = MISSING,
         reason: Optional[str] = None,
     ) -> ThreadWithMessage:
         """|coro|
