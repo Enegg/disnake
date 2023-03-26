@@ -10,11 +10,15 @@ from typing import (
     Generic,
     List,
     Optional,
+    Protocol,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
     Union,
     cast,
+    overload,
+    runtime_checkable,
 )
 
 from .enums import ButtonStyle, ChannelType, ComponentType, TextInputStyle, try_enum
@@ -43,10 +47,15 @@ if TYPE_CHECKING:
         UserSelectMenuPayload,
     )
 
+    ComponentishT = TypeVar("ComponentishT", bound="Componentish", infer_variance=True)
+else:
+    ComponentishT = TypeVar("ComponentishT", bound="Componentish")
+
 __all__ = (
     "Component",
     "ActionRow",
     "Button",
+    "UrlButton",
     "BaseSelectMenu",
     "StringSelectMenu",
     "SelectMenu",
@@ -76,8 +85,48 @@ if TYPE_CHECKING:  # TODO: remove when we add modal select support
 # ModalComponent = Union["TextInput", "AnySelectMenu"]
 ModalComponent: TypeAlias = "TextInput"
 
-NestedComponent = Union[MessageComponent, ModalComponent]
-ComponentT = TypeVar("ComponentT", bound=NestedComponent)
+
+@runtime_checkable
+class Componentish(Protocol[ConstrainedComponentPayloadT]):
+    @property
+    def type(self) -> ComponentType:
+        ...
+
+    def to_dict(self) -> ConstrainedComponentPayloadT:
+        ...
+
+
+@runtime_checkable
+class ActionRowish(Protocol[ComponentishT]):
+    @property
+    def type(self) -> ComponentType:
+        ...
+
+    @property
+    def children(self) -> Sequence[ComponentishT]:
+        ...
+
+    @overload
+    def to_dict(self: ActionRowish[Componentish[MessageComponentPayload]]) -> ActionRowPayload[MessageComponentPayload]:
+        ...
+
+    @overload
+    def to_dict(self: ActionRowish[Componentish[ModalComponentPayload]]) -> ActionRowPayload[ModalComponentPayload]:
+        ...
+
+
+NestedComponents = Union[
+    ActionRowish[Componentish[ConstrainedComponentPayloadT]],
+    Componentish[ConstrainedComponentPayloadT],
+    Sequence[
+        Union[
+            ActionRowish[Componentish[ConstrainedComponentPayloadT]],
+            Sequence[Componentish[ConstrainedComponentPayloadT]],
+        ]
+    ]
+]
+NestedMessageComponents = NestedComponents[MessageComponentPayload]
+NestedModalComponents = NestedComponents[ModalComponentPayload]
 
 
 class Component:
@@ -100,10 +149,10 @@ class Component:
         The type of component.
     """
 
-    __slots__: Tuple[str, ...] = ("type",)
+    __slots__: Tuple[str, ...] = ()
 
     __repr_info__: ClassVar[Tuple[str, ...]]
-    type: ComponentType
+    type: ClassVar[ComponentType]
 
     def __repr__(self) -> str:
         attrs = " ".join(f"{key}={getattr(self, key)!r}" for key in self.__repr_info__)
@@ -130,7 +179,7 @@ class Component:
         raise NotImplementedError
 
 
-class ActionRow(Component, Generic[ComponentT]):
+class ActionRow(Component, Generic[ConstrainedComponentPayloadT]):
     """Represents an action row.
 
     This is a component that holds up to 5 children components in a row.
@@ -143,31 +192,110 @@ class ActionRow(Component, Generic[ComponentT]):
     ----------
     type: :class:`ComponentType`
         The type of component.
-    children: List[Union[:class:`Button`, :class:`BaseSelectMenu`, :class:`TextInput`]]
+    children: List[Componentish[ConstrainedComponentPayloadT]]
         The children components that this holds, if any.
     """
 
     __slots__: Tuple[str, ...] = ("children",)
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
+    type: ClassVar = ComponentType.action_row
 
-    def __init__(self, type: ComponentType, children: List[ComponentT]) -> None:
-        self.type = type
+    def __init__(self, children: List[Componentish[ConstrainedComponentPayloadT]]) -> None:
         self.children = children
 
-    def to_dict(self) -> ActionRowPayload:
+    def to_dict(self) -> ActionRowPayload[ConstrainedComponentPayloadT]:
         return {
             "type": self.type.value,
             "components": [child.to_dict() for child in self.children],
         }
 
     @classmethod
-    def from_payload(cls, payload: ActionRowPayload) -> Self:
-        type: ComponentType = try_enum(ComponentType, payload["type"])
-        children: List[ComponentT] = [
+    def from_payload(cls, payload: ActionRowPayload[ConstrainedComponentPayloadT]) -> Self:
+        children = [
             _component_factory(d) for d in payload.get("components", ())
         ]
-        return cls(type, children)
+        return cls(children)
+
+
+class UrlButton(Component):
+    """Represents a url button from the Discord Bot UI Kit.
+
+    This inherits from :class:`Component`.
+
+    .. note::
+
+        The user constructible and usable type to create a button is :class:`disnake.ui.Button`,
+        not this one.
+
+    .. versionadded:: 2.0
+
+    Attributes
+    ----------
+    url: :class:`str`
+        The URL this button sends you to.
+    disabled: :class:`bool`
+        Whether the button is disabled or not.
+    label: Optional[:class:`str`]
+        The label of the button, if any.
+    emoji: Optional[:class:`PartialEmoji`]
+        The emoji of the button, if available.
+    """
+
+    __slots__: Tuple[str, ...] = (
+        "url",
+        "disabled",
+        "label",
+        "emoji",
+    )
+    __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
+    type: ClassVar = ComponentType.button
+
+    def __init__(
+        self,
+        url: str,
+        disabled: bool = False,
+        label: Optional[str] = None,
+        emoji: Optional[PartialEmoji] = None
+    ) -> None:
+        self.url = url
+        self.disabled = disabled
+        self.label = label
+        self.emoji = emoji
+
+    @property
+    def custom_id(self) -> None:
+        return None
+
+    def to_dict(self) -> UrlButtonPayload:
+        payload: UrlButtonPayload = {
+            "type": ComponentType.button.value,
+            "style": ButtonStyle.url.value,
+            "url": self.url,
+            "disabled": self.disabled,
+        }
+
+        if self.label:
+            payload["label"] = self.label
+
+        if self.emoji:
+            payload["emoji"] = self.emoji.to_dict()
+
+        return payload
+
+    @classmethod
+    def from_payload(cls, payload: UrlButtonPayload) -> Self:
+        try:
+            emoji = PartialEmoji.from_dict(payload["emoji"])
+        except KeyError:
+            emoji = None
+
+        return cls(
+            url=payload["url"],
+            disabled=payload.get("disabled", False),
+            label=payload.get("label"),
+            emoji=emoji
+        )
 
 
 class Button(Component):
@@ -202,47 +330,38 @@ class Button(Component):
     __slots__: Tuple[str, ...] = (
         "style",
         "custom_id",
-        "url",
         "disabled",
         "label",
         "emoji",
     )
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
+    type: ClassVar = ComponentType.button
 
     def __init__(
         self,
-        type: ComponentType,
         style: ButtonStyle,
-        custom_id: Optional[str] = None,
-        url: Optional[str] = None,
+        custom_id: str,
         disabled: bool = False,
         label: Optional[str] = None,
         emoji: Optional[PartialEmoji] = None
     ) -> None:
-        self.type = type
         self.style = style
         self.custom_id = custom_id
-        self.url = url
         self.disabled = disabled
         self.label = label
         self.emoji = emoji
 
-    def to_dict(self) -> ButtonComponentPayload:
-        payload: ButtonComponentPayload = {
+    def to_dict(self) -> ButtonPayload:
+        payload: ButtonPayload = {
             "type": 2,
             "style": self.style.value,
+            "custom_id": self.custom_id,
             "disabled": self.disabled,
         }
 
         if self.label:
             payload["label"] = self.label
-
-        if self.custom_id:
-            payload["custom_id"] = self.custom_id
-
-        if self.url:
-            payload["url"] = self.url
 
         if self.emoji:
             payload["emoji"] = self.emoji.to_dict()
@@ -250,17 +369,15 @@ class Button(Component):
         return payload
 
     @classmethod
-    def from_payload(cls, payload: ButtonComponentPayload) -> Self:
+    def from_payload(cls, payload: ButtonPayload) -> Self:
         try:
             emoji = PartialEmoji.from_dict(payload["emoji"])
         except KeyError:
             emoji = None
 
         return cls(
-            type=try_enum(ComponentType, payload["type"]),
             style=try_enum(ButtonStyle, payload["style"]),
-            custom_id=payload.get("custom_id"),
-            url=payload.get("url"),
+            custom_id=payload["custom_id"],
             disabled=payload.get("disabled", False),
             label=payload.get("label"),
             emoji=emoji
@@ -313,14 +430,12 @@ class BaseSelectMenu(Component):
 
     def __init__(
         self,
-        type: ComponentType,
         custom_id: str,
         placeholder: Optional[str] = None,
         min_values: int = 1,
         max_values: int = 1,
         disabled: bool = False
     ) -> None:
-        self.type = type
         self.custom_id = custom_id
         self.placeholder = placeholder
         self.min_values = min_values
@@ -344,7 +459,6 @@ class BaseSelectMenu(Component):
     @classmethod
     def from_payload(cls, payload: BaseSelectMenuPayload) -> Self:
         return cls(
-            type=try_enum(ComponentType, payload["type"]),
             custom_id=payload["custom_id"],
             placeholder=payload.get("placeholder"),
             min_values=payload.get("min_values", 1),
@@ -386,10 +500,10 @@ class StringSelectMenu(BaseSelectMenu):
     __slots__: Tuple[str, ...] = ("options",)
 
     __repr_info__: ClassVar[Tuple[str, ...]] = BaseSelectMenu.__repr_info__ + __slots__
+    type: ClassVar = ComponentType.string_select
 
     def __init__(
         self,
-        type: ComponentType,
         custom_id: str,
         placeholder: Optional[str] = None,
         min_values: int = 1,
@@ -398,7 +512,6 @@ class StringSelectMenu(BaseSelectMenu):
         options: List[SelectOption] = MISSING
     ) -> None:
         super().__init__(
-            type=type,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
@@ -409,6 +522,7 @@ class StringSelectMenu(BaseSelectMenu):
 
     def to_dict(self) -> StringSelectMenuPayload:
         payload = cast("StringSelectMenuPayload", super().to_dict())
+        payload["type"] = ComponentType.string_select.value
         payload["options"] = [op.to_dict() for op in self.options]
         return payload
 
@@ -450,6 +564,7 @@ class UserSelectMenu(BaseSelectMenu):
     """
 
     __slots__: Tuple[str, ...] = ()
+    type: ClassVar = ComponentType.user_select
 
     if TYPE_CHECKING:
 
@@ -483,6 +598,7 @@ class RoleSelectMenu(BaseSelectMenu):
     """
 
     __slots__: Tuple[str, ...] = ()
+    type: ClassVar = ComponentType.role_select
 
     if TYPE_CHECKING:
 
@@ -516,6 +632,7 @@ class MentionableSelectMenu(BaseSelectMenu):
     """
 
     __slots__: Tuple[str, ...] = ()
+    type: ClassVar = ComponentType.mentionable_select
 
     if TYPE_CHECKING:
 
@@ -554,10 +671,10 @@ class ChannelSelectMenu(BaseSelectMenu):
     __slots__: Tuple[str, ...] = ("channel_types",)
 
     __repr_info__: ClassVar[Tuple[str, ...]] = BaseSelectMenu.__repr_info__ + __slots__
+    type: ClassVar = ComponentType.channel_select
 
     def __init__(
         self,
-        type: ComponentType,
         custom_id: str,
         placeholder: Optional[str] = None,
         min_values: int = 1,
@@ -566,17 +683,17 @@ class ChannelSelectMenu(BaseSelectMenu):
         channel_types: Optional[List[ChannelType]] = None
         ) -> None:
         super().__init__(
-            type=type,
             custom_id=custom_id,
             placeholder=placeholder,
             min_values=min_values,
             max_values=max_values,
             disabled=disabled
         )
-        self.channel_types =channel_types
+        self.channel_types = channel_types
 
     def to_dict(self) -> ChannelSelectMenuPayload:
         payload = cast("ChannelSelectMenuPayload", super().to_dict())
+        payload["type"] = ComponentType.channel_select.value
         if self.channel_types:
             payload["channel_types"] = [t.value for t in self.channel_types]
         return payload
@@ -668,7 +785,7 @@ class SelectOption:
         return base
 
     @classmethod
-    def from_dict(cls, data: SelectOptionPayload) -> SelectOption:
+    def from_dict(cls, data: SelectOptionPayload) -> Self:
         try:
             emoji = PartialEmoji.from_dict(data["emoji"])
         except KeyError:
@@ -740,10 +857,10 @@ class TextInput(Component):
     )
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
+    type: ClassVar = ComponentType.text_input
 
     def __init__(
         self,
-        type: ComponentType,
         custom_id: str,
         style: TextInputStyle = TextInputStyle.short,
         label: Optional[str] = None,
@@ -754,7 +871,6 @@ class TextInput(Component):
         max_length: Optional[int] = None
         ) -> None:
 
-        self.type: ComponentType = type
         self.custom_id: str = custom_id
         self.style: TextInputStyle = style
         self.label: Optional[str] = label
@@ -791,7 +907,6 @@ class TextInput(Component):
     def from_payload(cls, payload: TextInputPayload) -> Self:
         style = payload.get("style", TextInputStyle.short.value)
         return cls(
-            type=try_enum(ComponentType, payload["type"]),
             custom_id=payload["custom_id"],
             style=try_enum(TextInputStyle, style),
             label=payload.get("label"),
@@ -811,6 +926,8 @@ def _component_factory(data: ComponentPayload, *, type: Type[C] = Component) -> 
     if component_type == 1:
         return ActionRow.from_payload(data)  # type: ignore
     elif component_type == 2:
+        if "url" in data:
+            return UrlButton.from_payload(data)  # type: ignore
         return Button.from_payload(data)  # type: ignore
     elif component_type == 3:
         return StringSelectMenu.from_payload(data)  # type: ignore

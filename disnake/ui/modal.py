@@ -14,10 +14,10 @@ from .action_row import ActionRow, components_to_rows
 from .text_input import TextInput
 
 if TYPE_CHECKING:
+    from ..components import NestedModalComponents
     from ..interactions.modal import ModalInteraction
     from ..state import ConnectionState
-    from ..types.components import Modal as ModalPayload
-    from .action_row import Components, ModalUIComponent
+    from ..types.components import ModalPayload
 
 
 __all__ = ("Modal",)
@@ -48,7 +48,7 @@ class Modal:
         self,
         *,
         title: str,
-        components: Components[ModalUIComponent],
+        components: NestedModalComponents,
         custom_id: str = MISSING,
         timeout: float = 600,
     ) -> None:
@@ -198,7 +198,7 @@ class Modal:
         payload: ModalPayload = {
             "title": self.title,
             "custom_id": self.custom_id,
-            "components": [component.to_component_dict() for component in self.components],
+            "components": [component.to_dict() for component in self.components],
         }
 
         return payload
