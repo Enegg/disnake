@@ -12,7 +12,7 @@ from disnake.ui.action_row import components_to_dict, components_to_rows
 if TYPE_CHECKING:
     from typing_extensions import assert_type
 
-    from disnake.ui import MessageUIComponent, ModalUIComponent
+    from disnake.ui import MessageComponent, ModalComponent
 
 
 button1 = Button()
@@ -134,8 +134,8 @@ class TestActionRow:
         assert list(row_msg.children) == []
 
         if TYPE_CHECKING:
-            assert_type(row_modal, ActionRow[ModalUIComponent])
-            assert_type(row_msg, ActionRow[MessageUIComponent])
+            assert_type(row_modal, ActionRow[ModalComponent])
+            assert_type(row_msg, ActionRow[MessageComponent])
 
     def test_rows_from_message(self) -> None:
         rows = [
@@ -198,12 +198,12 @@ class TestActionRow:
     def _test_typing_init(self) -> None:  # pragma: no cover
         assert_type(ActionRow(), ActionRow[WrappedComponent])
 
-        assert_type(ActionRow(button1), ActionRow[MessageUIComponent])
-        assert_type(ActionRow(select), ActionRow[MessageUIComponent])
-        assert_type(ActionRow(text_input), ActionRow[ModalUIComponent])
+        assert_type(ActionRow(button1), ActionRow[MessageComponent])
+        assert_type(ActionRow(select), ActionRow[MessageComponent])
+        assert_type(ActionRow(text_input), ActionRow[ModalComponent])
 
-        assert_type(ActionRow(button1, select), ActionRow[MessageUIComponent])
-        assert_type(ActionRow(select, button1), ActionRow[MessageUIComponent])
+        assert_type(ActionRow(button1, select), ActionRow[MessageComponent])
+        assert_type(ActionRow(select, button1), ActionRow[MessageComponent])
 
         # these should fail to type-check - if they pass, there will be an error
         # because of the unnecessary ignore comment
@@ -211,8 +211,8 @@ class TestActionRow:
         ActionRow(text_input, button1)  # type: ignore
 
         # TODO: revert when modal select support is added.
-        assert_type(ActionRow(select, text_input), ActionRow[ModalUIComponent])  # type: ignore
-        assert_type(ActionRow(text_input, select), ActionRow[ModalUIComponent])  # type: ignore
+        assert_type(ActionRow(select, text_input), ActionRow[ModalComponent])  # type: ignore
+        assert_type(ActionRow(text_input, select), ActionRow[ModalComponent])  # type: ignore
 
 
 @pytest.mark.parametrize(

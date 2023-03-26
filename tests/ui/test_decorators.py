@@ -7,7 +7,7 @@ import pytest
 from typing_extensions import assert_type
 
 from disnake import ui
-from disnake.ui.button import V_co
+from disnake.ui.button import V
 
 T = TypeVar("T", bound=ui.Item)
 
@@ -23,7 +23,7 @@ def create_callback(item_type: Type[T]) -> Iterator["ui.item.ItemCallbackType[T]
     assert callback.__discord_ui_model_type__(**callback.__discord_ui_model_kwargs__)
 
 
-class _CustomButton(ui.Button[V_co]):
+class _CustomButton(ui.Button[V]):
     def __init__(self, *, param: float = 42.0) -> None:
         pass
 

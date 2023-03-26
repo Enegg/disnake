@@ -11,6 +11,7 @@ from functools import partial
 from itertools import groupby
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     ClassVar,
     Dict,
@@ -46,13 +47,11 @@ if TYPE_CHECKING:
     from ..interactions import MessageInteraction
     from ..message import Message
     from ..state import ConnectionState
-    from ..types.components import ActionRow as ActionRowPayload, Component as ComponentPayload
+    from ..types.components import ActionRowPayload, MessageComponentPayload
     from .item import ItemCallbackType
 
 
-def _walk_all_components(
-    components: List[ActionRowComponent[MessageComponent]],
-) -> Iterator[MessageComponent]:
+def _walk_all_components(components: List[ActionRowComponent[MessageComponent]]) -> Iterator[MessageComponent]:
     for item in components:
         yield from item.children
 
@@ -210,14 +209,14 @@ class View:
             # Wait N seconds to see if timeout data has been refreshed
             await asyncio.sleep(self.__timeout_expiry - now)
 
-    def to_components(self) -> List[ActionRowPayload]:
+    def to_components(self) -> List[ActionRowPayload[MessageComponentPayload]]:
         def key(item: Item) -> int:
             return item._rendered_row or 0
 
         children = sorted(self.children, key=key)
-        components: List[ActionRowPayload] = []
+        components: List[ActionRowPayload[MessageComponentPayload]] = []
         for _, group in groupby(children, key=key):
-            children = [item.to_component_dict() for item in group]
+            children = [item.to_dict() for item in group]
             if not children:
                 continue
 
@@ -263,7 +262,7 @@ class View:
             return time.monotonic() + self.timeout
         return None
 
-    def add_item(self, item: Item) -> Self:
+    def add_item(self, item: Item[Any]) -> Self:
         """Adds an item to the view.
 
         This function returns the class instance to allow for fluent-style
@@ -294,7 +293,7 @@ class View:
         self.children.append(item)
         return self
 
-    def remove_item(self, item: Item) -> Self:
+    def remove_item(self, item: Item[Self]) -> Self:
         """Removes an item from the view.
 
         This function returns the class instance to allow for fluent-style
@@ -416,12 +415,12 @@ class View:
             self._scheduled_task(item, interaction), name=f"disnake-ui-view-dispatch-{self.id}"
         )
 
-    def refresh(self, components: List[ActionRowComponent[MessageComponent]]) -> None:
+    def refresh(self, components: List[ActionRowComponent]) -> None:
         # TODO: this is pretty hacky at the moment
         old_state: Dict[Tuple[int, str], Item] = {
             (item.type.value, item.custom_id): item  # type: ignore
             for item in self.children
-            if item.is_dispatchable()
+            if item.dispatchable
         }
         children: List[Item] = []
         for component in _walk_all_components(components):
@@ -430,7 +429,7 @@ class View:
                 older = old_state[(component.type.value, component.custom_id)]  # type: ignore
             except (KeyError, AttributeError):
                 # workaround for url buttons, since they're not part of `old_state`
-                if isinstance(component, ButtonComponent):
+                if isinstance(component, ButtonPayload):
                     for child in self.children:
                         if (
                             child.type is ComponentType.button
@@ -487,7 +486,7 @@ class View:
 
         :return type: :class:`bool`
         """
-        return self.timeout is None and all(item.is_persistent() for item in self.children)
+        return self.timeout is None and all(item.persistent for item in self.children)
 
     async def wait(self) -> bool:
         """Waits until the view has finished interacting.
@@ -531,7 +530,7 @@ class ViewStore:
 
         view._start_listening_from_store(self)
         for item in view.children:
-            if item.is_dispatchable():
+            if item.dispatchable:
                 self._views[(item.type.value, message_id, item.custom_id)] = (view, item)  # type: ignore
 
         if message_id is not None:
@@ -539,7 +538,7 @@ class ViewStore:
 
     def remove_view(self, view: View) -> None:
         for item in view.children:
-            if item.is_dispatchable():
+            if item.dispatchable:
                 self._views.pop((item.type.value, item.custom_id), None)  # type: ignore
 
         for key, value in self._synced_message_views.items():
@@ -569,9 +568,9 @@ class ViewStore:
     def remove_message_tracking(self, message_id: int) -> Optional[View]:
         return self._synced_message_views.pop(message_id, None)
 
-    def update_from_message(self, message_id: int, components: List[ComponentPayload]) -> None:
+    def update_from_message(self, message_id: int, components: List[ActionRowPayload[MessageComponentPayload]]) -> None:
         # pre-req: is_message_tracked == true
         view = self._synced_message_views[message_id]
         view.refresh(
-            [_component_factory(d, type=ActionRowComponent[MessageComponent]) for d in components]
+            [_component_factory(d, type=ActionRowComponent) for d in components]
         )

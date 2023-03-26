@@ -23,8 +23,7 @@ if TYPE_CHECKING:
     from ..components import Componentish, MessageComponent
     from ..enums import ComponentType
     from ..interactions import MessageInteraction
-    from ..types.components import ConstrainedComponentPayloadT
-    from ..types.components import MessageComponentPayload
+    from ..types.components import ConstrainedComponentPayloadT, MessageComponentPayload
     from .view import View
 
 else:
@@ -36,14 +35,13 @@ I = TypeVar("I", bound="Item", infer_variance=True)
 ItemCallbackType = Callable[[Any, I, MessageInteraction], Coroutine[Any, Any, Any]]
 
 
-class Itemish(Componentish[ConstrainedComponentPayloadT], Protocol[ConstrainedComponentPayloadT]):
-    @property
-    def _underlying(self) -> Componentish[ConstrainedComponentPayloadT]:
-        ...
-
+class WrappedComponentish(Componentish[ConstrainedComponentPayloadT], Protocol[ConstrainedComponentPayloadT]):
     @property
     def width(self) -> int:
         ...
+
+
+WrappedComponentishT = TypeVar("WrappedComponentishT", bound=WrappedComponentish)
 
 
 class WrappedComponent(ABC, Generic[ConstrainedComponentPayloadT]):
