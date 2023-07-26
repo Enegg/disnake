@@ -139,8 +139,6 @@ class Component:
     - subtypes of :class:`BaseSelectMenu` (:class:`ChannelSelectMenu`, :class:`MentionableSelectMenu`, :class:`RoleSelectMenu`, :class:`StringSelectMenu`, :class:`UserSelectMenu`)
     - :class:`TextInput`
 
-    This class is abstract and cannot be instantiated.
-
     .. versionadded:: 2.0
 
     Attributes
@@ -182,7 +180,7 @@ class Component:
 class ActionRow(Component, Generic[ConstrainedComponentPayloadT]):
     """Represents an action row.
 
-    This is a component that holds up to 5 children components in a row.
+    This is a containter component that holds up to 5 children components.
 
     This inherits from :class:`Component`.
 
@@ -222,11 +220,6 @@ class UrlButton(Component):
     """Represents a url button from the Discord Bot UI Kit.
 
     This inherits from :class:`Component`.
-
-    .. note::
-
-        The user constructible and usable type to create a button is :class:`disnake.ui.Button`,
-        not this one.
 
     .. versionadded:: 2.0
 
@@ -302,11 +295,6 @@ class Button(Component):
     """Represents a button from the Discord Bot UI Kit.
 
     This inherits from :class:`Component`.
-
-    .. note::
-
-        The user constructible and usable type to create a button is :class:`disnake.ui.Button`,
-        not this one.
 
     .. versionadded:: 2.0
 
@@ -470,10 +458,6 @@ class BaseSelectMenu(Component):
 class StringSelectMenu(BaseSelectMenu):
     """Represents a string select menu from the Discord Bot UI Kit.
 
-    .. note::
-        The user constructible and usable type to create a
-        string select menu is :class:`disnake.ui.StringSelect`.
-
     .. versionadded:: 2.0
 
     .. versionchanged:: 2.7
@@ -541,10 +525,6 @@ SelectMenu = StringSelectMenu  # backwards compatibility
 class UserSelectMenu(BaseSelectMenu):
     """Represents a user select menu from the Discord Bot UI Kit.
 
-    .. note::
-        The user constructible and usable type to create a
-        user select menu is :class:`disnake.ui.UserSelect`.
-
     .. versionadded:: 2.7
 
     Attributes
@@ -574,10 +554,6 @@ class UserSelectMenu(BaseSelectMenu):
 
 class RoleSelectMenu(BaseSelectMenu):
     """Represents a role select menu from the Discord Bot UI Kit.
-
-    .. note::
-        The user constructible and usable type to create a
-        role select menu is :class:`disnake.ui.RoleSelect`.
 
     .. versionadded:: 2.7
 
@@ -609,10 +585,6 @@ class RoleSelectMenu(BaseSelectMenu):
 class MentionableSelectMenu(BaseSelectMenu):
     """Represents a mentionable (user/member/role) select menu from the Discord Bot UI Kit.
 
-    .. note::
-        The user constructible and usable type to create a
-        mentionable select menu is :class:`disnake.ui.MentionableSelect`.
-
     .. versionadded:: 2.7
 
     Attributes
@@ -642,10 +614,6 @@ class MentionableSelectMenu(BaseSelectMenu):
 
 class ChannelSelectMenu(BaseSelectMenu):
     """Represents a channel select menu from the Discord Bot UI Kit.
-
-    .. note::
-        The user constructible and usable type to create a
-        channel select menu is :class:`disnake.ui.ChannelSelect`.
 
     .. versionadded:: 2.7
 
@@ -711,8 +679,6 @@ class ChannelSelectMenu(BaseSelectMenu):
 
 class SelectOption:
     """Represents a string select menu's option.
-
-    These can be created by users.
 
     .. versionadded:: 2.0
 
@@ -820,13 +786,10 @@ class TextInput(Component):
 
     .. versionadded:: 2.4
 
-    .. note::
-
-        The user constructible and usable type to create a text input is
-        :class:`disnake.ui.TextInput`, not this one.
-
     Attributes
     ----------
+    custom_id: :class:`str`
+        The ID of the text input that gets received during an interaction.
     style: :class:`TextInputStyle`
         The style of the text input.
     label: :class:`str`
@@ -835,6 +798,12 @@ class TextInput(Component):
         The minimum length of the text input.
     max_length: Optional[:class:`int`]
         The maximum length of the text input.
+    required: :class:`bool`
+        Whether the text input is required. Defaults to ``True``.
+    value: Optional[:class:`str`]
+        The pre-filled text of the text input.
+    placeholder: Optional[:class:`str`]
+        The placeholder text that is shown if nothing is entered.
     """
 
     __slots__: Tuple[str, ...] = (
