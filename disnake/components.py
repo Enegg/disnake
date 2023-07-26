@@ -829,16 +829,8 @@ class TextInput(Component):
     ----------
     style: :class:`TextInputStyle`
         The style of the text input.
-    label: Optional[:class:`str`]
+    label: :class:`str`
         The label of the text input.
-    custom_id: :class:`str`
-        The ID of the text input that gets received during an interaction.
-    placeholder: Optional[:class:`str`]
-        The placeholder text that is shown if nothing is entered.
-    value: Optional[:class:`str`]
-        The pre-filled text of the text input.
-    required: :class:`bool`
-        Whether the text input is required. Defaults to ``True``.
     min_length: Optional[:class:`int`]
         The minimum length of the text input.
     max_length: Optional[:class:`int`]
@@ -846,14 +838,14 @@ class TextInput(Component):
     """
 
     __slots__: Tuple[str, ...] = (
-        "style",
         "custom_id",
+        "style",
         "label",
-        "placeholder",
-        "value",
-        "required",
-        "max_length",
         "min_length",
+        "max_length",
+        "required",
+        "value",
+        "placeholder",
     )
 
     __repr_info__: ClassVar[Tuple[str, ...]] = __slots__
@@ -861,9 +853,10 @@ class TextInput(Component):
 
     def __init__(
         self,
+        *,
         custom_id: str,
+        label: str,
         style: TextInputStyle = TextInputStyle.short,
-        label: Optional[str] = None,
         placeholder: Optional[str] = None,
         value: Optional[str] = None,
         required: bool = True,
@@ -873,7 +866,7 @@ class TextInput(Component):
 
         self.custom_id: str = custom_id
         self.style: TextInputStyle = style
-        self.label: Optional[str] = label
+        self.label: str = label
         self.placeholder: Optional[str] = placeholder
         self.value: Optional[str] = value
         self.required: bool = required
@@ -884,7 +877,7 @@ class TextInput(Component):
         payload: TextInputPayload = {
             "type": self.type.value,
             "style": self.style.value,
-            "label": cast(str, self.label),
+            "label": self.label,
             "custom_id": self.custom_id,
             "required": self.required,
         }
@@ -909,10 +902,10 @@ class TextInput(Component):
         return cls(
             custom_id=payload["custom_id"],
             style=try_enum(TextInputStyle, style),
-            label=payload.get("label"),
+            label=payload["label"],
             placeholder=payload.get("placeholder"),
             value=payload.get("value"),
-            required =payload.get("required", True),
+            required=payload.get("required", True),
             min_length=payload.get("min_length"),
             max_length=payload.get("max_length")
         )
