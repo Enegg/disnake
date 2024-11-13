@@ -572,16 +572,21 @@ class LargeIntOutOfRange(BadArgument):
 
     def __init__(
         self,
-        argument: str,
-        min_value: Union[int, float, None],
-        max_value: Union[int, float, None],
+        argument: int,
+        min_value: Union[int, float],
+        max_value: Union[int, float],
     ) -> None:
-        self.argument: str = argument
-        self.min_value: Union[int, float, None] = min_value
-        self.max_value: Union[int, float, None] = max_value
-        a = "..." if min_value is None else min_value
-        b = "..." if max_value is None else max_value
-        super().__init__(f"{argument} is not in range [{a}, {b}]")
+        self.argument: int = argument
+        self.min_value: Union[int, float] = min_value
+        self.max_value: Union[int, float] = max_value
+        super().__init__(f"{argument} is not in range [{min_value}, {max_value}]")
+
+    @classmethod
+    def check(
+        cls, argument: int, min_value: Union[int, float], max_value: Union[int, float]
+    ) -> None:
+        if not min_value <= argument <= max_value:
+            raise cls(argument, min_value, max_value) from None
 
 
 class DisabledCommand(CommandError):

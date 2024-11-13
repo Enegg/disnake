@@ -12,8 +12,6 @@ import itertools
 import math
 import sys
 import types
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum, EnumMeta
 from typing import (
     TYPE_CHECKING,
@@ -26,15 +24,17 @@ from typing import (
     Generic,
     List,
     Literal,
-    NoReturn,
     Optional,
     Sequence,
     Tuple,
     Type,
     TypeVar,
     Union,
+    get_args,
     get_origin,
 )
+
+from typing_extensions import Annotated as Range, Annotated as String
 
 import disnake
 from disnake.app_commands import Option, OptionChoice
@@ -93,6 +93,7 @@ T = TypeVar("T", bound=Any)
 TypeT = TypeVar("TypeT", bound=Type[Any])
 CallableT = TypeVar("CallableT", bound=Callable[..., Any])
 BotT = TypeVar("BotT", bound="disnake.Client", covariant=True)
+AnyReal = Union[int, float]
 
 __all__ = (
     "Range",
@@ -128,7 +129,7 @@ def issubclass_(obj: Any, tp: Union[TypeT, Tuple[TypeT, ...]]) -> TypeGuard[Type
     if origin in (Union, UnionType):
         # If we have a Union, try matching any of its args
         # (recursively, to handle possibly generic types inside this union)
-        return any(issubclass_(o, tp) for o in obj.__args__)
+        return any(issubclass_(o, tp) for o in get_args(obj))
     else:
         return isinstance(origin, type) and issubclass(origin, tp)
 
@@ -136,7 +137,7 @@ def issubclass_(obj: Any, tp: Union[TypeT, Tuple[TypeT, ...]]) -> TypeGuard[Type
 def remove_optionals(annotation: Any) -> Any:
     """Remove unwanted optionals from an annotation."""
     if get_origin(annotation) in (Union, UnionType):
-        args = tuple(i for i in annotation.__args__ if i not in (None, type(None)))
+        args = tuple(i for i in get_args(annotation) if i not in (None, type(None)))
         if len(args) == 1:
             annotation = args[0]
         else:
@@ -145,7 +146,7 @@ def remove_optionals(annotation: Any) -> Any:
     return annotation
 
 
-def _xt_to_xe(xe: Optional[float], xt: Optional[float], direction: float = 1) -> Optional[float]:
+def _xt_to_xe(xe: Optional[float], xt: Optional[float], direction: float) -> float:
     """Function for combining xt and xe
 
     * x > xt && x >= xe ; x >= f(xt, xe, 1)
@@ -155,11 +156,10 @@ def _xt_to_xe(xe: Optional[float], xt: Optional[float], direction: float = 1) ->
         if xt is not None:
             raise TypeError("Cannot combine lt and le or gt and le")
         return xe
-    elif xt is not None:
+    if xt is not None:
         epsilon = math.ldexp(1.0, -1024)
         return xt + (epsilon * direction)
-    else:
-        return None
+    return math.inf * -direction
 
 
 def _int_to_str_len(number: int) -> int:
@@ -173,7 +173,7 @@ def _int_to_str_len(number: int) -> int:
     )
 
 
-def _range_to_str_len(min_value: int, max_value: int) -> Tuple[int, int]:
+def _bound_range_to_str_len(min_value: int, max_value: int) -> Tuple[int, int]:
     min_ = _int_to_str_len(min_value)
     max_ = _int_to_str_len(max_value)
     opposite_sign = (min_value < 0) ^ (max_value < 0)
@@ -183,6 +183,82 @@ def _range_to_str_len(min_value: int, max_value: int) -> Tuple[int, int]:
     if opposite_sign:
         return 1, max(min_, max_)
     return min(min_, max_), max(min_, max_)
+
+
+def _unbound_range_to_str_len(min_value: AnyReal, max_value: AnyReal) -> Tuple[Optional[int], Optional[int]]:
+    if not math.isinf(min_value) and not math.isinf(max_value):
+        assert isinstance(min_value, int) and isinstance(max_value, int)  # noqa: S101
+        return _bound_range_to_str_len(min_value, max_value)
+
+    if min_value > 0:
+        # 0 < min_value <= max_value == inf
+        assert isinstance(min_value, int)  # noqa: S101
+        return _int_to_str_len(min_value), None
+
+    if max_value < 0:
+        # -inf == max_value <= min_value < 0
+        assert isinstance(max_value, int)  # noqa: S101
+        return None, _int_to_str_len(max_value)
+
+    return None, None
+
+
+def _coerce_bound(num: Union[int, float, None], name: str, valid: Tuple[type, ...]) -> bool:
+    if num is None or num is ...:
+        return True
+
+    if not isinstance(num, valid):
+        type_names = ", ".join(type_.__name__ for type_ in valid)
+        msg = f"{name} value must be an {type_names} or `...`, not {type(num)}"
+        raise TypeError(msg) from None
+
+    if math.isnan(num):
+        msg = f"{name} value may not be a NaN"
+        raise ValueError(msg) from None
+
+    return math.isinf(num)
+
+
+def _validate_str_range(min_: Optional[int], max_: Optional[int]) -> Tuple[Optional[int], Optional[int]]:
+    if min_unbound := _coerce_bound(min_, "Min", (int,)):
+        min_ = None
+
+    if _coerce_bound(max_, "Max", (int,)):
+        max_ = None
+
+        if min_unbound:
+            msg = "String bounds cannot both be empty"
+            raise ValueError(msg) from None
+
+    if min_ is not None and max_ is not None and min_ > max_:
+        msg = f"String minimum ({min_}) must be less than or equal to maximum ({max_})"
+        raise ValueError(msg) from None
+
+    return min_, max_
+
+
+def _validate_num_range(min_: Any, max_: Any, type_: type) -> Tuple[AnyReal, AnyReal]:
+    if type_ is float:
+        allowed = (int, float)
+
+    else:
+        allowed = (int,)
+
+    if min_unbound := _coerce_bound(min_, "Min", allowed):
+        min_ = -math.inf
+
+    if _coerce_bound(max_, "Max", allowed):
+        max_ = math.inf
+
+        if min_unbound:
+            msg = "Range limits cannot both be empty"
+            raise ValueError(msg) from None
+
+    if min_ > max_:
+        msg = f"Range minimum ({min_}) must be less than or equal to maximum ({max_})"
+        raise ValueError(msg) from None
+
+    return min_, max_
 
 
 class Injection(Generic[P, T_]):
@@ -284,179 +360,6 @@ class Injection(Generic[P, T_]):
         return decorator
 
 
-NumberT = TypeVar("NumberT", bound=Union[int, float])
-
-
-@dataclass(frozen=True)
-class _BaseRange(ABC, Generic[NumberT]):
-    """Internal base type for supporting ``Range[...]`` and ``String[...]``."""
-
-    _allowed_types: ClassVar[Tuple[type, ...]]
-
-    underlying_type: type
-    min_value: Optional[NumberT]
-    max_value: Optional[NumberT]
-
-    def __class_getitem__(cls, params: Tuple[Any, ...]) -> Self:
-        if cls is _BaseRange:
-            # needed since made generic
-            return super().__class_getitem__(params)  # pyright: ignore
-
-        # deconstruct type arguments
-        if not isinstance(params, tuple):
-            params = (params,)
-
-        name = cls.__name__
-
-        if len(params) == 2:
-            # backwards compatibility for `Range[1, 2]`
-
-            # FIXME: the warning context is incorrect when used with stringified annotations,
-            # and points to the eval frame instead of user code
-            disnake.utils.warn_deprecated(
-                f"Using `{name}` without an explicit type argument is deprecated, "
-                "as this form does not work well with modern type-checkers. "
-                f"Use `{name}[<type>, <min>, <max>]` instead.",
-                stacklevel=2,
-            )
-            # infer type from min/max values
-            params = (cls._infer_type(params),) + params
-
-        if len(params) != 3:
-            raise TypeError(
-                f"`{name}` expects 3 arguments ({name}[<type>, <min>, <max>]), got {len(params)}"
-            )
-
-        underlying_type, min_value, max_value = params
-
-        # validate type (argument 1)
-        if not isinstance(underlying_type, type):
-            raise TypeError(f"First `{name}` argument must be a type, not `{underlying_type!r}`")
-
-        if not issubclass_(underlying_type, cls._allowed_types):
-            allowed = "/".join(t.__name__ for t in cls._allowed_types)
-            raise TypeError(f"First `{name}` argument must be {allowed}, not `{underlying_type!r}`")
-
-        # validate min/max (arguments 2/3)
-        min_value = cls._coerce_bound(min_value, "min")
-        max_value = cls._coerce_bound(max_value, "max")
-
-        if min_value is None and max_value is None:
-            raise ValueError(f"`{name}` bounds cannot both be empty")
-
-        # n.b. this allows bounds to be equal, which doesn't really serve a purpose with numbers,
-        # but is still accepted by the api
-        if min_value is not None and max_value is not None and min_value > max_value:
-            raise ValueError(
-                f"`{name}` minimum ({min_value}) must be less than or equal to maximum ({max_value})"
-            )
-
-        return cls(underlying_type=underlying_type, min_value=min_value, max_value=max_value)
-
-    @staticmethod
-    def _coerce_bound(value: Optional[NumberT], name: str) -> Optional[NumberT]:
-        if value is None or value is ...:
-            return None
-        elif isinstance(value, (int, float)):
-            if not math.isfinite(value):
-                raise ValueError(f"{name} value may not be NaN, inf, or -inf")
-            return value
-        else:
-            raise TypeError(f"{name} value must be int, float, None, or `...`, not `{type(value)}`")
-
-    def __repr__(self) -> str:
-        a = "..." if self.min_value is None else self.min_value
-        b = "..." if self.max_value is None else self.max_value
-        return f"{type(self).__name__}[{self.underlying_type.__name__}, {a}, {b}]"
-
-    @staticmethod
-    @abstractmethod
-    def _infer_type(params: Tuple[Any, ...]) -> Type[Any]:
-        raise NotImplementedError
-
-    # hack to get `typing._type_check` to pass, e.g. when using `Range` as a generic parameter
-    def __call__(self) -> NoReturn:
-        raise NotImplementedError
-
-    # support new union syntax for `Range[int, 1, 2] | None`
-    if sys.version_info >= (3, 10):
-
-        def __or__(self, other: type) -> UnionType:
-            return Union[self, other]  # pyright: ignore
-
-
-if TYPE_CHECKING:
-    # aliased import since mypy doesn't understand `Range = Annotated`
-    from typing_extensions import Annotated as Range, Annotated as String
-else:
-
-    @dataclass(frozen=True, repr=False)
-    class Range(_BaseRange[Union[int, float]]):
-        """Type representing a number with a limited range of allowed values.
-
-        See :ref:`param_ranges` for more information.
-
-        .. versionadded:: 2.4
-
-        .. versionchanged:: 2.9
-            Syntax changed from ``Range[5, 10]`` to ``Range[int, 5, 10]``;
-            the type (:class:`int` or :class:`float`) must now be specified explicitly.
-        """
-
-        _allowed_types = (int, float)
-
-        def __post_init__(self) -> None:
-            for value in (self.min_value, self.max_value):
-                if value is None:
-                    continue
-
-                if self.underlying_type is not float and not isinstance(value, int):
-                    raise TypeError("Range[int, ...] bounds must be int, not float")
-
-                if self.underlying_type is int and abs(value) >= 2**53:
-                    raise ValueError(
-                        "Discord has upper input limit on integer input type of +/-2**53.\n"
-                        " For larger values, use Range[commands.LargeInt, ...], which will use"
-                        " string input type with length limited to the minimum and maximum string"
-                        " representations of the range bounds."
-                    )
-
-        @staticmethod
-        def _infer_type(params: Tuple[Any, ...]) -> Type[Any]:
-            if any(isinstance(p, float) for p in params):
-                return float
-            return int
-
-    @dataclass(frozen=True, repr=False)
-    class String(_BaseRange[int]):
-        """Type representing a string option with a limited length.
-
-        See :ref:`string_lengths` for more information.
-
-        .. versionadded:: 2.6
-
-        .. versionchanged:: 2.9
-            Syntax changed from ``String[5, 10]`` to ``String[str, 5, 10]``;
-            the type (:class:`str`) must now be specified explicitly.
-        """
-
-        _allowed_types = (str,)
-
-        def __post_init__(self) -> None:
-            for value in (self.min_value, self.max_value):
-                if value is None:
-                    continue
-
-                if not isinstance(value, int):
-                    raise TypeError("String bounds must be int, not float")
-                if value < 0:
-                    raise ValueError("String bounds may not be negative")
-
-        @staticmethod
-        def _infer_type(params: Tuple[Any, ...]) -> Type[Any]:
-            return str
-
-
 class LargeInt(int):
     """Type representing integers `<=-2**53`, `>=2**53` in slash commands."""
 
@@ -545,10 +448,10 @@ class ParamInfo:
         choices: Optional[Choices] = None,
         type: Optional[type] = None,
         channel_types: Optional[List[ChannelType]] = None,
-        lt: Union[int, float, None] = None,
-        le: Union[int, float, None] = None,
-        gt: Union[int, float, None] = None,
-        ge: Union[int, float, None] = None,
+        lt: Optional[AnyReal] = None,
+        le: Optional[AnyReal] = None,
+        gt: Optional[AnyReal] = None,
+        ge: Optional[AnyReal] = None,
         large: bool = False,
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
@@ -569,8 +472,8 @@ class ParamInfo:
         self.choices = choices or []
         self.type = type or str
         self.channel_types = channel_types or []
-        self.min_value: Union[int, float, None] = _xt_to_xe(ge, gt, 1)
-        self.max_value: Union[int, float, None] = _xt_to_xe(le, lt, -1)
+        self.min_value: AnyReal = _xt_to_xe(ge, gt, 1)
+        self.max_value: AnyReal = _xt_to_xe(le, lt, -1)
         self.min_length: Optional[int] = min_length
         self.max_length: Optional[int] = max_length
         self.large = large
@@ -692,11 +595,7 @@ class ParamInfo:
             except ValueError:
                 raise errors.LargeIntConversionFailure(argument) from None
 
-            min_value = -math.inf if self.min_value is None else self.min_value
-            max_value = math.inf if self.max_value is None else self.max_value
-
-            if not min_value <= argument <= max_value:
-                raise errors.LargeIntOutOfRange(argument, self.min_value, self.max_value) from None
+            errors.LargeIntOutOfRange.check(argument, self.min_value, self.max_value)
 
         if self.converter is None:
             # TODO: Custom validators
@@ -734,6 +633,45 @@ class ParamInfo:
                 channel_types.update(_channel_type_factory(channel))
             self.channel_types = list(channel_types)
 
+    def _parse_range(self, annotation: Any) -> type:
+        args = get_args(annotation)
+
+        if len(args) == 2:
+            # Annotated[int, :10]
+            type_, slice_ = args
+
+            if not isinstance(slice_, slice):
+                msg = f"Expected Range[<type>, <min>:<max>] or Range[<type>, <min>, <max>], got Range{list(args)}"
+                raise TypeError(msg) from None
+
+            if slice_.step is not None:
+                msg = "Slices in Range cannot specify 'step'"
+                raise ValueError(msg) from None
+
+            min_, max_ = slice_.start, slice_.stop
+
+        elif len(args) == 3:
+            type_, min_, max_ = args
+
+        else:
+            msg = f"Expected Range[<type>, <min>:<max>] or Range[<type>, <min>, <max>], got Range{list(args)}"
+            raise TypeError(msg) from None
+
+        if not isinstance(type_, type):
+            msg = f"First Range argument must be a type, not `{type_!r}`"
+            raise TypeError(msg) from None
+
+        if type_ is str:
+            self.min_length, self.max_length = _validate_str_range(min_, max_)
+            return str
+
+        if type_ not in (int, float, LargeInt):
+            msg = f"First parameter to Range must be str, int, float or LargeInt, not `{type_!r}`"
+            raise TypeError(msg) from None
+
+        self.min_value, self.max_value = _validate_num_range(min_, max_, type_)
+        return type_
+
     def parse_annotation(self, annotation: Any, converter_mode: bool = False) -> bool:
         """Parse an annotation"""
         annotation = remove_optionals(annotation)
@@ -752,40 +690,30 @@ class ParamInfo:
         if annotation is inspect.Parameter.empty or annotation is Any:
             return False
 
-        # resolve type aliases and special types
-        if isinstance(annotation, Range):
-            self.min_value = annotation.min_value
-            self.max_value = annotation.max_value
-            annotation = annotation.underlying_type
+        if get_origin(annotation) is Range:
+            annotation = self._parse_range(annotation)
 
-        elif isinstance(annotation, String):
-            self.min_length = annotation.min_value
-            self.max_length = annotation.max_value
-            annotation = annotation.underlying_type
+        if annotation is int and not self.large:
+            for value in (self.min_value, self.max_value):
+                if not math.isinf(value) and abs(value) >= 2**53:
+                    raise ValueError(
+                        "Discord has upper input limit on integer input type of +/-2**53.\n"
+                        " For larger values, use Range[commands.LargeInt, ...], which will use"
+                        " string input type with length limited to the minimum and maximum string"
+                        " representations of the range bounds."
+                    ) from None
 
-        if issubclass_(annotation, LargeInt):
+        elif annotation is LargeInt:
             self.large = True
             annotation = int
 
         if self.large:
             if annotation is not int:
-                raise TypeError("Large integers must be annotated with int or LargeInt")
+                msg = "Large integers must be annotated with int or LargeInt"
+                raise TypeError(msg) from None
+
             self.type = str
-
-            if self.min_value is not None and self.max_value is not None:
-                # honestly would rather assert than type ignore these
-                self.min_length, self.max_length = _range_to_str_len(
-                    self.min_value,  # pyright: ignore
-                    self.max_value,  # pyright: ignore
-                )
-
-            elif self.min_value is not None and self.min_value > 0:
-                # 0 < min_value <= max_value == inf
-                self.min_length = _int_to_str_len(self.min_value)  # pyright: ignore
-
-            elif self.max_value is not None and self.max_value < 0:
-                # -inf == max_value <= min_value < 0
-                self.max_length = _int_to_str_len(self.max_value)  # pyright: ignore
+            self.min_length, self.max_length = _unbound_range_to_str_len(self.min_value, self.max_value)
 
         elif annotation in self.TYPES:
             self.type = annotation
@@ -795,7 +723,7 @@ class ParamInfo:
         ):
             self._parse_enum(annotation)
         elif get_origin(annotation) in (Union, UnionType):
-            args = annotation.__args__
+            args = get_args(annotation)
             if all(
                 issubclass_(channel, (disnake.abc.GuildChannel, disnake.Thread)) for channel in args
             ):
@@ -862,7 +790,7 @@ class ParamInfo:
         self.param_name = param.name
 
     def parse_doc(self, doc: disnake.utils._DocstringParam) -> None:
-        if self.type == str and doc["type"] is not None:
+        if self.type is str and doc["type"] is not None:
             self.parse_annotation(doc["type"])
 
         self.description = self.description or doc["description"]
@@ -885,8 +813,8 @@ class ParamInfo:
             choices=self.choices or None,
             channel_types=self.channel_types,
             autocomplete=self.autocomplete is not None,
-            min_value=None if self.large else self.min_value,
-            max_value=None if self.large else self.max_value,
+            min_value=None if self.large or math.isinf(self.min_value) else self.min_value,
+            max_value=None if self.large or math.isinf(self.max_value) else self.max_value,
             min_length=self.min_length,
             max_length=self.max_length,
         )
