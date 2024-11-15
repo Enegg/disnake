@@ -10,6 +10,7 @@ from .flags import RoleFlags
 from .mixins import Hashable
 from .partial_emoji import PartialEmoji
 from .permissions import Permissions
+from .types.ids import RoleId
 from .utils import MISSING, _assetbytes_to_base64_data, _get_as_snowflake, snowflake_time
 
 __all__ = (
@@ -224,7 +225,7 @@ class Role(Hashable):
     def __init__(self, *, guild: Guild, state: ConnectionState, data: RolePayload) -> None:
         self.guild: Guild = guild
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id: RoleId = RoleId(int(data["id"]))
         self._update(data)
 
     def __str__(self) -> str:

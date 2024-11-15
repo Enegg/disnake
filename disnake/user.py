@@ -10,6 +10,7 @@ from .asset import Asset
 from .colour import Colour
 from .enums import Locale, try_enum
 from .flags import PublicUserFlags
+from .types.ids import UserId
 from .utils import MISSING, _assetbytes_to_base64_data, snowflake_time
 
 if TYPE_CHECKING:
@@ -38,7 +39,7 @@ __all__ = (
 
 class _UserTag:
     __slots__ = ()
-    id: int
+    id: UserId
 
 
 class BaseUser(_UserTag):
@@ -59,7 +60,7 @@ class BaseUser(_UserTag):
 
     if TYPE_CHECKING:
         name: str
-        id: int
+        id: UserId
         discriminator: str
         global_name: Optional[str]
         bot: bool
@@ -90,10 +91,10 @@ class BaseUser(_UserTag):
         # legacy behavior
         return f"{self.name}#{discriminator}"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, _UserTag) and other.id == self.id
 
-    def __ne__(self, other: Any) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
@@ -101,7 +102,7 @@ class BaseUser(_UserTag):
 
     def _update(self, data: Union[UserPayload, PartialUserPayload]) -> None:
         self.name = data["username"]
-        self.id = int(data["id"])
+        self.id = UserId(int(data["id"]))
         self.discriminator = data["discriminator"]
         self.global_name = data.get("global_name")
         self._avatar = data["avatar"]

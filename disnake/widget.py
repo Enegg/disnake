@@ -8,6 +8,7 @@ from .activity import BaseActivity, Spotify, create_activity
 from .asset import Asset
 from .enums import Status, WidgetStyle, try_enum
 from .invite import Invite
+from .types.ids import ChannelId
 from .user import BaseUser
 from .utils import MISSING, _get_as_snowflake, resolve_invite, snowflake_time
 
@@ -223,7 +224,7 @@ class WidgetSettings:
         self,
         *,
         enabled: bool = MISSING,
-        channel: Optional[Snowflake] = MISSING,
+        channel: Optional[Snowflake[ChannelId]] = MISSING,
         reason: Optional[str] = None,
     ) -> WidgetSettings:
         """|coro|
@@ -390,7 +391,7 @@ class Widget:
         self,
         *,
         enabled: bool = MISSING,
-        channel: Optional[Snowflake] = MISSING,
+        channel: Optional[Snowflake[ChannelId]] = MISSING,
         reason: Optional[str] = None,
     ) -> None:
         """|coro|

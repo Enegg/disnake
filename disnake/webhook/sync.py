@@ -35,6 +35,7 @@ from ..flags import MessageFlags
 from ..http import Route
 from ..message import Message
 from ..object import Object
+from ..types.ids import ChannelId, ThreadId
 from .async_ import BaseWebhook, _WebhookState, handle_message_parameters
 
 __all__ = (
@@ -799,7 +800,7 @@ class SyncWebhook(BaseWebhook):
         reason: Optional[str] = None,
         name: Optional[str] = MISSING,
         avatar: Optional[bytes] = MISSING,
-        channel: Optional[Snowflake] = None,
+        channel: Optional[Snowflake[ChannelId]] = None,
         prefer_auth: bool = True,
     ) -> SyncWebhook:
         """Edits this Webhook.
@@ -878,7 +879,11 @@ class SyncWebhook(BaseWebhook):
         )
 
     def _create_message(
-        self, data, *, thread: Optional[Snowflake] = None, thread_name: Optional[str] = None
+        self,
+        data,
+        *,
+        thread: Optional[Snowflake[ThreadId]] = None,
+        thread_name: Optional[str] = None,
     ):
         # see async webhook's _create_message for details
         channel_id = int(data["channel_id"])
@@ -907,12 +912,11 @@ class SyncWebhook(BaseWebhook):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions = ...,
-        thread: Snowflake = ...,
+        thread: Snowflake[ThreadId] = ...,
         thread_name: str = ...,
         applied_tags: Sequence[Snowflake] = ...,
         wait: Literal[True],
-    ) -> SyncWebhookMessage:
-        ...
+    ) -> SyncWebhookMessage: ...
 
     @overload
     def send(
@@ -929,12 +933,11 @@ class SyncWebhook(BaseWebhook):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions = ...,
-        thread: Snowflake = ...,
+        thread: Snowflake[ThreadId] = ...,
         thread_name: str = ...,
         applied_tags: Sequence[Snowflake] = ...,
         wait: Literal[False] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def send(
         self,
@@ -950,7 +953,7 @@ class SyncWebhook(BaseWebhook):
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
-        thread: Snowflake = MISSING,
+        thread: Snowflake[ThreadId] = MISSING,
         thread_name: str = MISSING,
         applied_tags: Sequence[Snowflake] = MISSING,
         wait: bool = False,
@@ -1116,7 +1119,7 @@ class SyncWebhook(BaseWebhook):
             return self._create_message(data, thread=thread, thread_name=thread_name)
 
     def fetch_message(
-        self, id: int, /, *, thread: Optional[Snowflake] = None
+        self, id: int, /, *, thread: Optional[Snowflake[ThreadId]] = None
     ) -> SyncWebhookMessage:
         """Retrieves a single :class:`SyncWebhookMessage` owned by this webhook.
 
@@ -1174,7 +1177,7 @@ class SyncWebhook(BaseWebhook):
         files: List[File] = MISSING,
         attachments: Optional[List[Attachment]] = MISSING,
         allowed_mentions: Optional[AllowedMentions] = None,
-        thread: Optional[Snowflake] = None,
+        thread: Optional[Snowflake[ThreadId]] = None,
     ) -> SyncWebhookMessage:
         """Edits a message owned by this webhook.
 
@@ -1284,7 +1287,9 @@ class SyncWebhook(BaseWebhook):
                     f.close()
         return self._create_message(data, thread=thread)
 
-    def delete_message(self, message_id: int, /, *, thread: Optional[Snowflake] = None) -> None:
+    def delete_message(
+        self, message_id: int, /, *, thread: Optional[Snowflake[ThreadId]] = None
+    ) -> None:
         """Deletes a message owned by this webhook.
 
         This is a lower level interface to :meth:`WebhookMessage.delete` in case

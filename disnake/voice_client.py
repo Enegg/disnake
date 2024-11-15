@@ -28,6 +28,7 @@ from .backoff import ExponentialBackoff
 from .errors import ClientException, ConnectionClosed
 from .gateway import DiscordVoiceWebSocket
 from .player import AudioPlayer, AudioSource
+from .types.ids import ChannelId
 from .utils import MISSING
 
 if TYPE_CHECKING:
@@ -486,7 +487,7 @@ class VoiceClient(VoiceProtocol):
             if self.socket:
                 self.socket.close()
 
-    async def move_to(self, channel: abc.Snowflake) -> None:
+    async def move_to(self, channel: abc.Snowflake[ChannelId]) -> None:
         """|coro|
 
         Moves you to a different voice channel.

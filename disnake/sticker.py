@@ -9,6 +9,7 @@ from .asset import Asset, AssetMixin
 from .enums import StickerFormatType, StickerType, try_enum
 from .errors import InvalidData
 from .mixins import Hashable
+from .types.ids import GuildId, StickerId
 from .utils import MISSING, _get_as_snowflake, cached_slot_property, find, get, snowflake_time
 
 __all__ = (
@@ -263,7 +264,7 @@ class Sticker(_StickerTag):
         self._from_data(data)
 
     def _from_data(self, data: StickerPayload) -> None:
-        self.id: int = int(data["id"])
+        self.id: StickerId = StickerId(int(data["id"]))
         self.name: str = data["name"]
         self.description: str = data.get("description") or ""
         self.format: StickerFormatType = try_enum(StickerFormatType, data["format_type"])
@@ -405,7 +406,7 @@ class GuildSticker(Sticker):
     def _from_data(self, data: GuildStickerPayload) -> None:
         super()._from_data(data)
         self.available: bool = data.get("available", True)
-        self.guild_id: int = int(data["guild_id"])
+        self.guild_id: GuildId = GuildId(int(data["guild_id"]))
         user = data.get("user")
         self.user: Optional[User] = self._state.store_user(user) if user else None
         self.emoji: str = data["tags"]

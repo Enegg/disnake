@@ -25,6 +25,7 @@ from .enums import (
     try_enum_to_int,
 )
 from .flags import AutoModKeywordPresets
+from .types.ids import CategoryId, ChannelId, ChannelOrThreadId, MemberId, MessageId, RoleId
 from .utils import MISSING, _get_as_snowflake, snowflake_time
 
 if TYPE_CHECKING:
@@ -172,7 +173,7 @@ class AutoModSendAlertAction(AutoModAction):
 
     _metadata: AutoModSendAlertActionMetadata
 
-    def __init__(self, channel: Snowflake) -> None:
+    def __init__(self, channel: Snowflake[ChannelId]) -> None:
         super().__init__(type=AutoModActionType.send_alert_message)
 
         self._metadata["channel_id"] = channel.id
@@ -296,8 +297,7 @@ class AutoModTriggerMetadata:
         keyword_filter: Optional[Sequence[str]],
         regex_patterns: Optional[Sequence[str]] = None,
         allow_list: Optional[Sequence[str]] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     def __init__(
@@ -306,8 +306,7 @@ class AutoModTriggerMetadata:
         keyword_filter: Optional[Sequence[str]] = None,
         regex_patterns: Optional[Sequence[str]],
         allow_list: Optional[Sequence[str]] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     def __init__(
@@ -315,14 +314,12 @@ class AutoModTriggerMetadata:
         *,
         presets: AutoModKeywordPresets,
         allow_list: Optional[Sequence[str]] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     def __init__(
         self, *, mention_total_limit: int, mention_raid_protection_enabled: bool = False
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def __init__(
         self,
@@ -472,7 +469,7 @@ class AutoModRule:
         self.id: int = int(data["id"])
         self.name: str = data["name"]
         self.enabled: bool = data["enabled"]
-        self.creator_id: int = int(data["creator_id"])
+        self.creator_id: MemberId = MemberId(int(data["creator_id"]))
         self.event_type: AutoModEventType = try_enum(AutoModEventType, data["event_type"])
         self.trigger_type: AutoModTriggerType = try_enum(AutoModTriggerType, data["trigger_type"])
         self._actions: List[AutoModAction] = [
@@ -540,8 +537,8 @@ class AutoModRule:
         trigger_metadata: AutoModTriggerMetadata = MISSING,
         actions: Sequence[AutoModAction] = MISSING,
         enabled: bool = MISSING,
-        exempt_roles: Optional[Iterable[Snowflake]] = MISSING,
-        exempt_channels: Optional[Iterable[Snowflake]] = MISSING,
+        exempt_roles: Optional[Iterable[Snowflake[RoleId]]] = MISSING,
+        exempt_channels: Optional[Iterable[Snowflake[Union[ChannelId, CategoryId]]]] = MISSING,
         reason: Optional[str] = None,
     ) -> AutoModRule:
         """|coro|
@@ -747,10 +744,14 @@ class AutoModActionExecution:
         self.rule_trigger_type: AutoModTriggerType = try_enum(
             AutoModTriggerType, data["rule_trigger_type"]
         )
-        self.user_id: int = int(data["user_id"])
-        self.channel_id: Optional[int] = _get_as_snowflake(data, "channel_id")
-        self.message_id: Optional[int] = _get_as_snowflake(data, "message_id")
-        self.alert_message_id: Optional[int] = _get_as_snowflake(data, "alert_system_message_id")
+        self.user_id: MemberId = MemberId(int(data["user_id"]))
+        self.channel_id: Optional[ChannelOrThreadId] = _get_as_snowflake(
+            data, "channel_id", ChannelOrThreadId
+        )
+        self.message_id: Optional[MessageId] = _get_as_snowflake(data, "message_id", MessageId)
+        self.alert_message_id: Optional[MessageId] = _get_as_snowflake(
+            data, "alert_system_message_id", MessageId
+        )
         self.content: str = data.get("content") or ""
         self.matched_keyword: Optional[str] = data.get("matched_keyword")
         self.matched_content: Optional[str] = data.get("matched_content")

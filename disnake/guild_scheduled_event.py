@@ -14,6 +14,7 @@ from .enums import (
     try_enum,
 )
 from .mixins import Hashable
+from .types.ids import ChannelId, GuildId, MemberId
 from .utils import (
     MISSING,
     _assetbytes_to_base64_data,
@@ -157,9 +158,9 @@ class GuildScheduledEvent(Hashable):
 
     def _update(self, data: GuildScheduledEventPayload) -> None:
         self.id: int = int(data["id"])
-        self.guild_id: int = int(data["guild_id"])
-        self.channel_id: Optional[int] = _get_as_snowflake(data, "channel_id")
-        self.creator_id: Optional[int] = _get_as_snowflake(data, "creator_id")
+        self.guild_id: GuildId = GuildId(int(data["guild_id"]))
+        self.channel_id: Optional[ChannelId] = _get_as_snowflake(data, "channel_id", ChannelId)
+        self.creator_id: Optional[MemberId] = _get_as_snowflake(data, "creator_id", MemberId)
         self.name: str = data["name"]
         self.description: Optional[str] = data.get("description")
         self.scheduled_start_time: datetime = parse_time(data["scheduled_start_time"])
@@ -278,15 +279,14 @@ class GuildScheduledEvent(Hashable):
         name: str = ...,
         description: Optional[str] = ...,
         image: Optional[AssetBytes] = ...,
-        channel: Optional[Snowflake] = ...,
+        channel: Optional[Snowflake[ChannelId]] = ...,
         privacy_level: GuildScheduledEventPrivacyLevel = ...,
         scheduled_start_time: datetime = ...,
         scheduled_end_time: Optional[datetime] = ...,
         entity_metadata: Optional[GuildScheduledEventMetadata] = ...,
         status: GuildScheduledEventStatus = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     # new entity_type is `external`, no channel
     @overload
@@ -304,8 +304,7 @@ class GuildScheduledEvent(Hashable):
         entity_metadata: GuildScheduledEventMetadata = ...,
         status: GuildScheduledEventStatus = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     # new entity_type is `voice` or `stage_instance`, no entity_metadata
     @overload
@@ -319,14 +318,13 @@ class GuildScheduledEvent(Hashable):
         name: str = ...,
         description: Optional[str] = ...,
         image: Optional[AssetBytes] = ...,
-        channel: Snowflake = ...,
+        channel: Snowflake[ChannelId] = ...,
         privacy_level: GuildScheduledEventPrivacyLevel = ...,
         scheduled_start_time: datetime = ...,
         scheduled_end_time: Optional[datetime] = ...,
         status: GuildScheduledEventStatus = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     # channel=None, no entity_type
     @overload
@@ -343,15 +341,14 @@ class GuildScheduledEvent(Hashable):
         entity_metadata: GuildScheduledEventMetadata = ...,
         status: GuildScheduledEventStatus = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     # valid channel, no entity_type
     @overload
     async def edit(
         self,
         *,
-        channel: Snowflake,
+        channel: Snowflake[ChannelId],
         name: str = ...,
         description: Optional[str] = ...,
         image: Optional[AssetBytes] = ...,
@@ -360,8 +357,7 @@ class GuildScheduledEvent(Hashable):
         scheduled_end_time: Optional[datetime] = ...,
         status: GuildScheduledEventStatus = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     async def edit(
         self,
@@ -369,7 +365,7 @@ class GuildScheduledEvent(Hashable):
         name: str = MISSING,
         description: Optional[str] = MISSING,
         image: Optional[AssetBytes] = MISSING,
-        channel: Optional[Snowflake] = MISSING,
+        channel: Optional[Snowflake[ChannelId]] = MISSING,
         privacy_level: GuildScheduledEventPrivacyLevel = MISSING,
         scheduled_start_time: datetime = MISSING,
         scheduled_end_time: Optional[datetime] = MISSING,

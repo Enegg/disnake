@@ -43,6 +43,15 @@ from .partial_emoji import PartialEmoji
 from .permissions import PermissionOverwrite, Permissions
 from .role import Role
 from .sticker import GuildSticker, StandardSticker, StickerItem
+from .types.ids import (
+    CategoryId,
+    ChannelId,
+    GuildId,
+    MessageId,
+    PrivateChannelId,
+    UserId,
+    overload_fetch,
+)
 from .ui.action_row import components_to_dict
 from .utils import _overload_with_permissions
 from .voice_client import VoiceClient, VoiceProtocol
@@ -74,6 +83,7 @@ if TYPE_CHECKING:
     from .iterators import HistoryIterator
     from .member import Member
     from .message import Message, MessageReference, PartialMessage
+    from .mixins import IdT
     from .poll import Poll
     from .state import ConnectionState
     from .threads import AnyThreadArchiveDuration, ForumTag
@@ -100,7 +110,7 @@ MISSING = utils.MISSING
 
 
 @runtime_checkable
-class Snowflake(Protocol):
+class Snowflake(Protocol["IdT"]):
     """An ABC that details the common operations on a Discord model.
 
     Almost all :ref:`Discord models <discord_model>` meet this
@@ -116,11 +126,13 @@ class Snowflake(Protocol):
     """
 
     __slots__ = ()
-    id: int
+
+    @property
+    def id(self) -> IdT: ...
 
 
 @runtime_checkable
-class User(Snowflake, Protocol):
+class User(Snowflake[UserId], Protocol):
     """An ABC that details the common operations on a Discord user.
 
     The following classes implement this ABC:
@@ -180,7 +192,7 @@ class User(Snowflake, Protocol):
 
 
 @runtime_checkable
-class PrivateChannel(Snowflake, Protocol):
+class PrivateChannel(Snowflake[PrivateChannelId], Protocol):
     """An ABC that details the common operations on a private Discord channel.
 
     The following classes implement this ABC:
@@ -255,12 +267,12 @@ class GuildChannel(ABC):
 
     __slots__ = ()
 
-    id: int
+    id: ChannelId
     name: str
     guild: Guild
     type: ChannelType
     position: int
-    category_id: Optional[int]
+    category_id: Optional[CategoryId]
     _flags: int
     _state: ConnectionState
     _overwrites: List[_Overwrites]
@@ -269,8 +281,7 @@ class GuildChannel(ABC):
 
         def __init__(
             self, *, state: ConnectionState, guild: Guild, data: Mapping[str, Any]
-        ) -> None:
-            ...
+        ) -> None: ...
 
     def __str__(self) -> str:
         return self.name
@@ -285,7 +296,7 @@ class GuildChannel(ABC):
     async def _move(
         self,
         position: int,
-        parent_id: Optional[int] = None,
+        parent_id: Optional[CategoryId] = None,
         lock_permissions: bool = False,
         *,
         reason: Optional[str],
@@ -330,7 +341,7 @@ class GuildChannel(ABC):
         position: int = MISSING,
         nsfw: bool = MISSING,
         sync_permissions: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: Optional[int] = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = MISSING,
@@ -347,7 +358,7 @@ class GuildChannel(ABC):
         default_layout: ThreadLayout = MISSING,
         reason: Optional[str] = None,
     ) -> Optional[ChannelPayload]:
-        parent_id: Optional[int]
+        parent_id: Optional[CategoryId]
         if category is not MISSING:
             # if category is given, it's either `None` (no parent) or a category channel
             parent_id = category.id if category else None
@@ -793,7 +804,7 @@ class GuildChannel(ABC):
 
         # Apply channel specific role permission overwrites
         for overwrite in remaining_overwrites:
-            if overwrite.is_role() and roles.has(overwrite.id):
+            if overwrite.is_role() and roles.has(overwrite.id):  # type: ignore
                 denies |= overwrite.deny
                 allows |= overwrite.allow
 
@@ -843,8 +854,7 @@ class GuildChannel(ABC):
         *,
         overwrite: Optional[PermissionOverwrite] = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     @_overload_with_permissions
@@ -911,8 +921,7 @@ class GuildChannel(ABC):
         view_channel: Optional[bool] = ...,
         view_creator_monetization_analytics: Optional[bool] = ...,
         view_guild_insights: Optional[bool] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     async def set_permissions(
         self,
@@ -1030,7 +1039,7 @@ class GuildChannel(ABC):
         base_attrs: Dict[str, Any],
         *,
         name: Optional[str] = None,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = MISSING,
         reason: Optional[str] = None,
     ) -> Self:
@@ -1115,11 +1124,10 @@ class GuildChannel(ABC):
         *,
         beginning: bool,
         offset: int = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def move(
@@ -1127,11 +1135,10 @@ class GuildChannel(ABC):
         *,
         end: bool,
         offset: int = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def move(
@@ -1139,11 +1146,10 @@ class GuildChannel(ABC):
         *,
         before: Snowflake,
         offset: int = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def move(
@@ -1151,11 +1157,10 @@ class GuildChannel(ABC):
         *,
         after: Snowflake,
         offset: int = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     async def move(self, **kwargs: Any) -> None:
         """|coro|
@@ -1442,8 +1447,7 @@ class Messageable:
         view: View = ...,
         components: Components[MessageUIComponent] = ...,
         poll: Poll = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def send(
@@ -1464,8 +1468,7 @@ class Messageable:
         view: View = ...,
         components: Components[MessageUIComponent] = ...,
         poll: Poll = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def send(
@@ -1486,8 +1489,7 @@ class Messageable:
         view: View = ...,
         components: Components[MessageUIComponent] = ...,
         poll: Poll = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def send(
@@ -1508,8 +1510,7 @@ class Messageable:
         view: View = ...,
         components: Components[MessageUIComponent] = ...,
         poll: Poll = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     async def send(
         self,
@@ -1817,7 +1818,8 @@ class Messageable:
         """
         return Typing(self)
 
-    async def fetch_message(self, id: int, /) -> Message:
+    @overload_fetch
+    async def fetch_message(self, id: MessageId, /) -> Message:
         """|coro|
 
         Retrieves a single :class:`.Message` from the destination.
@@ -1961,9 +1963,9 @@ class Connectable(Protocol):
     __slots__ = ()
     _state: ConnectionState
     guild: Guild
-    id: int
+    id: ChannelId
 
-    def _get_voice_client_key(self) -> Tuple[int, str]:
+    def _get_voice_client_key(self) -> Tuple[GuildId, str]:
         raise NotImplementedError
 
     def _get_voice_state_pair(self) -> Tuple[int, int]:

@@ -11,6 +11,7 @@ import yarl
 from . import utils
 from .errors import DiscordException
 from .file import File
+from .types.ids import GuildId, MemberId, RoleId, UserId, WebhookId
 
 __all__ = ("Asset",)
 
@@ -214,7 +215,7 @@ class Asset(AssetMixin):
         )
 
     @classmethod
-    def _from_avatar(cls, state: AnyState, user_id: int, avatar: str) -> Self:
+    def _from_avatar(cls, state: AnyState, user_id: Union[UserId, WebhookId], avatar: str) -> Self:
         animated = avatar.startswith("a_")
         format = "gif" if animated else "png"
         return cls(
@@ -226,7 +227,7 @@ class Asset(AssetMixin):
 
     @classmethod
     def _from_guild_avatar(
-        cls, state: AnyState, guild_id: int, member_id: int, avatar: str
+        cls, state: AnyState, guild_id: GuildId, member_id: MemberId, avatar: str
     ) -> Self:
         animated = avatar.startswith("a_")
         format = "gif" if animated else "png"
@@ -256,7 +257,7 @@ class Asset(AssetMixin):
         )
 
     @classmethod
-    def _from_guild_image(cls, state: AnyState, guild_id: int, image: str, path: str) -> Self:
+    def _from_guild_image(cls, state: AnyState, guild_id: GuildId, image: str, path: str) -> Self:
         return cls(
             state,
             url=f"{cls.BASE}/{path}/{guild_id}/{image}.png?size=1024",
@@ -265,7 +266,7 @@ class Asset(AssetMixin):
         )
 
     @classmethod
-    def _from_guild_icon(cls, state: AnyState, guild_id: int, icon_hash: str) -> Self:
+    def _from_guild_icon(cls, state: AnyState, guild_id: GuildId, icon_hash: str) -> Self:
         animated = icon_hash.startswith("a_")
         format = "gif" if animated else "png"
         return cls(
@@ -296,7 +297,7 @@ class Asset(AssetMixin):
         )
 
     @classmethod
-    def _from_role_icon(cls, state: AnyState, role_id: int, icon_hash: str) -> Self:
+    def _from_role_icon(cls, state: AnyState, role_id: RoleId, icon_hash: str) -> Self:
         animated = icon_hash.startswith("a_")
         format = "gif" if animated else "png"
         return cls(
@@ -337,7 +338,7 @@ class Asset(AssetMixin):
         shorten = self._url.replace(self.BASE, "")
         return f"<Asset url={shorten!r}>"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Asset) and self._url == other._url
 
     def __hash__(self) -> int:

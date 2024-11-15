@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, SupportsInt, Union
+from typing import TYPE_CHECKING, SupportsInt, Union, overload
 
 from . import utils
 from .mixins import Hashable
@@ -10,12 +10,14 @@ from .mixins import Hashable
 if TYPE_CHECKING:
     import datetime
 
+    from .mixins import IdT
+
     SupportsIntCast = Union[SupportsInt, str, bytes, bytearray]
 
 __all__ = ("Object",)
 
 
-class Object(Hashable):
+class Object(Hashable["IdT"]):
     """Represents a generic Discord object.
 
     The purpose of this class is to allow you to create 'miniature'
@@ -49,7 +51,11 @@ class Object(Hashable):
         The ID of the object.
     """
 
-    def __init__(self, id: SupportsIntCast) -> None:
+    @overload
+    def __init__(self, id: "IdT") -> None: ...
+    @overload
+    def __init__(self, id: SupportsIntCast) -> None: ...
+    def __init__(self, id: Union["IdT", SupportsIntCast]) -> None:
         try:
             id = int(id)
         except ValueError:
@@ -57,7 +63,7 @@ class Object(Hashable):
                 f"id parameter must be convertable to int not {id.__class__!r}"
             ) from None
         else:
-            self.id = id
+            self.id: IdT = id  # type: ignore
 
     def __repr__(self) -> str:
         return f"<Object id={self.id!r}>"

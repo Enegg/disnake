@@ -38,6 +38,15 @@ from ..http import Route, set_attachments, to_multipart, to_multipart_with_attac
 from ..message import Message
 from ..mixins import Hashable
 from ..object import Object
+from ..types.ids import (
+    ApplicationId,
+    ChannelId,
+    GuildId,
+    MessageId,
+    ThreadId,
+    WebhookId,
+    overload_fetch,
+)
 from ..ui.action_row import MessageUIComponent, components_to_dict
 from ..user import BaseUser, User
 
@@ -690,7 +699,7 @@ class PartialWebhookGuild(Hashable):
 
     def __init__(self, *, data, state) -> None:
         self._state = state
-        self.id = int(data["id"])
+        self.id: GuildId = GuildId(int(data["id"]))
         self.name = data["name"]
         self._icon = data["icon"]
 
@@ -723,7 +732,7 @@ class _WebhookState(Generic[WebhookT]):
         webhook: WebhookT,
         parent: Optional[Union[ConnectionState, _WebhookState]],
         *,
-        thread: Optional[Snowflake] = None,
+        thread: Optional[Snowflake[ThreadId]] = None,
     ) -> None:
         self._webhook: WebhookT = webhook
 
@@ -733,7 +742,7 @@ class _WebhookState(Generic[WebhookT]):
         else:
             self._parent = parent
 
-        self._thread: Optional[Snowflake] = thread
+        self._thread: Optional[Snowflake[ThreadId]] = thread
 
     def _get_guild(self, guild_id):
         if self._parent is not None:
@@ -959,10 +968,10 @@ class BaseWebhook(Hashable):
         self._update(data)
 
     def _update(self, data: WebhookPayload) -> None:
-        self.id = int(data["id"])
+        self.id: WebhookId = WebhookId(int(data["id"]))
         self.type = try_enum(WebhookType, int(data["type"]))
-        self.channel_id = utils._get_as_snowflake(data, "channel_id")
-        self.guild_id = utils._get_as_snowflake(data, "guild_id")
+        self.channel_id = utils._get_as_snowflake(data, "channel_id", ChannelId)
+        self.guild_id = utils._get_as_snowflake(data, "guild_id", GuildId)
         self.name = data.get("name")
         self._avatar = data.get("avatar")
         self.token = data.get("token")
@@ -985,7 +994,9 @@ class BaseWebhook(Hashable):
 
         self.source_guild: Optional[PartialWebhookGuild] = source_guild
 
-        self.application_id: Optional[int] = utils._get_as_snowflake(data, "application_id")
+        self.application_id: Optional[ApplicationId] = utils._get_as_snowflake(
+            data, "application_id", ApplicationId
+        )
 
     def is_partial(self) -> bool:
         """Whether the webhook is a "partial" webhook.
@@ -1366,7 +1377,7 @@ class Webhook(BaseWebhook):
         reason: Optional[str] = None,
         name: Optional[str] = MISSING,
         avatar: Optional[AssetBytes] = MISSING,
-        channel: Optional[Snowflake] = None,
+        channel: Optional[Snowflake[ChannelId]] = None,
         prefer_auth: bool = True,
     ) -> Webhook:
         """|coro|
@@ -1457,7 +1468,11 @@ class Webhook(BaseWebhook):
         return Webhook(data=data, session=self.session, token=self.auth_token, state=self._state)
 
     def _create_message(
-        self, data, *, thread: Optional[Snowflake] = None, thread_name: Optional[str] = None
+        self,
+        data,
+        *,
+        thread: Optional[Snowflake[ThreadId]] = None,
+        thread_name: Optional[str] = None,
     ):
         channel_id = int(data["channel_id"])
 
@@ -1502,13 +1517,12 @@ class Webhook(BaseWebhook):
         view: View = ...,
         components: Components[MessageUIComponent] = ...,
         poll: Poll = ...,
-        thread: Snowflake = ...,
+        thread: Snowflake[ThreadId] = ...,
         thread_name: str = ...,
         applied_tags: Sequence[Snowflake] = ...,
         wait: Literal[True],
         delete_after: float = ...,
-    ) -> WebhookMessage:
-        ...
+    ) -> WebhookMessage: ...
 
     @overload
     async def send(
@@ -1529,13 +1543,12 @@ class Webhook(BaseWebhook):
         view: View = ...,
         components: Components[MessageUIComponent] = ...,
         poll: Poll = ...,
-        thread: Snowflake = ...,
+        thread: Snowflake[ThreadId] = ...,
         thread_name: str = ...,
         applied_tags: Sequence[Snowflake] = ...,
         wait: Literal[False] = ...,
         delete_after: float = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     async def send(
         self,
@@ -1554,7 +1567,7 @@ class Webhook(BaseWebhook):
         allowed_mentions: AllowedMentions = MISSING,
         view: View = MISSING,
         components: Components[MessageUIComponent] = MISSING,
-        thread: Snowflake = MISSING,
+        thread: Snowflake[ThreadId] = MISSING,
         thread_name: str = MISSING,
         applied_tags: Sequence[Snowflake] = MISSING,
         wait: bool = False,
@@ -1796,7 +1809,10 @@ class Webhook(BaseWebhook):
 
         return msg
 
-    async def fetch_message(self, id: int, *, thread: Optional[Snowflake] = None) -> WebhookMessage:
+    @overload_fetch
+    async def fetch_message(
+        self, id: MessageId, *, thread: Optional[Snowflake[ThreadId]] = None
+    ) -> WebhookMessage:
         """|coro|
 
         Retrieves a single :class:`WebhookMessage` owned by this webhook.
@@ -1844,9 +1860,10 @@ class Webhook(BaseWebhook):
         )
         return self._create_message(data, thread=thread)
 
+    @overload_fetch
     async def edit_message(
         self,
-        message_id: int,
+        message_id: MessageId,
         *,
         content: Optional[str] = MISSING,
         embed: Optional[Embed] = MISSING,
@@ -1857,7 +1874,7 @@ class Webhook(BaseWebhook):
         view: Optional[View] = MISSING,
         components: Optional[Components[MessageUIComponent]] = MISSING,
         allowed_mentions: Optional[AllowedMentions] = None,
-        thread: Optional[Snowflake] = None,
+        thread: Optional[Snowflake[ThreadId]] = None,
     ) -> WebhookMessage:
         """|coro|
 
@@ -2009,7 +2026,7 @@ class Webhook(BaseWebhook):
         return message
 
     async def delete_message(
-        self, message_id: int, /, *, thread: Optional[Snowflake] = None
+        self, message_id: int, /, *, thread: Optional[Snowflake[ThreadId]] = None
     ) -> None:
         """|coro|
 

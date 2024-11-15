@@ -48,6 +48,18 @@ from .partial_emoji import PartialEmoji
 from .permissions import PermissionOverwrite, Permissions
 from .stage_instance import StageInstance
 from .threads import ForumTag, Thread
+from .types.ids import (
+    CategoryId,
+    ChannelId,
+    EmojiId,
+    GuildId,
+    MemberId,
+    MessageId,
+    PrivateChannelId,
+    ThreadId,
+    UserId,
+    overload_get,
+)
 from .utils import MISSING
 
 __all__ = (
@@ -150,7 +162,7 @@ async def _single_delete_strategy(messages: Iterable[Message]) -> None:
         await m.delete()
 
 
-class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
+class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable[ChannelId]):
     """Represents a Discord guild text channel.
 
     .. collapse:: operations
@@ -247,7 +259,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
 
     def __init__(self, *, state: ConnectionState, guild: Guild, data: TextChannelPayload) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id = ChannelId(int(data["id"]))
         self._type: Literal[0, 5] = data["type"]
         self._update(guild, data)
 
@@ -269,7 +281,9 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         self.guild: Guild = guild
         # apparently this can be nullable in the case of a bad api deploy
         self.name: str = data.get("name") or ""
-        self.category_id: Optional[int] = utils._get_as_snowflake(data, "parent_id")
+        self.category_id: Optional[CategoryId] = utils._get_as_snowflake(
+            data, "parent_id", CategoryId
+        )
         self.topic: Optional[str] = data.get("topic")
         self.position: int = data["position"]
         self._flags = data.get("flags", 0)
@@ -281,7 +295,9 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
             "default_auto_archive_duration", 1440
         )
         self._type: Literal[0, 5] = data.get("type", self._type)
-        self.last_message_id: Optional[int] = utils._get_as_snowflake(data, "last_message_id")
+        self.last_message_id: Optional[MessageId] = utils._get_as_snowflake(
+            data, "last_message_id", MessageId
+        )
         self.last_pin_timestamp: Optional[datetime.datetime] = utils.parse_time(
             data.get("last_pin_timestamp")
         )
@@ -374,11 +390,10 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         self,
         *,
         position: int,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     # only passing `sync_permissions` may or may not return a channel,
     # depending on whether the channel is in a category
@@ -388,8 +403,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         *,
         sync_permissions: bool,
         reason: Optional[str] = ...,
-    ) -> Optional[TextChannel]:
-        ...
+    ) -> Optional[TextChannel]: ...
 
     @overload
     async def edit(
@@ -400,7 +414,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         position: int = ...,
         nsfw: bool = ...,
         sync_permissions: bool = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         slowmode_delay: Optional[int] = ...,
         default_thread_slowmode_delay: Optional[int] = ...,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = ...,
@@ -408,8 +422,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = ...,
         flags: ChannelFlags = ...,
         reason: Optional[str] = ...,
-    ) -> TextChannel:
-        ...
+    ) -> TextChannel: ...
 
     async def edit(
         self,
@@ -419,7 +432,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         position: int = MISSING,
         nsfw: bool = MISSING,
         sync_permissions: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: Optional[int] = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = MISSING,
@@ -536,7 +549,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         topic: Optional[str] = MISSING,
         position: int = MISSING,
         nsfw: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: int = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: AnyThreadArchiveDuration = MISSING,
@@ -637,7 +650,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
             overwrites=overwrites,
         )
 
-    async def delete_messages(self, messages: Iterable[Snowflake]) -> None:
+    async def delete_messages(self, messages: Iterable[Snowflake[MessageId]]) -> None:
         """|coro|
 
         Deletes a list of messages. This is similar to :meth:`Message.delete`
@@ -676,7 +689,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
             return  # do nothing
 
         if len(messages) == 1:
-            message_id: int = messages[0].id
+            message_id = messages[0].id
             await self._state.http.delete_message(self.id, message_id)
             return
 
@@ -926,7 +939,8 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         )
         return Webhook._as_follower(data, channel=destination, user=self._state.user)
 
-    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+    @overload_get
+    def get_partial_message(self, message_id: MessageId, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the given message ID.
 
         This is useful if you want to work with a message and only have its ID without
@@ -948,7 +962,8 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
 
         return PartialMessage(channel=self, id=message_id)
 
-    def get_thread(self, thread_id: int, /) -> Optional[Thread]:
+    @overload_get
+    def get_thread(self, thread_id: ThreadId, /) -> Optional[Thread]:
         """Returns a thread with the given ID.
 
         .. versionadded:: 2.0
@@ -970,12 +985,11 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         self,
         *,
         name: str,
-        message: Snowflake,
+        message: Snowflake[MessageId],
         auto_archive_duration: Optional[AnyThreadArchiveDuration] = None,
         slowmode_delay: Optional[int] = None,
         reason: Optional[str] = None,
-    ) -> Thread:
-        ...
+    ) -> Thread: ...
 
     @overload
     async def create_thread(
@@ -987,14 +1001,13 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         invitable: Optional[bool] = None,
         slowmode_delay: Optional[int] = None,
         reason: Optional[str] = None,
-    ) -> Thread:
-        ...
+    ) -> Thread: ...
 
     async def create_thread(
         self,
         *,
         name: str,
-        message: Optional[Snowflake] = None,
+        message: Optional[Snowflake[MessageId]] = None,
         auto_archive_duration: Optional[AnyThreadArchiveDuration] = None,
         type: Optional[ThreadType] = None,
         invitable: Optional[bool] = None,
@@ -1147,7 +1160,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
         )
 
 
-class VocalGuildChannel(disnake.abc.Connectable, disnake.abc.GuildChannel, Hashable):
+class VocalGuildChannel(disnake.abc.Connectable, disnake.abc.GuildChannel, Hashable[ChannelId]):
     __slots__ = (
         "name",
         "id",
@@ -1171,13 +1184,13 @@ class VocalGuildChannel(disnake.abc.Connectable, disnake.abc.GuildChannel, Hasha
         data: Union[VoiceChannelPayload, StageChannelPayload],
     ) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id = ChannelId(int(data["id"]))
         self._update(guild, data)
 
-    def _get_voice_client_key(self) -> Tuple[int, str]:
+    def _get_voice_client_key(self) -> Tuple[GuildId, str]:
         return self.guild.id, "guild_id"
 
-    def _get_voice_state_pair(self) -> Tuple[int, int]:
+    def _get_voice_state_pair(self) -> Tuple[GuildId, int]:
         return self.guild.id, self.id
 
     def _update(self, guild: Guild, data: Union[VoiceChannelPayload, StageChannelPayload]) -> None:
@@ -1190,7 +1203,9 @@ class VocalGuildChannel(disnake.abc.Connectable, disnake.abc.GuildChannel, Hasha
             VideoQualityMode, data.get("video_quality_mode", 1)
         )
         self._flags = data.get("flags", 0)
-        self.category_id: Optional[int] = utils._get_as_snowflake(data, "parent_id")
+        self.category_id: Optional[CategoryId] = utils._get_as_snowflake(
+            data, "parent_id", CategoryId
+        )
         self.position: int = data["position"]
         # these don't exist in partial channel objects of slash command options
         self.bitrate: int = data.get("bitrate", 0)
@@ -1213,7 +1228,7 @@ class VocalGuildChannel(disnake.abc.Connectable, disnake.abc.GuildChannel, Hasha
         return ret
 
     @property
-    def voice_states(self) -> Dict[int, VoiceState]:
+    def voice_states(self) -> Dict[MemberId, VoiceState]:
         """Returns a mapping of member IDs who have voice states in this channel.
 
         .. versionadded:: 1.3
@@ -1364,7 +1379,9 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         super()._update(guild, data)
         self.nsfw: bool = data.get("nsfw", False)
         self.slowmode_delay: int = data.get("rate_limit_per_user", 0)
-        self.last_message_id: Optional[int] = utils._get_as_snowflake(data, "last_message_id")
+        self.last_message_id: Optional[MessageId] = utils._get_as_snowflake(
+            data, "last_message_id", MessageId
+        )
 
     async def _get_channel(self):
         return self
@@ -1384,7 +1401,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         bitrate: int = MISSING,
         user_limit: int = MISSING,
         position: int = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         rtc_region: Optional[Union[str, VoiceRegion]] = MISSING,
         video_quality_mode: VideoQualityMode = MISSING,
         nsfw: bool = MISSING,
@@ -1501,7 +1518,8 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         """
         return self._state._get_message(self.last_message_id) if self.last_message_id else None
 
-    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+    @overload_get
+    def get_partial_message(self, message_id: MessageId, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the given message ID.
 
         This is useful if you want to work with a message and only have its ID without
@@ -1529,11 +1547,10 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         self,
         *,
         position: int,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     # only passing `sync_permissions` may or may not return a channel,
     # depending on whether the channel is in a category
@@ -1543,8 +1560,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         *,
         sync_permissions: bool,
         reason: Optional[str] = ...,
-    ) -> Optional[VoiceChannel]:
-        ...
+    ) -> Optional[VoiceChannel]: ...
 
     @overload
     async def edit(
@@ -1555,7 +1571,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         user_limit: int = ...,
         position: int = ...,
         sync_permissions: bool = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = ...,
         rtc_region: Optional[Union[str, VoiceRegion]] = ...,
         video_quality_mode: VideoQualityMode = ...,
@@ -1563,8 +1579,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         slowmode_delay: Optional[int] = ...,
         flags: ChannelFlags = ...,
         reason: Optional[str] = ...,
-    ) -> VoiceChannel:
-        ...
+    ) -> VoiceChannel: ...
 
     async def edit(
         self,
@@ -1574,7 +1589,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
         user_limit: int = MISSING,
         position: int = MISSING,
         sync_permissions: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = MISSING,
         rtc_region: Optional[Union[str, VoiceRegion]] = MISSING,
         video_quality_mode: VideoQualityMode = MISSING,
@@ -1685,7 +1700,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
             # the payload will always be the proper channel payload
             return self.__class__(state=self._state, guild=self.guild, data=payload)  # type: ignore
 
-    async def delete_messages(self, messages: Iterable[Snowflake]) -> None:
+    async def delete_messages(self, messages: Iterable[Snowflake[MessageId]]) -> None:
         """|coro|
 
         Deletes a list of messages. This is similar to :meth:`Message.delete`
@@ -1726,7 +1741,7 @@ class VoiceChannel(disnake.abc.Messageable, VocalGuildChannel):
             return  # do nothing
 
         if len(messages) == 1:
-            message_id: int = messages[0].id
+            message_id = messages[0].id
             await self._state.http.delete_message(self.id, message_id)
             return
 
@@ -2023,7 +2038,9 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         self.topic: Optional[str] = data.get("topic")
         self.nsfw: bool = data.get("nsfw", False)
         self.slowmode_delay: int = data.get("rate_limit_per_user", 0)
-        self.last_message_id: Optional[int] = utils._get_as_snowflake(data, "last_message_id")
+        self.last_message_id: Optional[MessageId] = utils._get_as_snowflake(
+            data, "last_message_id", MessageId
+        )
 
     async def _get_channel(self):
         return self
@@ -2087,7 +2104,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         bitrate: int = MISSING,
         # user_limit: int = MISSING,
         position: int = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: int = MISSING,
         rtc_region: Optional[Union[str, VoiceRegion]] = MISSING,
         video_quality_mode: VideoQualityMode = MISSING,
@@ -2208,7 +2225,8 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         """
         return self._state._get_message(self.last_message_id) if self.last_message_id else None
 
-    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+    @overload_get
+    def get_partial_message(self, message_id: MessageId, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the given message ID.
 
         This is useful if you want to work with a message and only have its ID without
@@ -2346,11 +2364,10 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         self,
         *,
         position: int,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     # only passing `sync_permissions` may or may not return a channel,
     # depending on whether the channel is in a category
@@ -2360,8 +2377,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         *,
         sync_permissions: bool,
         reason: Optional[str] = ...,
-    ) -> Optional[StageChannel]:
-        ...
+    ) -> Optional[StageChannel]: ...
 
     @overload
     async def edit(
@@ -2372,7 +2388,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         user_limit: int = ...,
         position: int = ...,
         sync_permissions: bool = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = ...,
         rtc_region: Optional[Union[str, VoiceRegion]] = ...,
         video_quality_mode: VideoQualityMode = ...,
@@ -2380,8 +2396,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         slowmode_delay: Optional[int] = ...,
         flags: ChannelFlags = ...,
         reason: Optional[str] = ...,
-    ) -> StageChannel:
-        ...
+    ) -> StageChannel: ...
 
     async def edit(
         self,
@@ -2391,7 +2406,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         user_limit: int = MISSING,
         position: int = MISSING,
         sync_permissions: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = MISSING,
         rtc_region: Optional[Union[str, VoiceRegion]] = MISSING,
         video_quality_mode: VideoQualityMode = MISSING,
@@ -2510,7 +2525,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
             # the payload will always be the proper channel payload
             return self.__class__(state=self._state, guild=self.guild, data=payload)  # type: ignore
 
-    async def delete_messages(self, messages: Iterable[Snowflake]) -> None:
+    async def delete_messages(self, messages: Iterable[Snowflake[MessageId]]) -> None:
         """|coro|
 
         Deletes a list of messages. This is similar to :meth:`Message.delete`
@@ -2551,7 +2566,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
             return  # do nothing
 
         if len(messages) == 1:
-            message_id: int = messages[0].id
+            message_id = messages[0].id
             await self._state.http.delete_message(self.id, message_id)
             return
 
@@ -2742,7 +2757,7 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
         return Webhook.from_state(data, state=self._state)
 
 
-class CategoryChannel(disnake.abc.GuildChannel, Hashable):
+class CategoryChannel(disnake.abc.GuildChannel, Hashable[CategoryId]):
     """Represents a Discord channel category.
 
     These are useful to group channels to logical compartments.
@@ -2800,7 +2815,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         self, *, state: ConnectionState, guild: Guild, data: CategoryChannelPayload
     ) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id = CategoryId(int(data["id"]))
         self._update(guild, data)
 
     def __repr__(self) -> str:
@@ -2810,7 +2825,9 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         self.guild: Guild = guild
         # apparently this can be nullable in the case of a bad api deploy
         self.name: str = data.get("name") or ""
-        self.category_id: Optional[int] = utils._get_as_snowflake(data, "parent_id")
+        self.category_id: Optional[CategoryId] = utils._get_as_snowflake(
+            data, "parent_id", CategoryId
+        )
         self._flags = data.get("flags", 0)
         self.nsfw: bool = data.get("nsfw", False)
         self.position: int = data["position"]
@@ -2911,8 +2928,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         *,
         position: int,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def edit(
@@ -2924,8 +2940,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         overwrites: Mapping[Union[Role, Member], PermissionOverwrite] = ...,
         flags: ChannelFlags = ...,
         reason: Optional[str] = ...,
-    ) -> CategoryChannel:
-        ...
+    ) -> CategoryChannel: ...
 
     async def edit(
         self,
@@ -3011,8 +3026,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         offset: int = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def move(
@@ -3022,8 +3036,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         offset: int = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def move(
@@ -3033,8 +3046,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         offset: int = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def move(
@@ -3044,8 +3056,7 @@ class CategoryChannel(disnake.abc.GuildChannel, Hashable):
         offset: int = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @utils.copy_doc(disnake.abc.GuildChannel.move)
     async def move(self, **kwargs: Any) -> None:
@@ -3224,7 +3235,7 @@ class ThreadWithMessage(NamedTuple):
     message: Message
 
 
-class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
+class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable[ChannelId]):
     __slots__ = (
         "id",
         "name",
@@ -3255,7 +3266,7 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         data: Union[ForumChannelPayload, MediaChannelPayload],
     ) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id = ChannelId(int(data["id"]))
         self._type: int = data["type"]
         self._update(guild, data)
 
@@ -3277,12 +3288,16 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         self.guild: Guild = guild
         # apparently this can be nullable in the case of a bad api deploy
         self.name: str = data.get("name") or ""
-        self.category_id: Optional[int] = utils._get_as_snowflake(data, "parent_id")
+        self.category_id: Optional[CategoryId] = utils._get_as_snowflake(
+            data, "parent_id", CategoryId
+        )
         self.topic: Optional[str] = data.get("topic")
         self.position: int = data["position"]
         self._flags = data.get("flags", 0)
         self.nsfw: bool = data.get("nsfw", False)
-        self.last_thread_id: Optional[int] = utils._get_as_snowflake(data, "last_message_id")
+        self.last_thread_id: Optional[ThreadId] = utils._get_as_snowflake(
+            data, "last_message_id", ThreadId
+        )
         self.default_auto_archive_duration: ThreadArchiveDurationLiteral = data.get(
             "default_auto_archive_duration", 1440
         )
@@ -3297,8 +3312,8 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
 
         default_reaction_emoji = data.get("default_reaction_emoji") or {}
         # emoji_id may be `0`, use `None` instead
-        self._default_reaction_emoji_id: Optional[int] = (
-            utils._get_as_snowflake(default_reaction_emoji, "emoji_id") or None
+        self._default_reaction_emoji_id: Optional[EmojiId] = (
+            utils._get_as_snowflake(default_reaction_emoji, "emoji_id", EmojiId) or None
         )
         self._default_reaction_emoji_name: Optional[str] = default_reaction_emoji.get("emoji_name")
 
@@ -3421,7 +3436,8 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
     def typing(self) -> Typing:
         return Typing(self)
 
-    def get_thread(self, thread_id: int, /) -> Optional[Thread]:
+    @overload_get
+    def get_thread(self, thread_id: ThreadId, /) -> Optional[Thread]:
         """Returns a thread with the given ID.
 
         Parameters
@@ -3454,8 +3470,7 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         view: View = ...,
         components: Components = ...,
         reason: Optional[str] = None,
-    ) -> ThreadWithMessage:
-        ...
+    ) -> ThreadWithMessage: ...
 
     @overload
     async def create_thread(
@@ -3475,8 +3490,7 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         view: View = ...,
         components: Components = ...,
         reason: Optional[str] = None,
-    ) -> ThreadWithMessage:
-        ...
+    ) -> ThreadWithMessage: ...
 
     @overload
     async def create_thread(
@@ -3496,8 +3510,7 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         view: View = ...,
         components: Components = ...,
         reason: Optional[str] = None,
-    ) -> ThreadWithMessage:
-        ...
+    ) -> ThreadWithMessage: ...
 
     @overload
     async def create_thread(
@@ -3517,8 +3530,7 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         view: View = ...,
         components: Components = ...,
         reason: Optional[str] = None,
-    ) -> ThreadWithMessage:
-        ...
+    ) -> ThreadWithMessage: ...
 
     async def create_thread(
         self,
@@ -3948,11 +3960,10 @@ class ForumChannel(ThreadOnlyGuildChannel):
         self,
         *,
         position: int,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     # only passing `sync_permissions` may or may not return a channel,
     # depending on whether the channel is in a category
@@ -3962,8 +3973,7 @@ class ForumChannel(ThreadOnlyGuildChannel):
         *,
         sync_permissions: bool,
         reason: Optional[str] = ...,
-    ) -> Optional[ForumChannel]:
-        ...
+    ) -> Optional[ForumChannel]: ...
 
     @overload
     async def edit(
@@ -3974,7 +3984,7 @@ class ForumChannel(ThreadOnlyGuildChannel):
         position: int = ...,
         nsfw: bool = ...,
         sync_permissions: bool = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         slowmode_delay: Optional[int] = ...,
         default_thread_slowmode_delay: Optional[int] = ...,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = ...,
@@ -3986,8 +3996,7 @@ class ForumChannel(ThreadOnlyGuildChannel):
         default_sort_order: Optional[ThreadSortOrder] = ...,
         default_layout: ThreadLayout = ...,
         reason: Optional[str] = ...,
-    ) -> ForumChannel:
-        ...
+    ) -> ForumChannel: ...
 
     async def edit(
         self,
@@ -3997,7 +4006,7 @@ class ForumChannel(ThreadOnlyGuildChannel):
         position: int = MISSING,
         nsfw: bool = MISSING,
         sync_permissions: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: Optional[int] = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = MISSING,
@@ -4147,7 +4156,7 @@ class ForumChannel(ThreadOnlyGuildChannel):
         topic: Optional[str] = MISSING,
         position: int = MISSING,
         nsfw: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: Optional[int] = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = MISSING,
@@ -4378,11 +4387,10 @@ class MediaChannel(ThreadOnlyGuildChannel):
         self,
         *,
         position: int,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         sync_permissions: bool = ...,
         reason: Optional[str] = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     # only passing `sync_permissions` may or may not return a channel,
     # depending on whether the channel is in a category
@@ -4392,8 +4400,7 @@ class MediaChannel(ThreadOnlyGuildChannel):
         *,
         sync_permissions: bool,
         reason: Optional[str] = ...,
-    ) -> Optional[MediaChannel]:
-        ...
+    ) -> Optional[MediaChannel]: ...
 
     @overload
     async def edit(
@@ -4404,7 +4411,7 @@ class MediaChannel(ThreadOnlyGuildChannel):
         position: int = ...,
         nsfw: bool = ...,
         sync_permissions: bool = ...,
-        category: Optional[Snowflake] = ...,
+        category: Optional[Snowflake[CategoryId]] = ...,
         slowmode_delay: Optional[int] = ...,
         default_thread_slowmode_delay: Optional[int] = ...,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = ...,
@@ -4415,8 +4422,7 @@ class MediaChannel(ThreadOnlyGuildChannel):
         default_reaction: Optional[Union[str, Emoji, PartialEmoji]] = ...,
         default_sort_order: Optional[ThreadSortOrder] = ...,
         reason: Optional[str] = ...,
-    ) -> MediaChannel:
-        ...
+    ) -> MediaChannel: ...
 
     async def edit(
         self,
@@ -4426,7 +4432,7 @@ class MediaChannel(ThreadOnlyGuildChannel):
         position: int = MISSING,
         nsfw: bool = MISSING,
         sync_permissions: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: Optional[int] = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = MISSING,
@@ -4548,7 +4554,7 @@ class MediaChannel(ThreadOnlyGuildChannel):
         topic: Optional[str] = MISSING,
         position: int = MISSING,
         nsfw: bool = MISSING,
-        category: Optional[Snowflake] = MISSING,
+        category: Optional[Snowflake[CategoryId]] = MISSING,
         slowmode_delay: Optional[int] = MISSING,
         default_thread_slowmode_delay: Optional[int] = MISSING,
         default_auto_archive_duration: Optional[AnyThreadArchiveDuration] = MISSING,
@@ -4663,7 +4669,7 @@ class MediaChannel(ThreadOnlyGuildChannel):
         )
 
 
-class DMChannel(disnake.abc.Messageable, Hashable):
+class DMChannel(disnake.abc.Messageable, Hashable[PrivateChannelId]):
     """Represents a Discord direct message channel.
 
     .. collapse:: operations
@@ -4716,7 +4722,7 @@ class DMChannel(disnake.abc.Messageable, Hashable):
             self.recipient = state.store_user(recipients[0])  # type: ignore
 
         self.me: ClientUser = me
-        self.id: int = int(data["id"])
+        self.id = PrivateChannelId(int(data["id"]))
         self.last_pin_timestamp: Optional[datetime.datetime] = utils.parse_time(
             data.get("last_pin_timestamp")
         )
@@ -4734,7 +4740,9 @@ class DMChannel(disnake.abc.Messageable, Hashable):
         return f"<DMChannel id={self.id} recipient={self.recipient!r}>"
 
     @classmethod
-    def _from_message(cls, state: ConnectionState, channel_id: int, user_id: int) -> Self:
+    def _from_message(
+        cls, state: ConnectionState, channel_id: PrivateChannelId, user_id: UserId
+    ) -> Self:
         self = cls.__new__(cls)
         self._state = state
         self.id = channel_id
@@ -4806,7 +4814,8 @@ class DMChannel(disnake.abc.Messageable, Hashable):
         """
         return Permissions.private_channel()
 
-    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+    @overload_get
+    def get_partial_message(self, message_id: MessageId, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the given message ID.
 
         This is useful if you want to work with a message and only have its ID without
@@ -4829,7 +4838,7 @@ class DMChannel(disnake.abc.Messageable, Hashable):
         return PartialMessage(channel=self, id=message_id)
 
 
-class GroupChannel(disnake.abc.Messageable, Hashable):
+class GroupChannel(disnake.abc.Messageable, Hashable[PrivateChannelId]):
     """Represents a Discord group channel.
 
     .. collapse:: operations
@@ -4877,12 +4886,12 @@ class GroupChannel(disnake.abc.Messageable, Hashable):
         self, *, me: ClientUser, state: ConnectionState, data: GroupChannelPayload
     ) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id = PrivateChannelId(int(data["id"]))
         self.me: ClientUser = me
         self._update_group(data)
 
     def _update_group(self, data: GroupChannelPayload) -> None:
-        self.owner_id: Optional[int] = utils._get_as_snowflake(data, "owner_id")
+        self.owner_id: Optional[UserId] = utils._get_as_snowflake(data, "owner_id", UserId)
         self._icon: Optional[str] = data.get("icon")
         self.name: Optional[str] = data.get("name")
         self.recipients: List[User] = [
@@ -4932,7 +4941,7 @@ class GroupChannel(disnake.abc.Messageable, Hashable):
 
     def permissions_for(
         self,
-        obj: Snowflake,
+        obj: Snowflake[UserId],
         /,
         *,
         ignore_timeout: bool = MISSING,
@@ -4983,7 +4992,7 @@ class GroupChannel(disnake.abc.Messageable, Hashable):
         await self._state.http.leave_group(self.id)
 
 
-class PartialMessageable(disnake.abc.Messageable, Hashable):
+class PartialMessageable(disnake.abc.Messageable, Hashable[ChannelId]):
     """Represents a partial messageable to aid with working messageable channels when
     only a channel ID is present.
 
@@ -5015,15 +5024,18 @@ class PartialMessageable(disnake.abc.Messageable, Hashable):
         The channel type associated with this partial messageable, if given.
     """
 
-    def __init__(self, state: ConnectionState, id: int, type: Optional[ChannelType] = None) -> None:
+    def __init__(
+        self, state: ConnectionState, id: ChannelId, type: Optional[ChannelType] = None
+    ) -> None:
         self._state: ConnectionState = state
-        self.id: int = id
+        self.id = id
         self.type: Optional[ChannelType] = type
 
     async def _get_channel(self) -> PartialMessageable:
         return self
 
-    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+    @overload_get
+    def get_partial_message(self, message_id: MessageId, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the given message ID.
 
         This is useful if you want to work with a message and only have its ID without
@@ -5089,7 +5101,7 @@ def _threaded_guild_channel_factory(channel_type: int):
 
 
 def _channel_type_factory(
-    cls: Union[Type[disnake.abc.GuildChannel], Type[Thread]]
+    cls: Union[Type[disnake.abc.GuildChannel], Type[Thread]],
 ) -> List[ChannelType]:
     return {
         disnake.abc.GuildChannel: list(ChannelType.__members__.values()),

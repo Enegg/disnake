@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from .iterators import ReactionIterator
+from .types.ids import UserId
 
 __all__ = ("Reaction",)
 
@@ -96,7 +97,7 @@ class Reaction:
     def __repr__(self) -> str:
         return f"<Reaction emoji={self.emoji!r} me={self.me} count={self.count}>"
 
-    async def remove(self, user: Snowflake) -> None:
+    async def remove(self, user: Snowflake[UserId]) -> None:
         """|coro|
 
         Removes the reaction by the provided :class:`User` from the message.

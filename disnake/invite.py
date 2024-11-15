@@ -8,8 +8,9 @@ from .appinfo import PartialAppInfo
 from .asset import Asset
 from .enums import ChannelType, InviteTarget, InviteType, NSFWLevel, VerificationLevel, try_enum
 from .guild_scheduled_event import GuildScheduledEvent
-from .mixins import Hashable
+from .mixins import EqualityComparable
 from .object import Object
+from .types.ids import ChannelId, GuildId
 from .utils import _get_as_snowflake, parse_time, snowflake_time
 from .welcome_screen import WelcomeScreen
 
@@ -91,7 +92,7 @@ class PartialInviteChannel:
 
     def __init__(self, *, state: ConnectionState, data: InviteChannelPayload) -> None:
         self._state = state
-        self.id: int = int(data["id"])
+        self.id: ChannelId = ChannelId(int(data["id"]))
         self.name: Optional[str] = data.get("name")
         self.type: ChannelType = try_enum(ChannelType, data["type"])
         if self.type is ChannelType.group:
@@ -198,9 +199,9 @@ class PartialInviteGuild:
         "premium_subscription_count",
     )
 
-    def __init__(self, state: ConnectionState, data: InviteGuildPayload, id: int) -> None:
+    def __init__(self, state: ConnectionState, data: InviteGuildPayload, id: GuildId) -> None:
         self._state: ConnectionState = state
-        self.id: int = id
+        self.id: GuildId = id
         self.name: str = data["name"]
         self.features: List[GuildFeature] = data.get("features", [])
         self._icon: Optional[str] = data.get("icon")
@@ -250,7 +251,7 @@ class PartialInviteGuild:
         return Asset._from_guild_image(self._state, self.id, self._splash, path="splashes")
 
 
-class Invite(Hashable):
+class Invite(EqualityComparable):
     """Represents a Discord :class:`Guild` or :class:`abc.GuildChannel` invite.
 
     Depending on the way this object was created, some of the attributes can
@@ -435,7 +436,9 @@ class Invite(Hashable):
         )
 
         inviter_data = data.get("inviter")
-        self.inviter: Optional[User] = None if inviter_data is None else self._state.create_user(inviter_data)  # type: ignore
+        self.inviter: Optional[User] = (
+            None if inviter_data is None else self._state.create_user(inviter_data)
+        )  # type: ignore
 
         self.channel: Optional[InviteChannelType] = self._resolve_channel(
             data.get("channel"), channel
@@ -457,7 +460,9 @@ class Invite(Hashable):
             self.guild_welcome_screen: Optional[WelcomeScreen] = None
 
         target_user_data = data.get("target_user")
-        self.target_user: Optional[User] = None if target_user_data is None else self._state.create_user(target_user_data)  # type: ignore
+        self.target_user: Optional[User] = (
+            None if target_user_data is None else self._state.create_user(target_user_data)
+        )  # type: ignore
 
         self.target_type: InviteTarget = try_enum(InviteTarget, data.get("target_type", 0))
 
@@ -482,7 +487,7 @@ class Invite(Hashable):
             # If we're here, then this is a group DM
             guild = None
         else:
-            guild_id = int(guild_data["id"])
+            guild_id = GuildId(int(guild_data["id"]))
             guild = state._get_guild(guild_id)
             if guild is None:
                 # If it's not cached, then it has to be a partial guild
@@ -499,9 +504,9 @@ class Invite(Hashable):
 
     @classmethod
     def from_gateway(cls, *, state: ConnectionState, data: GatewayInvitePayload) -> Self:
-        guild_id: Optional[int] = _get_as_snowflake(data, "guild_id")
-        guild: Optional[Union[Guild, Object]] = state._get_guild(guild_id)
-        channel_id = int(data["channel_id"])
+        guild_id = _get_as_snowflake(data, "guild_id", GuildId)
+        guild: Union[Guild, Object, None] = state._get_guild(guild_id)
+        channel_id = ChannelId(int(data["channel_id"]))
         if guild is not None:
             channel = guild.get_channel(channel_id) or Object(id=channel_id)
         else:
@@ -527,7 +532,7 @@ class Invite(Hashable):
         if data is None:
             return None
 
-        guild_id = int(data["id"])
+        guild_id = GuildId(int(data["id"]))
         return PartialInviteGuild(self._state, data, guild_id)
 
     def _resolve_channel(

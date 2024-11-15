@@ -49,6 +49,7 @@ from typing import (
 from urllib.parse import parse_qs, urlencode
 
 from .enums import Locale
+from .types.ids import GuildId, IdT
 
 try:
     import orjson
@@ -56,7 +57,6 @@ except ModuleNotFoundError:
     HAS_ORJSON = False
 else:
     HAS_ORJSON = True
-
 
 __all__ = (
     "oauth_url",
@@ -285,7 +285,7 @@ def oauth_url(
     client_id: Union[int, str],
     *,
     permissions: Permissions = MISSING,
-    guild: Snowflake = MISSING,
+    guild: Snowflake[GuildId] = MISSING,
     redirect_uri: str = MISSING,
     scopes: Iterable[str] = MISSING,
     disable_guild_select: bool = False,
@@ -465,13 +465,16 @@ def _unique(iterable: Iterable[T]) -> List[T]:
     return list(dict.fromkeys(iterable))
 
 
-def _get_as_snowflake(data: Any, key: str) -> Optional[int]:
+NumT = TypeVar("NumT", bound=int)
+
+
+def _get_as_snowflake(data: Any, key: str, type_: Type[NumT] = int) -> Optional[NumT]:
     try:
         value = data[key]
     except KeyError:
         return None
     else:
-        return value and int(value)
+        return value and int(value)  # type: ignore
 
 
 def _maybe_cast(value: V, converter: Callable[[V], T], default: T = None) -> Optional[T]:
@@ -650,7 +653,7 @@ def valid_icon_size(size: int) -> bool:
     return not size & (size - 1) and 4096 >= size >= 16
 
 
-class SnowflakeList(array.array):
+class SnowflakeList(array.array, Generic[IdT]):
     """Internal data storage class to efficiently store a list of snowflakes.
 
     This should have the following characteristics:
@@ -666,21 +669,21 @@ class SnowflakeList(array.array):
 
     if TYPE_CHECKING:
 
-        def __init__(self, data: Iterable[int], *, is_sorted: bool = False) -> None:
+        def __init__(self, data: Iterable[IdT], *, is_sorted: bool = False) -> None:
             ...
 
-    def __new__(cls, data: Iterable[int], *, is_sorted: bool = False):
+    def __new__(cls, data: Iterable[IdT], *, is_sorted: bool = False):
         return array.array.__new__(cls, "Q", data if is_sorted else sorted(data))  # type: ignore
 
-    def add(self, element: int) -> None:
+    def add(self, element: IdT) -> None:
         i = bisect_left(self, element)
         self.insert(i, element)
 
-    def get(self, element: int) -> Optional[int]:
+    def get(self, element: IdT) -> Optional[int]:
         i = bisect_left(self, element)
         return self[i] if i != len(self) and self[i] == element else None
 
-    def has(self, element: int) -> bool:
+    def has(self, element: IdT) -> bool:
         i = bisect_left(self, element)
         return i != len(self) and self[i] == element
 

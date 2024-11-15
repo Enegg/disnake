@@ -73,6 +73,23 @@ from .state import ConnectionState
 from .sticker import GuildSticker, StandardSticker, StickerPack, _sticker_factory
 from .template import Template
 from .threads import Thread
+from .types.ids import (
+    ApplicationCommandId,
+    ApplicationId,
+    ChannelId,
+    EmojiId,
+    GuildId,
+    MessageId,
+    ObjectId,
+    PrivateChannelId,
+    StickerId,
+    ThreadId,
+    UserId,
+    WebhookId,
+    overload_fetch,
+    overload_get,
+    overload_get_seq,
+)
 from .ui.view import View
 from .user import ClientUser, User
 from .utils import MISSING, deprecated
@@ -82,7 +99,7 @@ from .webhook import Webhook
 from .widget import Widget
 
 if TYPE_CHECKING:
-    from typing_extensions import NotRequired
+    from typing_extensions import Never, NotRequired
 
     from .abc import GuildChannel, PrivateChannel, Snowflake, SnowflakeTime
     from .app_commands import APIApplicationCommand, MessageCommand, SlashCommand, UserCommand
@@ -392,7 +409,7 @@ class Client:
         proxy_auth: Optional[aiohttp.BasicAuth] = None,
         assume_unsync_clock: bool = True,
         max_messages: Optional[int] = 1000,
-        application_id: Optional[int] = None,
+        application_id: Optional[ApplicationId] = None,
         heartbeat_timeout: float = 60.0,
         guild_ready_timeout: float = 2.0,
         allowed_mentions: Optional[AllowedMentions] = None,
@@ -481,7 +498,7 @@ class Client:
     # internals
 
     def _get_websocket(
-        self, guild_id: Optional[int] = None, *, shard_id: Optional[int] = None
+        self, guild_id: Optional[GuildId] = None, *, shard_id: Optional[int] = None
     ) -> DiscordWebSocket:
         return self.ws
 
@@ -489,7 +506,7 @@ class Client:
         self,
         *,
         max_messages: Optional[int],
-        application_id: Optional[int],
+        application_id: Optional[ApplicationId],
         heartbeat_timeout: float,
         guild_ready_timeout: float,
         allowed_mentions: Optional[AllowedMentions],
@@ -650,7 +667,8 @@ class Client:
             if isinstance(cmd, APIMessageCommand)
         ]
 
-    def get_message(self, id: int) -> Optional[Message]:
+    @overload_get
+    def get_message(self, id: MessageId) -> Optional[Message]:
         """Gets the message with the given ID from the bot's message cache.
 
         Parameters
@@ -667,15 +685,26 @@ class Client:
 
     @overload
     async def get_or_fetch_user(
-        self, user_id: int, *, strict: Literal[False] = ...
-    ) -> Optional[User]:
-        ...
-
+        self, user_id: UserId, *, strict: Literal[False] = ...
+    ) -> Optional[User]: ...
     @overload
-    async def get_or_fetch_user(self, user_id: int, *, strict: Literal[True]) -> User:
-        ...
+    async def get_or_fetch_user(
+        self, user_id: ObjectId, *, strict: Literal[False] = ...
+    ) -> None: ...
+    @overload
+    async def get_or_fetch_user(
+        self, user_id: int, *, strict: Literal[False] = ...
+    ) -> Optional[User]: ...
+    @overload
+    async def get_or_fetch_user(self, user_id: UserId, *, strict: Literal[True]) -> User: ...
+    @overload
+    async def get_or_fetch_user(self, user_id: ObjectId, *, strict: Literal[True]) -> Never: ...
+    @overload
+    async def get_or_fetch_user(self, user_id: int, *, strict: Literal[True]) -> User: ...
 
-    async def get_or_fetch_user(self, user_id: int, *, strict: bool = False) -> Optional[User]:
+    async def get_or_fetch_user(
+        self, user_id: Union[ObjectId, int], *, strict: bool = False
+    ) -> Optional[User]:
         """|coro|
 
         Tries to get the user from the cache. If it fails,
@@ -1383,7 +1412,19 @@ class Client:
         """List[:class:`~disnake.User`]: Returns a list of all the users the bot can see."""
         return list(self._connection._users.values())
 
-    def get_channel(self, id: int, /) -> Optional[Union[GuildChannel, Thread, PrivateChannel]]:
+    @overload
+    def get_channel(self, id: ChannelId, /) -> Optional[GuildChannel]: ...
+    @overload
+    def get_channel(self, id: ThreadId, /) -> Optional[Thread]: ...
+    @overload
+    def get_channel(self, id: PrivateChannelId, /) -> Optional[PrivateChannel]: ...
+    @overload
+    def get_channel(self, id: ObjectId, /) -> None: ...
+    @overload
+    def get_channel(self, id: int, /) -> Union[GuildChannel, Thread, PrivateChannel, None]: ...
+    def get_channel(
+        self, id: Union[ObjectId, int], /
+    ) -> Union[GuildChannel, Thread, PrivateChannel, None]:
         """Returns a channel or thread with the given ID.
 
         Parameters
@@ -1396,10 +1437,23 @@ class Client:
         Optional[Union[:class:`.abc.GuildChannel`, :class:`.Thread`, :class:`.abc.PrivateChannel`]]
             The returned channel or ``None`` if not found.
         """
-        return self._connection.get_channel(id)
+        return self._connection.get_channel(id)  # type: ignore
 
+    # invalid ID still results in PartialMessageable, but it's effectively useless
+    @overload
+    def get_partial_messageable(
+        self, id: ChannelId, *, type: Optional[ChannelType] = None
+    ) -> PartialMessageable: ...
+    @overload
+    def get_partial_messageable(
+        self, id: ObjectId, *, type: Optional[ChannelType] = None
+    ) -> Never: ...
+    @overload
     def get_partial_messageable(
         self, id: int, *, type: Optional[ChannelType] = None
+    ) -> PartialMessageable: ...
+    def get_partial_messageable(
+        self, id: Union[ChannelId, int], *, type: Optional[ChannelType] = None
     ) -> PartialMessageable:
         """Returns a partial messageable with the given channel ID.
 
@@ -1420,9 +1474,10 @@ class Client:
         :class:`.PartialMessageable`
             The partial messageable
         """
-        return PartialMessageable(state=self._connection, id=id, type=type)
+        return PartialMessageable(state=self._connection, id=ChannelId(id), type=type)
 
-    def get_stage_instance(self, id: int, /) -> Optional[StageInstance]:
+    @overload_get
+    def get_stage_instance(self, id: ChannelId, /) -> Optional[StageInstance]:
         """Returns a stage instance with the given stage channel ID.
 
         .. versionadded:: 2.0
@@ -1444,7 +1499,8 @@ class Client:
         if isinstance(channel, StageChannel):
             return channel.instance
 
-    def get_guild(self, id: int, /) -> Optional[Guild]:
+    @overload_get
+    def get_guild(self, id: GuildId, /) -> Optional[Guild]:
         """Returns a guild with the given ID.
 
         Parameters
@@ -1459,7 +1515,8 @@ class Client:
         """
         return self._connection._get_guild(id)
 
-    def get_user(self, id: int, /) -> Optional[User]:
+    @overload_get
+    def get_user(self, id: UserId, /) -> Optional[User]:
         """Returns a user with the given ID.
 
         Parameters
@@ -1474,7 +1531,8 @@ class Client:
         """
         return self._connection.get_user(id)
 
-    def get_emoji(self, id: int, /) -> Optional[Emoji]:
+    @overload_get
+    def get_emoji(self, id: EmojiId, /) -> Optional[Emoji]:
         """Returns an emoji with the given ID.
 
         Parameters
@@ -1489,7 +1547,8 @@ class Client:
         """
         return self._connection.get_emoji(id)
 
-    def get_sticker(self, id: int, /) -> Optional[GuildSticker]:
+    @overload_get
+    def get_sticker(self, id: StickerId, /) -> Optional[GuildSticker]:
         """Returns a guild sticker with the given ID.
 
         .. versionadded:: 2.0
@@ -1546,7 +1605,8 @@ class Client:
         for guild in self.guilds:
             yield from guild.members
 
-    def get_guild_application_commands(self, guild_id: int) -> List[APIApplicationCommand]:
+    @overload_get_seq
+    def get_guild_application_commands(self, guild_id: GuildId) -> List[APIApplicationCommand]:
         """Returns a list of all application commands in the guild with the given ID.
 
         Parameters
@@ -1562,7 +1622,8 @@ class Client:
         data = self._connection._guild_application_commands.get(guild_id, {})
         return list(data.values())
 
-    def get_guild_slash_commands(self, guild_id: int) -> List[APISlashCommand]:
+    @overload_get_seq
+    def get_guild_slash_commands(self, guild_id: GuildId) -> List[APISlashCommand]:
         """Returns a list of all slash commands in the guild with the given ID.
 
         Parameters
@@ -1578,7 +1639,8 @@ class Client:
         data = self._connection._guild_application_commands.get(guild_id, {})
         return [cmd for cmd in data.values() if isinstance(cmd, APISlashCommand)]
 
-    def get_guild_user_commands(self, guild_id: int) -> List[APIUserCommand]:
+    @overload_get_seq
+    def get_guild_user_commands(self, guild_id: GuildId) -> List[APIUserCommand]:
         """Returns a list of all user commands in the guild with the given ID.
 
         Parameters
@@ -1594,7 +1656,8 @@ class Client:
         data = self._connection._guild_application_commands.get(guild_id, {})
         return [cmd for cmd in data.values() if isinstance(cmd, APIUserCommand)]
 
-    def get_guild_message_commands(self, guild_id: int) -> List[APIMessageCommand]:
+    @overload_get_seq
+    def get_guild_message_commands(self, guild_id: GuildId) -> List[APIMessageCommand]:
         """Returns a list of all message commands in the guild with the given ID.
 
         Parameters
@@ -1610,7 +1673,8 @@ class Client:
         data = self._connection._guild_application_commands.get(guild_id, {})
         return [cmd for cmd in data.values() if isinstance(cmd, APIMessageCommand)]
 
-    def get_global_command(self, id: int) -> Optional[APIApplicationCommand]:
+    @overload_get
+    def get_global_command(self, id: ApplicationCommandId) -> Optional[APIApplicationCommand]:
         """Returns a global application command with the given ID.
 
         Parameters
@@ -1625,7 +1689,9 @@ class Client:
         """
         return self._connection._get_global_application_command(id)
 
-    def get_guild_command(self, guild_id: int, id: int) -> Optional[APIApplicationCommand]:
+    def get_guild_command(
+        self, guild_id: GuildId, id: ApplicationCommandId
+    ) -> Optional[APIApplicationCommand]:
         """Returns a guild application command with the given guild ID and application command ID.
 
         Parameters
@@ -1661,8 +1727,9 @@ class Client:
         """
         return self._connection._get_global_command_named(name, cmd_type)
 
+    @overload_get
     def get_guild_command_named(
-        self, guild_id: int, name: str, cmd_type: Optional[ApplicationCommandType] = None
+        self, guild_id: GuildId, name: str, cmd_type: Optional[ApplicationCommandType] = None
     ) -> Optional[APIApplicationCommand]:
         """Returns a guild application command matching the given name.
 
@@ -1998,7 +2065,8 @@ class Client:
         data = await self.http.get_template(code)
         return Template(data=data, state=self._connection)
 
-    async def fetch_guild(self, guild_id: int, /, *, with_counts: bool = True) -> Guild:
+    @overload_fetch
+    async def fetch_guild(self, guild_id: GuildId, /, *, with_counts: bool = True) -> Guild:
         """|coro|
 
         Retrieves a :class:`.Guild` from the given ID.
@@ -2037,9 +2105,10 @@ class Client:
         data = await self.http.get_guild(guild_id, with_counts=with_counts)
         return Guild(data=data, state=self._connection)
 
+    @overload_fetch
     async def fetch_guild_preview(
         self,
-        guild_id: int,
+        guild_id: GuildId,
         /,
     ) -> GuildPreview:
         """|coro|
@@ -2167,7 +2236,8 @@ class Client:
         """
         return GuildBuilder(name=name, state=self._connection)
 
-    async def fetch_stage_instance(self, channel_id: int, /) -> StageInstance:
+    @overload_fetch
+    async def fetch_stage_instance(self, channel_id: ChannelId, /) -> StageInstance:
         """|coro|
 
         Retrieves a :class:`.StageInstance` with the given ID.
@@ -2296,7 +2366,17 @@ class Client:
 
     # Voice region stuff
 
-    async def fetch_voice_regions(self, guild_id: Optional[int] = None) -> List[VoiceRegion]:
+    @overload
+    async def fetch_voice_regions(
+        self, guild_id: Optional[GuildId] = None
+    ) -> List[VoiceRegion]: ...
+    @overload
+    async def fetch_voice_regions(self, guild_id: ObjectId) -> Never: ...
+    @overload
+    async def fetch_voice_regions(self, guild_id: int) -> List[VoiceRegion]: ...
+    async def fetch_voice_regions(
+        self, guild_id: Union[ObjectId, int, None] = None
+    ) -> List[VoiceRegion]:
         """Retrieves a list of :class:`.VoiceRegion`\\s.
 
         Retrieves voice regions for the user, or a guild if provided.
@@ -2323,7 +2403,8 @@ class Client:
 
     # Miscellaneous stuff
 
-    async def fetch_widget(self, guild_id: int, /) -> Widget:
+    @overload_fetch
+    async def fetch_widget(self, guild_id: GuildId, /) -> Widget:
         """|coro|
 
         Retrieves a :class:`.Widget` for the given guild ID.
@@ -2372,7 +2453,8 @@ class Client:
             data["rpc_origins"] = None
         return AppInfo(self._connection, data)
 
-    async def fetch_user(self, user_id: int, /) -> User:
+    @overload_fetch
+    async def fetch_user(self, user_id: UserId, /) -> User:
         """|coro|
 
         Retrieves a :class:`~disnake.User` based on their ID.
@@ -2403,10 +2485,21 @@ class Client:
         data = await self.http.get_user(user_id)
         return User(state=self._connection, data=data)
 
+    @overload
+    async def fetch_channel(self, channel_id: ChannelId, /) -> GuildChannel: ...
+    @overload
+    async def fetch_channel(self, channel_id: PrivateChannelId, /) -> PrivateChannel: ...
+    @overload
+    async def fetch_channel(self, channel_id: ThreadId, /) -> Thread: ...
+    @overload
+    async def fetch_channel(self, channel_id: ObjectId, /) -> Never: ...
+    @overload
     async def fetch_channel(
-        self,
-        channel_id: int,
-        /,
+        self, channel_id: int, /
+    ) -> Union[GuildChannel, PrivateChannel, Thread]: ...
+
+    async def fetch_channel(
+        self, channel_id: Union[ObjectId, int], /
     ) -> Union[GuildChannel, PrivateChannel, Thread]:
         """|coro|
 
@@ -2457,7 +2550,8 @@ class Client:
 
         return channel
 
-    async def fetch_webhook(self, webhook_id: int, /) -> Webhook:
+    @overload_fetch
+    async def fetch_webhook(self, webhook_id: WebhookId, /) -> Webhook:
         """|coro|
 
         Retrieves a :class:`.Webhook` with the given ID.
@@ -2484,7 +2578,8 @@ class Client:
         data = await self.http.get_webhook(webhook_id)
         return Webhook.from_state(data, state=self._connection)
 
-    async def fetch_sticker(self, sticker_id: int, /) -> Union[StandardSticker, GuildSticker]:
+    @overload_fetch
+    async def fetch_sticker(self, sticker_id: StickerId, /) -> Union[StandardSticker, GuildSticker]:
         """|coro|
 
         Retrieves a :class:`.Sticker` with the given ID.
@@ -2570,7 +2665,7 @@ class Client:
         """
         return await self.fetch_sticker_packs()
 
-    async def create_dm(self, user: Snowflake) -> DMChannel:
+    async def create_dm(self, user: Snowflake[UserId]) -> DMChannel:
         """|coro|
 
         Creates a :class:`.DMChannel` with the given user.
@@ -2598,7 +2693,7 @@ class Client:
         data = await state.http.start_private_message(user.id)
         return state.add_dm_channel(data)
 
-    def add_view(self, view: View, *, message_id: Optional[int] = None) -> None:
+    def add_view(self, view: View, *, message_id: Optional[MessageId] = None) -> None:
         """Registers a :class:`~disnake.ui.View` for persistent listening.
 
         This method should be used for when a view is comprised of components
@@ -2668,7 +2763,8 @@ class Client:
         """
         return await self._connection.fetch_global_commands(with_localizations=with_localizations)
 
-    async def fetch_global_command(self, command_id: int) -> APIApplicationCommand:
+    @overload_fetch
+    async def fetch_global_command(self, command_id: ApplicationCommandId) -> APIApplicationCommand:
         """|coro|
 
         Retrieves a global application command.
@@ -2688,22 +2784,20 @@ class Client:
         return await self._connection.fetch_global_command(command_id)
 
     @overload
-    async def create_global_command(self, application_command: SlashCommand) -> APISlashCommand:
-        ...
+    async def create_global_command(self, application_command: SlashCommand) -> APISlashCommand: ...
 
     @overload
-    async def create_global_command(self, application_command: UserCommand) -> APIUserCommand:
-        ...
+    async def create_global_command(self, application_command: UserCommand) -> APIUserCommand: ...
 
     @overload
-    async def create_global_command(self, application_command: MessageCommand) -> APIMessageCommand:
-        ...
+    async def create_global_command(
+        self, application_command: MessageCommand
+    ) -> APIMessageCommand: ...
 
     @overload
     async def create_global_command(
         self, application_command: ApplicationCommand
-    ) -> APIApplicationCommand:
-        ...
+    ) -> APIApplicationCommand: ...
 
     async def create_global_command(
         self, application_command: ApplicationCommand
@@ -2729,30 +2823,26 @@ class Client:
 
     @overload
     async def edit_global_command(
-        self, command_id: int, new_command: SlashCommand
-    ) -> APISlashCommand:
-        ...
+        self, command_id: ApplicationCommandId, new_command: SlashCommand
+    ) -> APISlashCommand: ...
 
     @overload
     async def edit_global_command(
-        self, command_id: int, new_command: UserCommand
-    ) -> APIUserCommand:
-        ...
+        self, command_id: ApplicationCommandId, new_command: UserCommand
+    ) -> APIUserCommand: ...
 
     @overload
     async def edit_global_command(
-        self, command_id: int, new_command: MessageCommand
-    ) -> APIMessageCommand:
-        ...
+        self, command_id: ApplicationCommandId, new_command: MessageCommand
+    ) -> APIMessageCommand: ...
 
     @overload
     async def edit_global_command(
-        self, command_id: int, new_command: ApplicationCommand
-    ) -> APIApplicationCommand:
-        ...
+        self, command_id: ApplicationCommandId, new_command: ApplicationCommand
+    ) -> APIApplicationCommand: ...
 
     async def edit_global_command(
-        self, command_id: int, new_command: ApplicationCommand
+        self, command_id: ApplicationCommandId, new_command: ApplicationCommand
     ) -> APIApplicationCommand:
         """|coro|
 
@@ -2775,7 +2865,7 @@ class Client:
         new_command.localize(self.i18n)
         return await self._connection.edit_global_command(command_id, new_command)
 
-    async def delete_global_command(self, command_id: int) -> None:
+    async def delete_global_command(self, command_id: ApplicationCommandId) -> None:
         """|coro|
 
         Deletes a global application command.
@@ -2814,9 +2904,10 @@ class Client:
 
     # Application commands (guild)
 
+    @overload_fetch
     async def fetch_guild_commands(
         self,
-        guild_id: int,
+        guild_id: GuildId,
         *,
         with_localizations: bool = True,
     ) -> List[APIApplicationCommand]:
@@ -2844,7 +2935,9 @@ class Client:
             guild_id, with_localizations=with_localizations
         )
 
-    async def fetch_guild_command(self, guild_id: int, command_id: int) -> APIApplicationCommand:
+    async def fetch_guild_command(
+        self, guild_id: GuildId, command_id: ApplicationCommandId
+    ) -> APIApplicationCommand:
         """|coro|
 
         Retrieves a guild application command.
@@ -2867,30 +2960,26 @@ class Client:
 
     @overload
     async def create_guild_command(
-        self, guild_id: int, application_command: SlashCommand
-    ) -> APISlashCommand:
-        ...
+        self, guild_id: GuildId, application_command: SlashCommand
+    ) -> APISlashCommand: ...
 
     @overload
     async def create_guild_command(
-        self, guild_id: int, application_command: UserCommand
-    ) -> APIUserCommand:
-        ...
+        self, guild_id: GuildId, application_command: UserCommand
+    ) -> APIUserCommand: ...
 
     @overload
     async def create_guild_command(
-        self, guild_id: int, application_command: MessageCommand
-    ) -> APIMessageCommand:
-        ...
+        self, guild_id: GuildId, application_command: MessageCommand
+    ) -> APIMessageCommand: ...
 
     @overload
     async def create_guild_command(
-        self, guild_id: int, application_command: ApplicationCommand
-    ) -> APIApplicationCommand:
-        ...
+        self, guild_id: GuildId, application_command: ApplicationCommand
+    ) -> APIApplicationCommand: ...
 
     async def create_guild_command(
-        self, guild_id: int, application_command: ApplicationCommand
+        self, guild_id: GuildId, application_command: ApplicationCommand
     ) -> APIApplicationCommand:
         """|coro|
 
@@ -2915,30 +3004,26 @@ class Client:
 
     @overload
     async def edit_guild_command(
-        self, guild_id: int, command_id: int, new_command: SlashCommand
-    ) -> APISlashCommand:
-        ...
+        self, guild_id: GuildId, command_id: ApplicationCommandId, new_command: SlashCommand
+    ) -> APISlashCommand: ...
 
     @overload
     async def edit_guild_command(
-        self, guild_id: int, command_id: int, new_command: UserCommand
-    ) -> APIUserCommand:
-        ...
+        self, guild_id: GuildId, command_id: ApplicationCommandId, new_command: UserCommand
+    ) -> APIUserCommand: ...
 
     @overload
     async def edit_guild_command(
-        self, guild_id: int, command_id: int, new_command: MessageCommand
-    ) -> APIMessageCommand:
-        ...
+        self, guild_id: GuildId, command_id: ApplicationCommandId, new_command: MessageCommand
+    ) -> APIMessageCommand: ...
 
     @overload
     async def edit_guild_command(
-        self, guild_id: int, command_id: int, new_command: ApplicationCommand
-    ) -> APIApplicationCommand:
-        ...
+        self, guild_id: GuildId, command_id: ApplicationCommandId, new_command: ApplicationCommand
+    ) -> APIApplicationCommand: ...
 
     async def edit_guild_command(
-        self, guild_id: int, command_id: int, new_command: ApplicationCommand
+        self, guild_id: GuildId, command_id: ApplicationCommandId, new_command: ApplicationCommand
     ) -> APIApplicationCommand:
         """|coro|
 
@@ -2963,7 +3048,9 @@ class Client:
         new_command.localize(self.i18n)
         return await self._connection.edit_guild_command(guild_id, command_id, new_command)
 
-    async def delete_guild_command(self, guild_id: int, command_id: int) -> None:
+    async def delete_guild_command(
+        self, guild_id: GuildId, command_id: ApplicationCommandId
+    ) -> None:
         """|coro|
 
         Deletes a guild application command.
@@ -2980,7 +3067,7 @@ class Client:
         await self._connection.delete_guild_command(guild_id, command_id)
 
     async def bulk_overwrite_guild_commands(
-        self, guild_id: int, application_commands: List[ApplicationCommand]
+        self, guild_id: GuildId, application_commands: List[ApplicationCommand]
     ) -> List[APIApplicationCommand]:
         """|coro|
 
@@ -3007,7 +3094,7 @@ class Client:
     # Application command permissions
 
     async def bulk_fetch_command_permissions(
-        self, guild_id: int
+        self, guild_id: GuildId
     ) -> List[GuildApplicationCommandPermissions]:
         """|coro|
 
@@ -3023,7 +3110,7 @@ class Client:
         return await self._connection.bulk_fetch_command_permissions(guild_id)
 
     async def fetch_command_permissions(
-        self, guild_id: int, command_id: int
+        self, guild_id: GuildId, command_id: ApplicationCommandId
     ) -> GuildApplicationCommandPermissions:
         """|coro|
 
@@ -3138,8 +3225,8 @@ class Client:
         limit: Optional[int] = 100,
         before: Optional[SnowflakeTime] = None,
         after: Optional[SnowflakeTime] = None,
-        user: Optional[Snowflake] = None,
-        guild: Optional[Snowflake] = None,
+        user: Optional[Snowflake[UserId]] = None,
+        guild: Optional[Snowflake[GuildId]] = None,
         skus: Optional[Sequence[Snowflake]] = None,
         exclude_ended: bool = False,
         oldest_first: bool = False,

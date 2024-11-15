@@ -13,6 +13,16 @@ from .flags import ChannelFlags
 from .mixins import Hashable
 from .partial_emoji import PartialEmoji, _EmojiTag
 from .permissions import Permissions
+from .types.ids import (
+    ChannelId,
+    EmojiId,
+    MemberId,
+    MessageId,
+    ThreadId,
+    UserId,
+    overload_fetch,
+    overload_get,
+)
 from .utils import MISSING, _get_as_snowflake, _unique, parse_time, snowflake_time
 
 __all__ = (
@@ -166,7 +176,7 @@ class Thread(Messageable, Hashable):
     def __init__(self, *, guild: Guild, state: ConnectionState, data: ThreadPayload) -> None:
         self._state: ConnectionState = state
         self.guild: Guild = guild
-        self._members: Dict[int, ThreadMember] = {}
+        self._members: Dict[MemberId, ThreadMember] = {}
         self._from_data(data)
 
     async def _get_channel(self):
@@ -183,12 +193,14 @@ class Thread(Messageable, Hashable):
         return self.name
 
     def _from_data(self, data: ThreadPayload) -> None:
-        self.id: int = int(data["id"])
-        self.parent_id: int = int(data["parent_id"])
-        self.owner_id: Optional[int] = _get_as_snowflake(data, "owner_id")
+        self.id: ThreadId = ThreadId(int(data["id"]))
+        self.parent_id: ChannelId = ChannelId(int(data["parent_id"]))
+        self.owner_id: Optional[MemberId] = _get_as_snowflake(data, "owner_id", MemberId)
         self.name: str = data["name"]
         self._type: ThreadType = try_enum(ChannelType, data["type"])  # type: ignore
-        self.last_message_id: Optional[int] = _get_as_snowflake(data, "last_message_id")
+        self.last_message_id: Optional[MessageId] = _get_as_snowflake(
+            data, "last_message_id", MessageId
+        )
         self.slowmode_delay: int = data.get("rate_limit_per_user", 0)
         self.message_count: int = data.get("message_count") or 0
         self.total_message_sent: int = data.get("total_message_sent") or 0
@@ -486,7 +498,7 @@ class Thread(Messageable, Hashable):
 
         return base
 
-    async def delete_messages(self, messages: Iterable[Snowflake]) -> None:
+    async def delete_messages(self, messages: Iterable[Snowflake[MessageId]]) -> None:
         """|coro|
 
         Deletes a list of messages. This is similar to :meth:`Message.delete`
@@ -798,7 +810,7 @@ class Thread(Messageable, Hashable):
         """
         await self._state.http.leave_thread(self.id)
 
-    async def add_user(self, user: Snowflake) -> None:
+    async def add_user(self, user: Snowflake[UserId]) -> None:
         """|coro|
 
         Adds a user to this thread.
@@ -822,7 +834,7 @@ class Thread(Messageable, Hashable):
         """
         await self._state.http.add_user_to_thread(self.id, user.id)
 
-    async def remove_user(self, user: Snowflake) -> None:
+    async def remove_user(self, user: Snowflake[UserId]) -> None:
         """|coro|
 
         Removes a user from this thread.
@@ -843,7 +855,8 @@ class Thread(Messageable, Hashable):
         """
         await self._state.http.remove_user_from_thread(self.id, user.id)
 
-    async def fetch_member(self, member_id: int, /) -> ThreadMember:
+    @overload_fetch
+    async def fetch_member(self, member_id: MemberId, /) -> ThreadMember:
         """|coro|
 
         Retrieves a single :class:`ThreadMember` from this thread.
@@ -987,7 +1000,8 @@ class Thread(Messageable, Hashable):
 
         await self._state.http.edit_channel(self.id, applied_tags=new_tags, reason=reason)
 
-    def get_partial_message(self, message_id: int, /) -> PartialMessage:
+    @overload_get
+    def get_partial_message(self, message_id: MessageId, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the message ID.
 
         This is useful if you want to work with a message and only have its ID without
@@ -1012,7 +1026,7 @@ class Thread(Messageable, Hashable):
     def _add_member(self, member: ThreadMember) -> None:
         self._members[member.id] = member
 
-    def _pop_member(self, member_id: int) -> Optional[ThreadMember]:
+    def _pop_member(self, member_id: MemberId) -> Optional[ThreadMember]:
         return self._members.pop(member_id, None)
 
 
@@ -1057,6 +1071,9 @@ class ThreadMember(Hashable):
         "_state",
         "parent",
     )
+    if TYPE_CHECKING:
+        id: MemberId
+        thread_id: ThreadId
 
     def __init__(self, parent: Thread, data: ThreadMemberPayload) -> None:
         self.parent = parent
@@ -1070,14 +1087,14 @@ class ThreadMember(Hashable):
 
     def _from_data(self, data: ThreadMemberPayload) -> None:
         try:
-            self.id = int(data["user_id"])
+            self.id = MemberId(int(data["user_id"]))
         except KeyError as err:
             if (self_id := self._state.self_id) is None:
                 raise AssertionError("self_id is None when updating our own ThreadMember.") from err
-            self.id = self_id
+            self.id = MemberId(self_id)
 
         try:
-            self.thread_id = int(data["id"])
+            self.thread_id = ThreadId(int(data["id"]))
         except KeyError:
             self.thread_id = self.parent.id
 
@@ -1210,7 +1227,7 @@ class ForumTag(Hashable):
     def _from_data(cls, *, data: ForumTagPayload, state: ConnectionState) -> Self:
         emoji = state._get_emoji_from_fields(
             name=data.get("emoji_name"),
-            id=_get_as_snowflake(data, "emoji_id"),
+            id=_get_as_snowflake(data, "emoji_id", EmojiId),
         )
 
         self = cls(

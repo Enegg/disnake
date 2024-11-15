@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Iterator, List, Optional, Tuple, Union
 
 from .asset import Asset, AssetMixin
+from .mixins import Hashable
 from .partial_emoji import PartialEmoji, _EmojiTag
+from .types.ids import EmojiId, GuildId, RoleId
 from .user import User
 from .utils import MISSING, SnowflakeList, snowflake_time
 
@@ -22,7 +24,7 @@ if TYPE_CHECKING:
     from .types.emoji import Emoji as EmojiPayload
 
 
-class Emoji(_EmojiTag, AssetMixin):
+class Emoji(_EmojiTag, AssetMixin, Hashable[EmojiId]):
     """Represents a custom emoji.
 
     Depending on the way this object was created, some of the attributes can
@@ -88,18 +90,18 @@ class Emoji(_EmojiTag, AssetMixin):
     def __init__(
         self, *, guild: Union[Guild, GuildPreview], state: ConnectionState, data: EmojiPayload
     ) -> None:
-        self.guild_id: int = guild.id
+        self.guild_id: GuildId = guild.id
         self._state: ConnectionState = state
         self._from_data(data)
 
     def _from_data(self, emoji: EmojiPayload) -> None:
         self.require_colons: bool = emoji.get("require_colons", False)
         self.managed: bool = emoji.get("managed", False)
-        self.id: int = int(emoji["id"])  # type: ignore
+        self.id = EmojiId(int(emoji["id"]))  # type: ignore
         self.name: str = emoji["name"]  # type: ignore
         self.animated: bool = emoji.get("animated", False)
         self.available: bool = emoji.get("available", True)
-        self._roles: SnowflakeList = SnowflakeList(map(int, emoji.get("roles", [])))
+        self._roles: SnowflakeList[RoleId] = SnowflakeList(map(int, emoji.get("roles", [])))  # type: ignore
         user = emoji.get("user")
         self.user: Optional[User] = User(state=self._state, data=user) if user else None
 
@@ -121,14 +123,11 @@ class Emoji(_EmojiTag, AssetMixin):
     def __repr__(self) -> str:
         return f"<Emoji id={self.id} name={self.name!r} animated={self.animated} managed={self.managed}>"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, _EmojiTag) and self.id == other.id
 
-    def __ne__(self, other: Any) -> bool:
-        return not self.__eq__(other)
-
-    def __hash__(self) -> int:
-        return self.id >> 22
+    def __ne__(self, other: object) -> bool:
+        return not isinstance(other, _EmojiTag) or self.id != other.id
 
     @property
     def created_at(self) -> datetime:
@@ -199,7 +198,11 @@ class Emoji(_EmojiTag, AssetMixin):
         await self._state.http.delete_custom_emoji(self.guild.id, self.id, reason=reason)
 
     async def edit(
-        self, *, name: str = MISSING, roles: List[Snowflake] = MISSING, reason: Optional[str] = None
+        self,
+        *,
+        name: str = MISSING,
+        roles: List[Snowflake[RoleId]] = MISSING,
+        reason: Optional[str] = None,
     ) -> Emoji:
         """|coro|
 

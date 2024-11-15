@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from .asset import Asset
 from .emoji import Emoji
 from .sticker import GuildSticker
+from .types.ids import GuildId
 
 if TYPE_CHECKING:
     from .state import ConnectionState
@@ -61,7 +62,7 @@ class GuildPreview:
 
     def __init__(self, *, data: GuildPreviewPayload, state: ConnectionState) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
+        self.id: GuildId = GuildId(int(data["id"]))
         self.name: str = data["name"]
         self.approximate_member_count: int = data["approximate_member_count"]
         self.approximate_presence_count: int = data["approximate_presence_count"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, List, Union
 
 from .enums import MessageType
+from .types.ids import RoleId, UserId
 
 __all__ = ("AllowedMentions",)
 
@@ -66,8 +67,8 @@ class AllowedMentions:
         self,
         *,
         everyone: bool = default,
-        users: Union[bool, List[Snowflake]] = default,
-        roles: Union[bool, List[Snowflake]] = default,
+        users: Union[bool, List[Snowflake[UserId]]] = default,
+        roles: Union[bool, List[Snowflake[RoleId]]] = default,
         replied_user: bool = default,
     ) -> None:
         self.everyone = everyone

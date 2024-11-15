@@ -19,6 +19,7 @@ from .enums import (
 )
 from .i18n import Localized
 from .permissions import Permissions
+from .types.ids import ApplicationCommandId, ApplicationId, GuildId
 from .utils import MISSING, _get_as_snowflake, _maybe_cast
 
 if TYPE_CHECKING:
@@ -608,9 +609,9 @@ class _APIApplicationCommandMixin:
     __repr_info__ = ("id",)
 
     def _update_common(self, data: ApplicationCommandPayload) -> None:
-        self.id: int = int(data["id"])
-        self.application_id: int = int(data["application_id"])
-        self.guild_id: Optional[int] = _get_as_snowflake(data, "guild_id")
+        self.id: ApplicationCommandId = ApplicationCommandId(int(data["id"]))
+        self.application_id: ApplicationId = ApplicationId(int(data["application_id"]))
+        self.guild_id: Optional[GuildId] = _get_as_snowflake(data, "guild_id", GuildId)
         self.version: int = int(data["version"])
         # deprecated, but kept until API stops returning this field
         self._default_permission = data.get("default_permission") is not False
@@ -1016,13 +1017,13 @@ class ApplicationCommandPermissions:
 
     __slots__ = ("id", "type", "permission", "_guild_id")
 
-    def __init__(self, *, data: ApplicationCommandPermissionsPayload, guild_id: int) -> None:
+    def __init__(self, *, data: ApplicationCommandPermissionsPayload, guild_id: GuildId) -> None:
         self.id: int = int(data["id"])
         self.type: ApplicationCommandPermissionType = try_enum(
             ApplicationCommandPermissionType, data["type"]
         )
         self.permission: bool = data["permission"]
-        self._guild_id: int = guild_id
+        self._guild_id: GuildId = guild_id
 
     def __repr__(self) -> str:
         return f"<ApplicationCommandPermissions id={self.id!r} type={self.type!r} permission={self.permission!r}>"
@@ -1079,8 +1080,8 @@ class GuildApplicationCommandPermissions:
     ) -> None:
         self._state: ConnectionState = state
         self.id: int = int(data["id"])
-        self.application_id: int = int(data["application_id"])
-        self.guild_id: int = int(data["guild_id"])
+        self.application_id: ApplicationId = ApplicationId(int(data["application_id"]))
+        self.guild_id: GuildId = GuildId(int(data["guild_id"]))
 
         self.permissions: List[ApplicationCommandPermissions] = [
             ApplicationCommandPermissions(data=elem, guild_id=self.guild_id)

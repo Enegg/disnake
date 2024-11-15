@@ -77,6 +77,22 @@ from .role import Role
 from .stage_instance import StageInstance
 from .sticker import GuildSticker
 from .threads import Thread, ThreadMember
+from .types.ids import (
+    ApplicationCommandId,
+    ApplicationId,
+    CategoryId,
+    ChannelId,
+    EmojiId,
+    GuildId,
+    MemberId,
+    ObjectId,
+    RoleId,
+    StickerId,
+    ThreadId,
+    UserId,
+    overload_fetch,
+    overload_get,
+)
 from .user import User
 from .voice_region import VoiceRegion
 from .welcome_screen import WelcomeScreen, WelcomeScreenChannel
@@ -91,6 +107,8 @@ VocalGuildChannel = Union[VoiceChannel, StageChannel]
 MISSING = utils.MISSING
 
 if TYPE_CHECKING:
+    from typing_extensions import Never
+
     from .abc import Snowflake, SnowflakeTime
     from .app_commands import APIApplicationCommand
     from .asset import AssetBytes
@@ -130,7 +148,7 @@ class _GuildLimit(NamedTuple):
     filesize: int
 
 
-class Guild(Hashable):
+class Guild(Hashable[GuildId]):
     """Represents a Discord guild.
 
     This is referred to as a "server" in the official Discord UI.
@@ -371,10 +389,10 @@ class Guild(Hashable):
     }
 
     def __init__(self, *, data: GuildPayload, state: ConnectionState) -> None:
-        self._channels: Dict[int, GuildChannel] = {}
-        self._members: Dict[int, Member] = {}
-        self._voice_states: Dict[int, VoiceState] = {}
-        self._threads: Dict[int, Thread] = {}
+        self._channels: Dict[ChannelId, GuildChannel] = {}
+        self._members: Dict[MemberId, Member] = {}
+        self._voice_states: Dict[MemberId, VoiceState] = {}
+        self._threads: Dict[ThreadId, Thread] = {}
         self._stage_instances: Dict[int, StageInstance] = {}
         self._scheduled_events: Dict[int, GuildScheduledEvent] = {}
         self._state: ConnectionState = state
@@ -383,10 +401,10 @@ class Guild(Hashable):
     def _add_channel(self, channel: GuildChannel, /) -> None:
         self._channels[channel.id] = channel
 
-    def _remove_channel(self, channel: Snowflake, /) -> None:
+    def _remove_channel(self, channel: Snowflake[ChannelId], /) -> None:
         self._channels.pop(channel.id, None)
 
-    def _voice_state_for(self, user_id: int, /) -> Optional[VoiceState]:
+    def _voice_state_for(self, user_id: MemberId, /) -> Optional[VoiceState]:
         return self._voice_states.get(user_id)
 
     def _add_member(self, member: Member, /) -> None:
@@ -397,25 +415,25 @@ class Guild(Hashable):
         self._threads[thread.id] = thread
         return thread
 
-    def _remove_member(self, member: Snowflake, /) -> None:
+    def _remove_member(self, member: Snowflake[MemberId], /) -> None:
         self._members.pop(member.id, None)
 
     def _add_thread(self, thread: Thread, /) -> None:
         self._threads[thread.id] = thread
 
-    def _remove_thread(self, thread: Snowflake, /) -> None:
+    def _remove_thread(self, thread: Snowflake[ThreadId], /) -> None:
         self._threads.pop(thread.id, None)
 
     def _clear_threads(self) -> None:
         self._threads.clear()
 
-    def _remove_threads_by_channel(self, channel_id: int) -> None:
+    def _remove_threads_by_channel(self, channel_id: ChannelId) -> None:
         to_remove = [k for k, t in self._threads.items() if t.parent_id == channel_id]
         for k in to_remove:
             del self._threads[k]
 
-    def _filter_threads(self, channel_ids: Set[int]) -> Dict[int, Thread]:
-        to_remove: Dict[int, Thread] = {
+    def _filter_threads(self, channel_ids: Set[ChannelId]) -> Dict[ThreadId, Thread]:
+        to_remove: Dict[ThreadId, Thread] = {
             k: t for k, t in self._threads.items() if t.parent_id in channel_ids
         }
         for k in to_remove:
@@ -437,9 +455,9 @@ class Guild(Hashable):
         return f"<Guild {inner}>"
 
     def _update_voice_state(
-        self, data: GuildVoiceState, channel_id: Optional[int]
+        self, data: GuildVoiceState, channel_id: Optional[ChannelId]
     ) -> Tuple[Optional[Member], VoiceState, VoiceState]:
-        user_id = int(data["user_id"])
+        user_id = MemberId(int(data["user_id"]))
         channel: Optional[VocalGuildChannel] = self.get_channel(channel_id)  # type: ignore
         try:
             # check if we should remove the voice state from cache
@@ -476,7 +494,7 @@ class Guild(Hashable):
 
         self._roles[role.id] = role
 
-    def _remove_role(self, role_id: int, /) -> Role:
+    def _remove_role(self, role_id: RoleId, /) -> Role:
         # this raises KeyError if it fails..
         role = self._roles.pop(role_id)
 
@@ -488,12 +506,13 @@ class Guild(Hashable):
 
         return role
 
-    def get_command(self, application_command_id: int, /) -> Optional[APIApplicationCommand]:
+    @overload_get
+    def get_command(self, id: ApplicationCommandId, /) -> Optional[APIApplicationCommand]:
         """Gets a cached application command matching the specified ID.
 
         Parameters
         ----------
-        application_command_id: :class:`int`
+        id: :class:`int`
             The application command ID to search for.
 
         Returns
@@ -501,7 +520,7 @@ class Guild(Hashable):
         Optional[Union[:class:`.APIUserCommand`, :class:`.APIMessageCommand`, :class:`.APISlashCommand`]]
             The application command if found, or ``None`` otherwise.
         """
-        return self._state._get_guild_application_command(self.id, application_command_id)
+        return self._state._get_guild_application_command(self.id, id)
 
     def get_command_named(self, name: str, /) -> Optional[APIApplicationCommand]:
         """Gets a cached application command matching the specified name.
@@ -540,8 +559,8 @@ class Guild(Hashable):
         self._icon: Optional[str] = guild.get("icon")
         self._banner: Optional[str] = guild.get("banner")
         self.unavailable: bool = guild.get("unavailable", False)
-        self.id: int = int(guild["id"])
-        self._roles: Dict[int, Role] = {}
+        self.id = GuildId(int(guild["id"]))
+        self._roles: Dict[RoleId, Role] = {}
         state = self._state  # speed up attribute access
         for r in guild.get("roles", []):
             role = Role(guild=self, data=r, state=state)
@@ -556,7 +575,9 @@ class Guild(Hashable):
         )
         self.features: List[GuildFeature] = guild.get("features", [])
         self._splash: Optional[str] = guild.get("splash")
-        self._system_channel_id: Optional[int] = utils._get_as_snowflake(guild, "system_channel_id")
+        self._system_channel_id: Optional[ChannelId] = utils._get_as_snowflake(
+            guild, "system_channel_id", ChannelId
+        )
         self.description: Optional[str] = guild.get("description")
         self.max_presences: Optional[int] = guild.get("max_presences")
         self.max_members: Optional[int] = guild.get("max_members")
@@ -569,19 +590,23 @@ class Guild(Hashable):
         self._system_channel_flags: int = guild.get("system_channel_flags", 0)
         self.preferred_locale: Locale = try_enum(Locale, guild.get("preferred_locale"))
         self._discovery_splash: Optional[str] = guild.get("discovery_splash")
-        self._rules_channel_id: Optional[int] = utils._get_as_snowflake(guild, "rules_channel_id")
-        self._public_updates_channel_id: Optional[int] = utils._get_as_snowflake(
-            guild, "public_updates_channel_id"
+        self._rules_channel_id: Optional[ChannelId] = utils._get_as_snowflake(
+            guild, "rules_channel_id", ChannelId
+        )
+        self._public_updates_channel_id: Optional[ChannelId] = utils._get_as_snowflake(
+            guild, "public_updates_channel_id", ChannelId
         )
         self.nsfw_level: NSFWLevel = try_enum(NSFWLevel, guild.get("nsfw_level", 0))
         self.premium_progress_bar_enabled: bool = guild.get("premium_progress_bar_enabled", False)
         self.approximate_presence_count: Optional[int] = guild.get("approximate_presence_count")
         self.approximate_member_count: Optional[int] = guild.get("approximate_member_count")
         self.widget_enabled: Optional[bool] = guild.get("widget_enabled")
-        self.widget_channel_id: Optional[int] = utils._get_as_snowflake(guild, "widget_channel_id")
+        self.widget_channel_id: Optional[ChannelId] = utils._get_as_snowflake(
+            guild, "widget_channel_id", ChannelId
+        )
         self.vanity_url_code: Optional[str] = guild.get("vanity_url_code")
-        self._safety_alerts_channel_id: Optional[int] = utils._get_as_snowflake(
-            guild, "safety_alerts_channel_id"
+        self._safety_alerts_channel_id: Optional[ChannelId] = utils._get_as_snowflake(
+            guild, "safety_alerts_channel_id", ChannelId
         )
 
         stage_instances = guild.get("stage_instances")
@@ -609,11 +634,13 @@ class Guild(Hashable):
         self._sync(guild)
         self._large: Optional[bool] = None if member_count is None else self._member_count >= 250
 
-        self.owner_id: Optional[int] = utils._get_as_snowflake(guild, "owner_id")
-        self.afk_channel: Optional[VocalGuildChannel] = self.get_channel(utils._get_as_snowflake(guild, "afk_channel_id"))  # type: ignore
+        self.owner_id: Optional[MemberId] = utils._get_as_snowflake(guild, "owner_id", MemberId)
+        self.afk_channel: Optional[VocalGuildChannel] = self.get_channel(
+            utils._get_as_snowflake(guild, "afk_channel_id")  # type: ignore
+        )
 
         for obj in guild.get("voice_states", []):
-            self._update_voice_state(obj, utils._get_as_snowflake(obj, "channel_id"))
+            self._update_voice_state(obj, utils._get_as_snowflake(obj, "channel_id", ChannelId))
 
     # TODO: refactor/remove?
     def _sync(self, data: GuildPayload) -> None:
@@ -783,13 +810,18 @@ class Guild(Hashable):
             channels.sort(key=lambda c: (c._sorting_bucket, c.position, c.id))
         return as_list
 
-    def _resolve_channel(self, id: Optional[int], /) -> Optional[Union[GuildChannel, Thread]]:
+    def _resolve_channel(
+        self, id: Union[ChannelId, ThreadId, None], /
+    ) -> Optional[Union[GuildChannel, Thread]]:
         if id is None:
-            return
+            return None
 
-        return self._channels.get(id) or self._threads.get(id)
+        return self._channels.get(id) or self._threads.get(id)  # type: ignore
 
-    def get_channel_or_thread(self, channel_id: int, /) -> Optional[Union[Thread, GuildChannel]]:
+    @overload_get
+    def get_channel_or_thread(
+        self, channel_id: Union[ChannelId, ThreadId], /
+    ) -> Union[Thread, GuildChannel, None]:
         """Returns a channel or thread with the given ID.
 
         .. versionadded:: 2.0
@@ -804,9 +836,10 @@ class Guild(Hashable):
         Optional[Union[:class:`Thread`, :class:`.abc.GuildChannel`]]
             The returned channel or thread or ``None`` if not found.
         """
-        return self._channels.get(channel_id) or self._threads.get(channel_id)
+        return self._channels.get(channel_id) or self._threads.get(channel_id)  # type: ignore
 
-    def get_channel(self, channel_id: int, /) -> Optional[GuildChannel]:
+    @overload_get
+    def get_channel(self, channel_id: ChannelId, /) -> Optional[GuildChannel]:
         """Returns a channel with the given ID.
 
         .. note::
@@ -825,7 +858,8 @@ class Guild(Hashable):
         """
         return self._channels.get(channel_id)
 
-    def get_thread(self, thread_id: int, /) -> Optional[Thread]:
+    @overload_get
+    def get_thread(self, thread_id: ThreadId, /) -> Optional[Thread]:
         """Returns a thread with the given ID.
 
         .. versionadded:: 2.0
@@ -931,7 +965,8 @@ class Guild(Hashable):
         """List[:class:`Member`]: A list of members that belong to this guild."""
         return list(self._members.values())
 
-    def get_member(self, user_id: int, /) -> Optional[Member]:
+    @overload_get
+    def get_member(self, user_id: MemberId, /) -> Optional[Member]:
         """Returns a member with the given ID.
 
         Parameters
@@ -960,7 +995,8 @@ class Guild(Hashable):
         """
         return sorted(self._roles.values())
 
-    def get_role(self, role_id: int, /) -> Optional[Role]:
+    @overload_get
+    def get_role(self, role_id: RoleId, /) -> Optional[Role]:
         """Returns a role with the given ID.
 
         Parameters
@@ -979,7 +1015,7 @@ class Guild(Hashable):
     def default_role(self) -> Role:
         """:class:`Role`: Gets the @everyone role that all members have by default."""
         # The @everyone role is *always* given
-        return self.get_role(self.id)  # type: ignore
+        return self.get_role(self.id)
 
     @property
     def premium_subscriber_role(self) -> Optional[Role]:
@@ -1198,7 +1234,7 @@ class Guild(Hashable):
         name: str,
         channel_type: ChannelType,
         overwrites: Dict[Union[Role, Member], PermissionOverwrite] = MISSING,
-        category: Optional[Snowflake] = None,
+        category: Optional[Snowflake[CategoryId]] = None,
         **options: Any,
     ) -> Any:
         if overwrites is MISSING:
@@ -1236,7 +1272,7 @@ class Guild(Hashable):
         name: str,
         *,
         reason: Optional[str] = None,
-        category: Optional[Snowflake] = None,
+        category: Optional[Snowflake[CategoryId]] = None,
         position: int = MISSING,
         topic: Optional[str] = MISSING,
         slowmode_delay: int = MISSING,
@@ -1390,7 +1426,7 @@ class Guild(Hashable):
         self,
         name: str,
         *,
-        category: Optional[Snowflake] = None,
+        category: Optional[Snowflake[CategoryId]] = None,
         position: int = MISSING,
         bitrate: int = MISSING,
         user_limit: int = MISSING,
@@ -1514,7 +1550,7 @@ class Guild(Hashable):
         rtc_region: Optional[Union[str, VoiceRegion]] = MISSING,
         video_quality_mode: VideoQualityMode = MISSING,
         overwrites: Dict[Union[Role, Member], PermissionOverwrite] = MISSING,
-        category: Optional[Snowflake] = None,
+        category: Optional[Snowflake[CategoryId]] = None,
         nsfw: bool = MISSING,
         slowmode_delay: int = MISSING,
         reason: Optional[str] = None,
@@ -1635,7 +1671,7 @@ class Guild(Hashable):
         name: str,
         *,
         topic: Optional[str] = None,
-        category: Optional[Snowflake] = None,
+        category: Optional[Snowflake[CategoryId]] = None,
         position: int = MISSING,
         slowmode_delay: int = MISSING,
         default_thread_slowmode_delay: int = MISSING,
@@ -1785,7 +1821,7 @@ class Guild(Hashable):
         name: str,
         *,
         topic: Optional[str] = None,
-        category: Optional[Snowflake] = None,
+        category: Optional[Snowflake[CategoryId]] = None,
         position: int = MISSING,
         slowmode_delay: int = MISSING,
         default_thread_slowmode_delay: int = MISSING,
@@ -2014,7 +2050,7 @@ class Guild(Hashable):
         invites_disabled: bool = MISSING,
         raid_alerts_disabled: bool = MISSING,
         afk_channel: Optional[VoiceChannel] = MISSING,
-        owner: Snowflake = MISSING,
+        owner: Snowflake[MemberId] = MISSING,
         afk_timeout: int = MISSING,
         default_notifications: NotificationLevel = MISSING,
         verification_level: VerificationLevel = MISSING,
@@ -2473,15 +2509,14 @@ class Guild(Hashable):
         description: str = ...,
         image: AssetBytes = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     @overload
     async def create_scheduled_event(
         self,
         *,
         name: str,
-        channel: Snowflake,
+        channel: Snowflake[ChannelId],
         scheduled_start_time: datetime.datetime,
         entity_type: Literal[
             GuildScheduledEventEntityType.voice,
@@ -2492,8 +2527,7 @@ class Guild(Hashable):
         description: str = ...,
         image: AssetBytes = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     @overload
     async def create_scheduled_event(
@@ -2509,15 +2543,14 @@ class Guild(Hashable):
         description: str = ...,
         image: AssetBytes = ...,
         reason: Optional[str] = ...,
-    ) -> GuildScheduledEvent:
-        ...
+    ) -> GuildScheduledEvent: ...
 
     async def create_scheduled_event(
         self,
         *,
         name: str,
         scheduled_start_time: datetime.datetime,
-        channel: Optional[Snowflake] = MISSING,
+        channel: Optional[Snowflake[ChannelId]] = MISSING,
         entity_type: GuildScheduledEventEntityType = MISSING,
         scheduled_end_time: Optional[datetime.datetime] = MISSING,
         privacy_level: GuildScheduledEventPrivacyLevel = MISSING,
@@ -2826,7 +2859,8 @@ class Guild(Hashable):
 
         return MemberIterator(self, limit=limit, after=after)
 
-    async def fetch_member(self, member_id: int, /) -> Member:
+    @overload_fetch
+    async def fetch_member(self, member_id: MemberId, /) -> Member:
         """|coro|
 
         Retrieves a :class:`Member` with the given ID.
@@ -2857,7 +2891,7 @@ class Guild(Hashable):
         data = await self._state.http.get_member(self.id, member_id)
         return Member(data=data, state=self._state, guild=self)
 
-    async def fetch_ban(self, user: Snowflake) -> BanEntry:
+    async def fetch_ban(self, user: Snowflake[UserId]) -> BanEntry:
         """|coro|
 
         Retrieves the :class:`BanEntry` for a user.
@@ -2887,7 +2921,15 @@ class Guild(Hashable):
         data: BanPayload = await self._state.http.get_ban(user.id, self.id)
         return BanEntry(user=User(state=self._state, data=data["user"]), reason=data["reason"])
 
-    async def fetch_channel(self, channel_id: int, /) -> Union[GuildChannel, Thread]:
+    @overload
+    async def fetch_channel(self, id: ChannelId, /) -> GuildChannel: ...
+    @overload
+    async def fetch_channel(self, id: ThreadId, /) -> Thread: ...
+    @overload
+    async def fetch_channel(self, id: ObjectId, /) -> Never: ...
+    @overload
+    async def fetch_channel(self, id: int, /) -> Union[GuildChannel, Thread]: ...
+    async def fetch_channel(self, id: int, /) -> Union[GuildChannel, Thread]:
         """|coro|
 
         Retrieves a :class:`.abc.GuildChannel` or :class:`.Thread` with the given ID.
@@ -2916,7 +2958,7 @@ class Guild(Hashable):
         Union[:class:`.abc.GuildChannel`, :class:`.Thread`]
             The channel from the ID.
         """
-        data = await self._state.http.get_channel(channel_id)
+        data = await self._state.http.get_channel(id)
 
         factory, ch_type = _threaded_guild_channel_factory(data["type"])
         if factory is None:
@@ -2993,7 +3035,7 @@ class Guild(Hashable):
         *,
         days: int,
         compute_prune_count: bool = True,
-        roles: List[Snowflake] = MISSING,
+        roles: List[Snowflake[RoleId]] = MISSING,
         reason: Optional[str] = None,
     ) -> Optional[int]:
         """|coro|
@@ -3110,7 +3152,9 @@ class Guild(Hashable):
         data = await self._state.http.guild_webhooks(self.id)
         return [Webhook.from_state(d, state=self._state) for d in data]
 
-    async def estimate_pruned_members(self, *, days: int, roles: List[Snowflake] = MISSING) -> int:
+    async def estimate_pruned_members(
+        self, *, days: int, roles: List[Snowflake[RoleId]] = MISSING
+    ) -> int:
         """|coro|
 
         Similar to :meth:`prune_members` except instead of actually
@@ -3310,7 +3354,8 @@ class Guild(Hashable):
         data = await self._state.http.get_all_guild_stickers(self.id)
         return [GuildSticker(state=self._state, data=d) for d in data]
 
-    async def fetch_sticker(self, sticker_id: int, /) -> GuildSticker:
+    @overload_fetch
+    async def fetch_sticker(self, sticker_id: StickerId, /) -> GuildSticker:
         """|coro|
 
         Retrieves a custom :class:`Sticker` from the guild.
@@ -3400,7 +3445,9 @@ class Guild(Hashable):
         data = await self._state.http.create_guild_sticker(self.id, payload, file, reason=reason)
         return self._state.store_sticker(self, data)
 
-    async def delete_sticker(self, sticker: Snowflake, *, reason: Optional[str] = None) -> None:
+    async def delete_sticker(
+        self, sticker: Snowflake[StickerId], *, reason: Optional[str] = None
+    ) -> None:
         """|coro|
 
         Deletes the custom :class:`Sticker` from the guild.
@@ -3448,7 +3495,8 @@ class Guild(Hashable):
         data = await self._state.http.get_all_custom_emojis(self.id)
         return [Emoji(guild=self, state=self._state, data=d) for d in data]
 
-    async def fetch_emoji(self, emoji_id: int, /) -> Emoji:
+    @overload_fetch
+    async def fetch_emoji(self, emoji_id: EmojiId, /) -> Emoji:
         """|coro|
 
         Retrieves a custom :class:`Emoji` from the guild.
@@ -3557,7 +3605,9 @@ class Guild(Hashable):
         )
         return self._state.store_emoji(self, data)
 
-    async def delete_emoji(self, emoji: Snowflake, *, reason: Optional[str] = None) -> None:
+    async def delete_emoji(
+        self, emoji: Snowflake[EmojiId], *, reason: Optional[str] = None
+    ) -> None:
         """|coro|
 
         Deletes the custom :class:`Emoji` from the guild.
@@ -3607,16 +3657,16 @@ class Guild(Hashable):
 
     @overload
     async def get_or_fetch_member(
-        self, member_id: int, *, strict: Literal[False] = ...
-    ) -> Optional[Member]:
-        ...
+        self, member_id: MemberId, *, strict: Literal[False] = ...
+    ) -> Optional[Member]: ...
 
     @overload
-    async def get_or_fetch_member(self, member_id: int, *, strict: Literal[True]) -> Member:
-        ...
+    async def get_or_fetch_member(
+        self, member_id: MemberId, *, strict: Literal[True]
+    ) -> Member: ...
 
     async def get_or_fetch_member(
-        self, member_id: int, *, strict: bool = False
+        self, member_id: MemberId, *, strict: bool = False
     ) -> Optional[Member]:
         """|coro|
 
@@ -3668,8 +3718,7 @@ class Guild(Hashable):
         icon: AssetBytes = ...,
         emoji: str = ...,
         mentionable: bool = ...,
-    ) -> Role:
-        ...
+    ) -> Role: ...
 
     @overload
     async def create_role(
@@ -3683,8 +3732,7 @@ class Guild(Hashable):
         icon: AssetBytes = ...,
         emoji: str = ...,
         mentionable: bool = ...,
-    ) -> Role:
-        ...
+    ) -> Role: ...
 
     async def create_role(
         self,
@@ -3791,7 +3839,7 @@ class Guild(Hashable):
         return role
 
     async def edit_role_positions(
-        self, positions: Dict[Snowflake, int], *, reason: Optional[str] = None
+        self, positions: Dict[Snowflake[RoleId], int], *, reason: Optional[str] = None
     ) -> List[Role]:
         """|coro|
 
@@ -3857,7 +3905,7 @@ class Guild(Hashable):
 
         return roles
 
-    async def kick(self, user: Snowflake, *, reason: Optional[str] = None) -> None:
+    async def kick(self, user: Snowflake[MemberId], *, reason: Optional[str] = None) -> None:
         """|coro|
 
         Kicks a user from the guild.
@@ -3886,26 +3934,24 @@ class Guild(Hashable):
     @overload
     async def ban(
         self,
-        user: Snowflake,
+        user: Snowflake[UserId],
         *,
         clean_history_duration: Union[int, datetime.timedelta] = 86400,
         reason: Optional[str] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def ban(
         self,
-        user: Snowflake,
+        user: Snowflake[UserId],
         *,
         delete_message_days: Literal[0, 1, 2, 3, 4, 5, 6, 7] = 1,
         reason: Optional[str] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     async def ban(
         self,
-        user: Snowflake,
+        user: Snowflake[UserId],
         *,
         clean_history_duration: Union[int, datetime.timedelta] = MISSING,
         delete_message_days: Literal[0, 1, 2, 3, 4, 5, 6, 7] = MISSING,
@@ -3986,7 +4032,7 @@ class Guild(Hashable):
             user.id, self.id, delete_message_seconds=delete_message_seconds, reason=reason
         )
 
-    async def unban(self, user: Snowflake, *, reason: Optional[str] = None) -> None:
+    async def unban(self, user: Snowflake[UserId], *, reason: Optional[str] = None) -> None:
         """|coro|
 
         Unbans a user from the guild.
@@ -4014,7 +4060,7 @@ class Guild(Hashable):
 
     async def bulk_ban(
         self,
-        users: Iterable[Snowflake],
+        users: Iterable[Snowflake[UserId]],
         *,
         clean_history_duration: Union[int, datetime.timedelta] = 0,
         reason: Optional[str] = None,
@@ -4151,7 +4197,7 @@ class Guild(Hashable):
         limit: Optional[int] = 100,
         before: Optional[SnowflakeTime] = None,
         after: Optional[SnowflakeTime] = None,
-        user: Optional[Snowflake] = None,
+        user: Optional[Snowflake[UserId]] = None,
         action: Optional[AuditLogAction] = None,
         oldest_first: bool = False,
     ) -> AuditLogIterator:
@@ -4280,7 +4326,7 @@ class Guild(Hashable):
         self,
         *,
         enabled: bool = MISSING,
-        channel: Optional[Snowflake] = MISSING,
+        channel: Optional[Snowflake[ChannelId]] = MISSING,
         reason: Optional[str] = None,
     ) -> WidgetSettings:
         """|coro|
@@ -4643,7 +4689,11 @@ class Guild(Hashable):
         return [VoiceRegion(data=region) for region in data]
 
     async def change_voice_state(
-        self, *, channel: Optional[Snowflake], self_mute: bool = False, self_deaf: bool = False
+        self,
+        *,
+        channel: Optional[Snowflake[ChannelId]],
+        self_mute: bool = False,
+        self_deaf: bool = False,
     ) -> None:
         """|coro|
 
@@ -4675,8 +4725,9 @@ class Guild(Hashable):
         """
         return await self._state.bulk_fetch_command_permissions(self.id)
 
+    @overload_fetch
     async def fetch_command_permissions(
-        self, command_id: int
+        self, command_id: Union[ApplicationCommandId, ApplicationId]
     ) -> GuildApplicationCommandPermissions:
         """|coro|
 
@@ -4702,26 +4753,24 @@ class Guild(Hashable):
     @overload
     async def timeout(
         self,
-        user: Snowflake,
+        user: Snowflake[MemberId],
         *,
         duration: Optional[Union[float, datetime.timedelta]],
         reason: Optional[str] = None,
-    ) -> Member:
-        ...
+    ) -> Member: ...
 
     @overload
     async def timeout(
         self,
-        user: Snowflake,
+        user: Snowflake[MemberId],
         *,
         until: Optional[datetime.datetime],
         reason: Optional[str] = None,
-    ) -> Member:
-        ...
+    ) -> Member: ...
 
     async def timeout(
         self,
-        user: Snowflake,
+        user: Snowflake[MemberId],
         *,
         duration: Optional[Union[float, datetime.timedelta]] = MISSING,
         until: Optional[datetime.datetime] = MISSING,
@@ -4848,8 +4897,8 @@ class Guild(Hashable):
         actions: Sequence[AutoModAction],
         trigger_metadata: Optional[AutoModTriggerMetadata] = None,
         enabled: bool = False,
-        exempt_roles: Optional[Sequence[Snowflake]] = None,
-        exempt_channels: Optional[Sequence[Snowflake]] = None,
+        exempt_roles: Optional[Sequence[Snowflake[RoleId]]] = None,
+        exempt_channels: Optional[Sequence[Snowflake[ChannelId]]] = None,
         reason: Optional[str] = None,
     ) -> AutoModRule:
         """|coro|

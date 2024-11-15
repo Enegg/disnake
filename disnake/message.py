@@ -38,6 +38,19 @@ from .poll import Poll
 from .reaction import Reaction
 from .sticker import StickerItem
 from .threads import Thread
+from .types.ids import (
+    ApplicationId,
+    AttachmentId,
+    ChannelId,
+    GuildId,
+    InteractionId,
+    MemberId,
+    MessageId,
+    PrivateChannelId,
+    ThreadId,
+    UserId,
+    WebhookId,
+)
 from .ui.action_row import components_to_dict
 from .user import User
 from .utils import MISSING, assert_never, escape_mentions
@@ -314,7 +327,7 @@ class Attachment(Hashable):
     )
 
     def __init__(self, *, data: AttachmentPayload, state: ConnectionState) -> None:
-        self.id: int = int(data["id"])
+        self.id: AttachmentId = AttachmentId(int(data["id"]))
         self.size: int = data["size"]
         self.height: Optional[int] = data.get("height")
         self.width: Optional[int] = data.get("width")
@@ -598,24 +611,24 @@ class MessageReference:
     def __init__(
         self,
         *,
-        message_id: int,
-        channel_id: int,
-        guild_id: Optional[int] = None,
+        message_id: MessageId,
+        channel_id: Union[ChannelId, PrivateChannelId, ThreadId],
+        guild_id: Optional[GuildId] = None,
         fail_if_not_exists: bool = True,
     ) -> None:
         self._state: Optional[ConnectionState] = None
         self.resolved: Optional[Union[Message, DeletedReferencedMessage]] = None
-        self.message_id: Optional[int] = message_id
-        self.channel_id: int = channel_id
-        self.guild_id: Optional[int] = guild_id
+        self.message_id: Optional[MessageId] = message_id
+        self.channel_id: Union[ChannelId, PrivateChannelId, ThreadId] = channel_id
+        self.guild_id: Optional[GuildId] = guild_id
         self.fail_if_not_exists: bool = fail_if_not_exists
 
     @classmethod
     def with_state(cls, state: ConnectionState, data: MessageReferencePayload) -> Self:
         self = cls.__new__(cls)
-        self.message_id = utils._get_as_snowflake(data, "message_id")
-        self.channel_id = int(data["channel_id"])
-        self.guild_id = utils._get_as_snowflake(data, "guild_id")
+        self.message_id = utils._get_as_snowflake(data, "message_id", MessageId)
+        self.channel_id = ChannelId(int(data["channel_id"]))
+        self.guild_id = utils._get_as_snowflake(data, "guild_id", GuildId)
         self.fail_if_not_exists = data.get("fail_if_not_exists", True)
         self._state = state
         self.resolved = None
@@ -721,14 +734,14 @@ class InteractionReference:
         guild: Optional[Guild],
         data: InteractionMessageReferencePayload,
     ) -> None:
-        self.id: int = int(data["id"])
+        self.id: InteractionId = InteractionId(int(data["id"]))
         self.type: InteractionType = try_enum(InteractionType, int(data["type"]))
         self.name: str = data["name"]
 
         user: Optional[Union[User, Member]] = None
         if guild:
             if isinstance(guild, Guild):  # this can be a placeholder object in interactions
-                user = guild.get_member(int(data["user"]["id"]))
+                user = guild.get_member(MemberId(int(data["user"]["id"])))
 
             # If not cached, try data from event.
             # This is only available via gateway (message_create/_edit), not HTTP
@@ -799,7 +812,7 @@ def flatten_handlers(cls):
 
 
 @flatten_handlers
-class Message(Hashable):
+class Message(Hashable[MessageId]):
     """Represents a message from Discord.
 
     .. collapse:: operations
@@ -993,9 +1006,13 @@ class Message(Hashable):
         data: MessagePayload,
     ) -> None:
         self._state: ConnectionState = state
-        self.id: int = int(data["id"])
-        self.application_id: Optional[int] = utils._get_as_snowflake(data, "application_id")
-        self.webhook_id: Optional[int] = utils._get_as_snowflake(data, "webhook_id")
+        self.id = MessageId(int(data["id"]))
+        self.application_id: Optional[ApplicationId] = utils._get_as_snowflake(
+            data, "application_id", ApplicationId
+        )
+        self.webhook_id: Optional[WebhookId] = utils._get_as_snowflake(
+            data, "webhook_id", WebhookId
+        )
         self.reactions: List[Reaction] = [
             Reaction(message=self, data=d) for d in data.get("reactions", [])
         ]
@@ -1035,7 +1052,7 @@ class Message(Hashable):
             # if the channel doesn't have a guild attribute, we handle that
             self.guild = channel.guild  # type: ignore
         except AttributeError:
-            self.guild = state._get_guild(utils._get_as_snowflake(data, "guild_id"))
+            self.guild = state._get_guild(utils._get_as_snowflake(data, "guild_id", GuildId))
 
         self.interaction: Optional[InteractionReference] = (
             InteractionReference(state=state, guild=self.guild, data=interaction)
@@ -1096,7 +1113,7 @@ class Message(Hashable):
                 setattr(self, key, transform(value))
 
     def _add_reaction(
-        self, data: MessageReactionAddEvent, emoji: EmojiInputType, user_id: int
+        self, data: MessageReactionAddEvent, emoji: EmojiInputType, user_id: UserId
     ) -> Reaction:
         reaction = utils.find(lambda r: r.emoji == emoji, self.reactions)
         is_me = user_id == self._state.self_id
@@ -1117,7 +1134,7 @@ class Message(Hashable):
         return reaction
 
     def _remove_reaction(
-        self, data: MessageReactionRemoveEvent, emoji: EmojiInputType, user_id: int
+        self, data: MessageReactionRemoveEvent, emoji: EmojiInputType, user_id: UserId
     ) -> Reaction:
         reaction = utils.find(lambda r: r.emoji == emoji, self.reactions)
 
@@ -1645,8 +1662,7 @@ class Message(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def edit(
@@ -1662,8 +1678,7 @@ class Message(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def edit(
@@ -1679,8 +1694,7 @@ class Message(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def edit(
@@ -1696,8 +1710,7 @@ class Message(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     async def edit(
         self,
@@ -1977,7 +1990,7 @@ class Message(Hashable):
         await self._state.http.add_reaction(self.channel.id, self.id, emoji)
 
     async def remove_reaction(
-        self, emoji: Union[EmojiInputType, Reaction], member: Snowflake
+        self, emoji: Union[EmojiInputType, Reaction], member: Snowflake[UserId]
     ) -> None:
         """|coro|
 
@@ -2279,7 +2292,7 @@ class PartialMessage(Hashable):
     to_reference = Message.to_reference
     to_message_reference_dict = Message.to_message_reference_dict
 
-    def __init__(self, *, channel: MessageableChannel, id: int) -> None:
+    def __init__(self, *, channel: MessageableChannel, id: MessageId) -> None:
         if channel.type not in (
             ChannelType.text,
             ChannelType.news,
@@ -2297,7 +2310,7 @@ class PartialMessage(Hashable):
 
         self.channel: MessageableChannel = channel
         self._state: ConnectionState = channel._state
-        self.id: int = id
+        self.id: MessageId = id
 
     def _update(self, data) -> None:
         # This is used for duck typing purposes.
@@ -2357,8 +2370,7 @@ class PartialMessage(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def edit(
@@ -2374,8 +2386,7 @@ class PartialMessage(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def edit(
@@ -2391,8 +2402,7 @@ class PartialMessage(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     @overload
     async def edit(
@@ -2408,8 +2418,7 @@ class PartialMessage(Hashable):
         view: Optional[View] = ...,
         components: Optional[Components[MessageUIComponent]] = ...,
         delete_after: Optional[float] = ...,
-    ) -> Message:
-        ...
+    ) -> Message: ...
 
     async def edit(
         self,

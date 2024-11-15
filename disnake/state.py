@@ -86,6 +86,17 @@ from .role import Role
 from .stage_instance import StageInstance
 from .sticker import GuildSticker
 from .threads import Thread, ThreadMember
+from .types.ids import (
+    ApplicationCommandId,
+    ApplicationId,
+    ChannelId,
+    EmojiId,
+    GuildId,
+    MessageId,
+    StickerId,
+    ThreadId,
+    UserId,
+)
 from .ui.modal import Modal, ModalStore
 from .ui.view import View, ViewStore
 from .user import ClientUser, User
@@ -119,13 +130,13 @@ if TYPE_CHECKING:
 class ChunkRequest:
     def __init__(
         self,
-        guild_id: int,
+        guild_id: GuildId,
         loop: asyncio.AbstractEventLoop,
         resolver: Callable[[int], Any],
         *,
         cache: bool = True,
     ) -> None:
-        self.guild_id: int = guild_id
+        self.guild_id: GuildId = guild_id
         self.resolver: Callable[[int], Any] = resolver
         self.loop: asyncio.AbstractEventLoop = loop
         self.cache: bool = cache
@@ -221,7 +232,9 @@ class ConnectionState:
         self.hooks: Dict[str, Callable] = hooks
         self.shard_count: Optional[int] = None
         self._ready_task: Optional[asyncio.Task] = None
-        self.application_id: Optional[int] = None if application_id is None else int(application_id)
+        self.application_id: Optional[ApplicationId] = (
+            None if application_id is None else ApplicationId(int(application_id))
+        )
         self.heartbeat_timeout: float = heartbeat_timeout
         self.guild_ready_timeout: float = guild_ready_timeout
         if self.guild_ready_timeout < 0:
@@ -297,14 +310,18 @@ class ConnectionState:
         # However, using weakrefs here unfortunately has a few drawbacks:
         # - the weakref slot + object in user objects likely results in a small increase in memory usage
         # - accesses on `_users` are slower, e.g. `__getitem__` takes ~1us with weakrefs and ~0.2us without
-        self._users: weakref.WeakValueDictionary[int, User] = weakref.WeakValueDictionary()
-        self._emojis: Dict[int, Emoji] = {}
-        self._stickers: Dict[int, GuildSticker] = {}
-        self._guilds: Dict[int, Guild] = {}
+        self._users: weakref.WeakValueDictionary[UserId, User] = weakref.WeakValueDictionary()
+        self._emojis: Dict[EmojiId, Emoji] = {}
+        self._stickers: Dict[StickerId, GuildSticker] = {}
+        self._guilds: Dict[GuildId, Guild] = {}
 
         if application_commands:
-            self._global_application_commands: Dict[int, APIApplicationCommand] = {}
-            self._guild_application_commands: Dict[int, Dict[int, APIApplicationCommand]] = {}
+            self._global_application_commands: Dict[
+                ApplicationCommandId, APIApplicationCommand
+            ] = {}
+            self._guild_application_commands: Dict[
+                GuildId, Dict[ApplicationCommandId, APIApplicationCommand]
+            ] = {}
 
         if views:
             self._view_store: ViewStore = ViewStore(self)
@@ -312,19 +329,19 @@ class ConnectionState:
         if modals:
             self._modal_store: ModalStore = ModalStore(self)
 
-        self._voice_clients: Dict[int, VoiceProtocol] = {}
+        self._voice_clients: Dict[GuildId, VoiceProtocol] = {}
 
         # LRU of max size 128
         self._private_channels: OrderedDict[int, PrivateChannel] = OrderedDict()
         # extra dict to look up private channels by user id
-        self._private_channels_by_user: Dict[int, DMChannel] = {}
+        self._private_channels_by_user: Dict[UserId, DMChannel] = {}
         if self.max_messages is not None:
             self._messages: Optional[Deque[Message]] = deque(maxlen=self.max_messages)
         else:
             self._messages: Optional[Deque[Message]] = None
 
     def process_chunk_requests(
-        self, guild_id: int, nonce: Optional[str], members: List[Member], complete: bool
+        self, guild_id: GuildId, nonce: Optional[str], members: List[Member], complete: bool
     ) -> None:
         removed = []
         for key, request in self._chunk_requests.items():
@@ -368,14 +385,14 @@ class ConnectionState:
     def voice_clients(self) -> List[VoiceProtocol]:
         return list(self._voice_clients.values())
 
-    def _get_voice_client(self, guild_id: Optional[int]) -> Optional[VoiceProtocol]:
+    def _get_voice_client(self, guild_id: Optional[GuildId]) -> Optional[VoiceProtocol]:
         # the keys of self._voice_clients are ints
         return self._voice_clients.get(guild_id)  # type: ignore
 
-    def _add_voice_client(self, guild_id: int, voice: VoiceProtocol) -> None:
+    def _add_voice_client(self, guild_id: GuildId, voice: VoiceProtocol) -> None:
         self._voice_clients[guild_id] = voice
 
-    def _remove_voice_client(self, guild_id: int) -> None:
+    def _remove_voice_client(self, guild_id: GuildId) -> None:
         self._voice_clients.pop(guild_id, None)
 
     def _update_references(self, ws: DiscordWebSocket) -> None:
@@ -383,7 +400,7 @@ class ConnectionState:
             vc.main_ws = ws  # type: ignore
 
     def store_user(self, data: UserPayload) -> User:
-        user_id = int(data["id"])
+        user_id = UserId(int(data["id"]))
         try:
             return self._users[user_id]
         except KeyError:
@@ -395,28 +412,28 @@ class ConnectionState:
     def create_user(self, data: UserPayload) -> User:
         return User(state=self, data=data)
 
-    def get_user(self, id: Optional[int]) -> Optional[User]:
+    def get_user(self, id: Optional[UserId]) -> Optional[User]:
         # the keys of self._users are ints
         return self._users.get(id)  # type: ignore
 
     def store_emoji(self, guild: Guild, data: EmojiPayload) -> Emoji:
         # the id will be present here
-        emoji_id = int(data["id"])  # type: ignore
+        emoji_id = EmojiId(int(data["id"]))  # type: ignore
         self._emojis[emoji_id] = emoji = Emoji(guild=guild, state=self, data=data)
         return emoji
 
     def store_sticker(self, guild: Guild, data: GuildStickerPayload) -> GuildSticker:
-        sticker_id = int(data["id"])
+        sticker_id = StickerId(int(data["id"]))
         self._stickers[sticker_id] = sticker = GuildSticker(state=self, data=data)
         return sticker
 
-    def store_view(self, view: View, message_id: Optional[int] = None) -> None:
+    def store_view(self, view: View, message_id: Optional[MessageId] = None) -> None:
         self._view_store.add_view(view, message_id)
 
-    def store_modal(self, user_id: int, modal: Modal) -> None:
+    def store_modal(self, user_id: UserId, modal: Modal) -> None:
         self._modal_store.add_modal(user_id, modal)
 
-    def prevent_view_updates_for(self, message_id: int) -> Optional[View]:
+    def prevent_view_updates_for(self, message_id: MessageId) -> Optional[View]:
         return self._view_store.remove_message_tracking(message_id)
 
     @property
@@ -427,7 +444,7 @@ class ConnectionState:
     def guilds(self) -> List[Guild]:
         return list(self._guilds.values())
 
-    def _get_guild(self, guild_id: Optional[int]) -> Optional[Guild]:
+    def _get_guild(self, guild_id: Optional[GuildId]) -> Optional[Guild]:
         # the keys of self._guilds are ints
         if guild_id is None:
             return None
@@ -448,9 +465,9 @@ class ConnectionState:
         del guild
 
     def _get_global_application_command(
-        self, application_command_id: int
+        self, id: ApplicationCommandId
     ) -> Optional[APIApplicationCommand]:
-        return self._global_application_commands.get(application_command_id)
+        return self._global_application_commands.get(id)
 
     def _add_global_application_command(
         self,
@@ -461,21 +478,21 @@ class ConnectionState:
             AssertionError("The provided application command does not have an ID")
         self._global_application_commands[application_command.id] = application_command
 
-    def _remove_global_application_command(self, application_command_id: int, /) -> None:
-        self._global_application_commands.pop(application_command_id, None)
+    def _remove_global_application_command(self, id: ApplicationCommandId, /) -> None:
+        self._global_application_commands.pop(id, None)
 
     def _clear_global_application_commands(self) -> None:
         self._global_application_commands.clear()
 
     def _get_guild_application_command(
-        self, guild_id: int, application_command_id: int
+        self, guild_id: GuildId, application_command_id: ApplicationCommandId
     ) -> Optional[APIApplicationCommand]:
         granula = self._guild_application_commands.get(guild_id)
         if granula is not None:
             return granula.get(application_command_id)
 
     def _add_guild_application_command(
-        self, guild_id: int, application_command: APIApplicationCommand
+        self, guild_id: GuildId, application_command: APIApplicationCommand
     ) -> None:
         if not application_command.id:
             AssertionError("The provided application command does not have an ID")
@@ -487,14 +504,16 @@ class ConnectionState:
                 application_command.id: application_command
             }
 
-    def _remove_guild_application_command(self, guild_id: int, application_command_id: int) -> None:
+    def _remove_guild_application_command(
+        self, guild_id: GuildId, application_command_id: ApplicationCommandId
+    ) -> None:
         try:
             granula = self._guild_application_commands[guild_id]
             granula.pop(application_command_id, None)
         except KeyError:
             pass
 
-    def _clear_guild_application_commands(self, guild_id: int) -> None:
+    def _clear_guild_application_commands(self, guild_id: GuildId) -> None:
         self._guild_application_commands.pop(guild_id, None)
 
     def _get_global_command_named(
@@ -505,7 +524,7 @@ class ConnectionState:
                 return cmd
 
     def _get_guild_command_named(
-        self, guild_id: int, name: str, cmd_type: Optional[ApplicationCommandType] = None
+        self, guild_id: GuildId, name: str, cmd_type: Optional[ApplicationCommandType] = None
     ) -> Optional[APIApplicationCommand]:
         granula = self._guild_application_commands.get(guild_id, {})
         for cmd in granula.values():
@@ -520,11 +539,11 @@ class ConnectionState:
     def stickers(self) -> List[GuildSticker]:
         return list(self._stickers.values())
 
-    def get_emoji(self, emoji_id: Optional[int]) -> Optional[Emoji]:
+    def get_emoji(self, emoji_id: Optional[EmojiId]) -> Optional[Emoji]:
         # the keys of self._emojis are ints
         return self._emojis.get(emoji_id)  # type: ignore
 
-    def get_sticker(self, sticker_id: Optional[int]) -> Optional[GuildSticker]:
+    def get_sticker(self, sticker_id: Optional[StickerId]) -> Optional[GuildSticker]:
         # the keys of self._stickers are ints
         return self._stickers.get(sticker_id)  # type: ignore
 
@@ -542,7 +561,7 @@ class ConnectionState:
             self._private_channels.move_to_end(channel_id)  # type: ignore
             return value
 
-    def _get_private_channel_by_user(self, user_id: Optional[int]) -> Optional[DMChannel]:
+    def _get_private_channel_by_user(self, user_id: Optional[UserId]) -> Optional[DMChannel]:
         # the keys of self._private_channels are ints
         return self._private_channels_by_user.get(user_id)  # type: ignore
 
@@ -571,7 +590,7 @@ class ConnectionState:
             if recipient is not None:
                 self._private_channels_by_user.pop(recipient.id, None)
 
-    def _get_message(self, msg_id: Optional[int]) -> Optional[Message]:
+    def _get_message(self, msg_id: Optional[MessageId]) -> Optional[Message]:
         return (
             utils.find(lambda m: m.id == msg_id, reversed(self._messages))
             if self._messages
@@ -598,19 +617,19 @@ class ConnectionState:
         self,
         data: Union[MessagePayload, gateway.TypingStartEvent],
     ) -> Tuple[Union[PartialChannel, Thread], Optional[Guild]]:
-        channel_id = int(data["channel_id"])
+        channel_id = ChannelId(int(data["channel_id"]))
         try:
-            guild = self._get_guild(int(data["guild_id"]))
+            guild = self._get_guild(GuildId(int(data["guild_id"])))
         except KeyError:
             # if we're here, this is a DM channel or an ephemeral message in a guild
             channel = self.get_channel(channel_id)
             if channel is None:
                 if "author" in data:
                     # MessagePayload
-                    user_id = int(data["author"]["id"])
+                    user_id = UserId(int(data["author"]["id"]))
                 else:
                     # TypingStartEvent
-                    user_id = int(data["user_id"])
+                    user_id = UserId(int(data["user_id"]))
                 channel = DMChannel._from_message(self, channel_id, user_id)
             guild = None
         else:
@@ -620,7 +639,7 @@ class ConnectionState:
 
     async def chunker(
         self,
-        guild_id: int,
+        guild_id: GuildId,
         query: str = "",
         limit: int = 0,
         presences: bool = False,
@@ -637,7 +656,7 @@ class ConnectionState:
         guild: Guild,
         query: Optional[str],
         limit: int,
-        user_ids: Optional[List[int]],
+        user_ids: Optional[List[UserId]],
         cache: bool,
         presences: bool,
     ):
@@ -1414,14 +1433,12 @@ class ConnectionState:
     @overload
     async def chunk_guild(
         self, guild: Guild, *, wait: Literal[False], cache: Optional[bool] = None
-    ) -> asyncio.Future[List[Member]]:
-        ...
+    ) -> asyncio.Future[List[Member]]: ...
 
     @overload
     async def chunk_guild(
         self, guild: Guild, *, wait: Literal[True] = True, cache: Optional[bool] = None
-    ) -> List[Member]:
-        ...
+    ) -> List[Member]: ...
 
     async def chunk_guild(
         self, guild: Guild, *, wait: bool = True, cache: Optional[bool] = None
@@ -1975,7 +1992,7 @@ class ConnectionState:
         self.dispatch("entitlement_delete", entitlement)
 
     def _get_reaction_user(
-        self, channel: MessageableChannel, user_id: int
+        self, channel: MessageableChannel, user_id: UserId
     ) -> Optional[Union[User, Member]]:
         if isinstance(channel, (TextChannel, VoiceChannel, Thread, StageChannel)):
             return channel.guild.get_member(user_id)
@@ -2014,7 +2031,7 @@ class ConnectionState:
         self,
         *,
         name: Optional[str],
-        id: Optional[int],
+        id: Optional[EmojiId],
         animated: Optional[bool] = False,
     ) -> Optional[Union[Emoji, PartialEmoji]]:
         """Convert partial emoji fields to proper emoji, if possible.
@@ -2058,8 +2075,7 @@ class ConnectionState:
         guild: Optional[Union[Guild, Object]],
         *,
         return_messageable: Literal[False] = False,
-    ) -> AnyChannel:
-        ...
+    ) -> AnyChannel: ...
 
     @overload
     def _get_partial_interaction_channel(
@@ -2068,8 +2084,7 @@ class ConnectionState:
         guild: Optional[Union[Guild, Object]],
         *,
         return_messageable: Literal[True],
-    ) -> MessageableChannel:
-        ...
+    ) -> MessageableChannel: ...
 
     # note: this resolves unknown types to `PartialMessageable`
     def _get_partial_interaction_channel(
@@ -2080,7 +2095,7 @@ class ConnectionState:
         # this param is purely for type-checking, it has no effect on runtime behavior.
         return_messageable: bool = False,
     ) -> AnyChannel:
-        channel_id = int(data["id"])
+        channel_id = ChannelId(int(data["id"]))
         channel_type = data["type"]
 
         factory, ch_type = _threaded_channel_factory(channel_type)
@@ -2110,7 +2125,7 @@ class ConnectionState:
             )
         )
 
-    def get_channel(self, id: Optional[int]) -> Optional[Union[Channel, Thread]]:
+    def get_channel(self, id: Union[ChannelId, ThreadId, None]) -> Optional[Union[Channel, Thread]]:
         if id is None:
             return None
 
@@ -2143,10 +2158,13 @@ class ConnectionState:
         *,
         with_localizations: bool = True,
     ) -> List[APIApplicationCommand]:
-        results = await self.http.get_global_commands(self.application_id, with_localizations=with_localizations)  # type: ignore
+        results = await self.http.get_global_commands(
+            self.application_id,
+            with_localizations=with_localizations,  # type: ignore
+        )
         return [application_command_factory(data) for data in results]
 
-    async def fetch_global_command(self, command_id: int) -> APIApplicationCommand:
+    async def fetch_global_command(self, command_id: ApplicationCommandId) -> APIApplicationCommand:
         result = await self.http.get_global_command(self.application_id, command_id)  # type: ignore
         return application_command_factory(result)
 
@@ -2154,23 +2172,26 @@ class ConnectionState:
         self, application_command: ApplicationCommand
     ) -> APIApplicationCommand:
         result = await self.http.upsert_global_command(
-            self.application_id, application_command.to_dict()  # type: ignore
+            self.application_id,  # type: ignore
+            application_command.to_dict(),
         )
         cmd = application_command_factory(result)
         self._add_global_application_command(cmd)
         return cmd
 
     async def edit_global_command(
-        self, command_id: int, new_command: ApplicationCommand
+        self, command_id: ApplicationCommandId, new_command: ApplicationCommand
     ) -> APIApplicationCommand:
         result = await self.http.edit_global_command(
-            self.application_id, command_id, new_command.to_dict()  # type: ignore
+            self.application_id,  # type: ignore
+            command_id,
+            new_command.to_dict(),
         )
         cmd = application_command_factory(result)
         self._add_global_application_command(cmd)
         return cmd
 
-    async def delete_global_command(self, command_id: int) -> None:
+    async def delete_global_command(self, command_id: ApplicationCommandId) -> None:
         await self.http.delete_global_command(self.application_id, command_id)  # type: ignore
         self._remove_global_application_command(command_id)
 
@@ -2187,49 +2208,66 @@ class ConnectionState:
 
     async def fetch_guild_commands(
         self,
-        guild_id: int,
+        guild_id: GuildId,
         *,
         with_localizations: bool = True,
     ) -> List[APIApplicationCommand]:
-        results = await self.http.get_guild_commands(self.application_id, guild_id, with_localizations=with_localizations)  # type: ignore
+        results = await self.http.get_guild_commands(
+            self.application_id,  # type: ignore
+            guild_id,
+            with_localizations=with_localizations,
+        )
         return [application_command_factory(data) for data in results]
 
-    async def fetch_guild_command(self, guild_id: int, command_id: int) -> APIApplicationCommand:
+    async def fetch_guild_command(
+        self, guild_id: GuildId, command_id: ApplicationCommandId
+    ) -> APIApplicationCommand:
         result = await self.http.get_guild_command(self.application_id, guild_id, command_id)  # type: ignore
         return application_command_factory(result)
 
     async def create_guild_command(
-        self, guild_id: int, application_command: ApplicationCommand
+        self, guild_id: GuildId, application_command: ApplicationCommand
     ) -> APIApplicationCommand:
         result = await self.http.upsert_guild_command(
-            self.application_id, guild_id, application_command.to_dict()  # type: ignore
+            self.application_id,  # type: ignore
+            guild_id,
+            application_command.to_dict(),
         )
         cmd = application_command_factory(result)
         self._add_guild_application_command(guild_id, cmd)
         return cmd
 
     async def edit_guild_command(
-        self, guild_id: int, command_id: int, new_command: ApplicationCommand
+        self, guild_id: GuildId, command_id: ApplicationCommandId, new_command: ApplicationCommand
     ) -> APIApplicationCommand:
         result = await self.http.edit_guild_command(
-            self.application_id, guild_id, command_id, new_command.to_dict()  # type: ignore
+            self.application_id,  # type: ignore
+            guild_id,
+            command_id,
+            new_command.to_dict(),
         )
         cmd = application_command_factory(result)
         self._add_guild_application_command(guild_id, cmd)
         return cmd
 
-    async def delete_guild_command(self, guild_id: int, command_id: int) -> None:
+    async def delete_guild_command(
+        self, guild_id: GuildId, command_id: ApplicationCommandId
+    ) -> None:
         await self.http.delete_guild_command(
-            self.application_id, guild_id, command_id  # type: ignore
+            self.application_id,  # type: ignore
+            guild_id,
+            command_id,
         )
         self._remove_guild_application_command(guild_id, command_id)
 
     async def bulk_overwrite_guild_commands(
-        self, guild_id: int, application_commands: List[ApplicationCommand]
+        self, guild_id: GuildId, application_commands: List[ApplicationCommand]
     ) -> List[APIApplicationCommand]:
         payload = [cmd.to_dict() for cmd in application_commands]
         results = await self.http.bulk_upsert_guild_commands(
-            self.application_id, guild_id, payload  # type: ignore
+            self.application_id,  # type: ignore
+            guild_id,
+            payload,
         )
         commands = [application_command_factory(data) for data in results]
         self._guild_application_commands[guild_id] = {cmd.id: cmd for cmd in commands}
@@ -2238,18 +2276,21 @@ class ConnectionState:
     # Application command permissions
 
     async def bulk_fetch_command_permissions(
-        self, guild_id: int
+        self, guild_id: GuildId
     ) -> List[GuildApplicationCommandPermissions]:
         array = await self.http.get_guild_application_command_permissions(
-            self.application_id, guild_id  # type: ignore
+            self.application_id,  # type: ignore
+            guild_id,
         )
         return [GuildApplicationCommandPermissions(state=self, data=obj) for obj in array]
 
     async def fetch_command_permissions(
-        self, guild_id: int, command_id: int
+        self, guild_id: GuildId, command_id: Union[ApplicationCommandId, ApplicationId]
     ) -> GuildApplicationCommandPermissions:
         data = await self.http.get_application_command_permissions(
-            self.application_id, guild_id, command_id  # type: ignore
+            self.application_id,  # type: ignore
+            guild_id,
+            command_id,
         )
         return GuildApplicationCommandPermissions(state=self, data=data)
 
@@ -2310,7 +2351,7 @@ class AutoShardedConnectionState(ConnectionState):
 
     async def chunker(
         self,
-        guild_id: int,
+        guild_id: GuildId,
         query: str = "",
         limit: int = 0,
         presences: bool = False,
@@ -2427,7 +2468,7 @@ class AutoShardedConnectionState(ConnectionState):
             pass
         else:
             if self.application_id is None:
-                self.application_id = utils._get_as_snowflake(application, "id")
+                self.application_id = utils._get_as_snowflake(application, "id", ApplicationId)
             self.application_flags = ApplicationFlags._from_value(application["flags"])
 
         for guild_data in data["guilds"]:

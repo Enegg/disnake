@@ -31,6 +31,7 @@ from .enums import Status, try_enum
 from .flags import MemberFlags
 from .object import Object
 from .permissions import Permissions
+from .types.ids import MemberId, RoleId, overload_get
 from .user import BaseUser, User, _UserTag
 from .utils import MISSING
 
@@ -279,7 +280,7 @@ class Member(disnake.abc.Messageable, _UserTag):
 
     if TYPE_CHECKING:
         name: str
-        id: int
+        id: MemberId
         discriminator: str
         global_name: Optional[str]
         bot: bool
@@ -302,8 +303,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         data: Union[MemberWithUserPayload, GuildMemberUpdateEvent],
         guild: Guild,
         state: ConnectionState,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     def __init__(
@@ -313,8 +313,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         guild: Guild,
         state: ConnectionState,
         user_data: UserPayload,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def __init__(
         self,
@@ -334,7 +333,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         self.premium_since: Optional[datetime.datetime] = utils.parse_time(
             data.get("premium_since")
         )
-        self._roles: utils.SnowflakeList = utils.SnowflakeList(map(int, data["roles"]))
+        self._roles: utils.SnowflakeList[RoleId] = utils.SnowflakeList(map(int, data["roles"]))
         self._client_status: Dict[Optional[str], str] = {None: "offline"}
         self.activities: Tuple[ActivityTypes, ...] = ()
         self.nick: Optional[str] = data.get("nick")
@@ -356,10 +355,10 @@ class Member(disnake.abc.Messageable, _UserTag):
             f" bot={self._user.bot} nick={self.nick!r} guild={self.guild!r}>"
         )
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, _UserTag) and other.id == self.id
 
-    def __ne__(self, other: Any) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
@@ -447,7 +446,8 @@ class Member(disnake.abc.Messageable, _UserTag):
     ) -> Optional[Tuple[User, User]]:
         self.activities = tuple(create_activity(a, state=self._state) for a in data["activities"])
         self._client_status = {
-            sys.intern(key): sys.intern(value) for key, value in data.get("client_status", {}).items()  # type: ignore
+            sys.intern(key): sys.intern(value)
+            for key, value in data.get("client_status", {}).items()  # type: ignore
         }
         self._client_status[None] = sys.intern(data["status"])
 
@@ -787,8 +787,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         *,
         clean_history_duration: Union[int, datetime.timedelta] = 86400,
         reason: Optional[str] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     async def ban(
@@ -796,8 +795,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         *,
         delete_message_days: Literal[0, 1, 2, 3, 4, 5, 6, 7] = 1,
         reason: Optional[str] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     async def ban(
         self,
@@ -838,7 +836,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         mute: bool = MISSING,
         deafen: bool = MISSING,
         suppress: bool = MISSING,
-        roles: Sequence[disnake.abc.Snowflake] = MISSING,
+        roles: Sequence[Snowflake[RoleId]] = MISSING,
         voice_channel: Optional[VocalGuildChannel] = MISSING,
         timeout: Optional[Union[float, datetime.timedelta, datetime.datetime]] = MISSING,
         flags: MemberFlags = MISSING,
@@ -1063,7 +1061,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         await self.edit(voice_channel=channel, reason=reason)
 
     async def add_roles(
-        self, *roles: Snowflake, reason: Optional[str] = None, atomic: bool = True
+        self, *roles: Snowflake[RoleId], reason: Optional[str] = None, atomic: bool = True
     ) -> None:
         """|coro|
 
@@ -1103,7 +1101,7 @@ class Member(disnake.abc.Messageable, _UserTag):
                 await req(guild_id, user_id, role.id, reason=reason)
 
     async def remove_roles(
-        self, *roles: Snowflake, reason: Optional[str] = None, atomic: bool = True
+        self, *roles: Snowflake[RoleId], reason: Optional[str] = None, atomic: bool = True
     ) -> None:
         """|coro|
 
@@ -1148,7 +1146,8 @@ class Member(disnake.abc.Messageable, _UserTag):
             for role in roles:
                 await req(guild_id, user_id, role.id, reason=reason)
 
-    def get_role(self, role_id: int, /) -> Optional[Role]:
+    @overload_get
+    def get_role(self, role_id: RoleId, /) -> Optional[Role]:
         """Returns a role with the given ID from roles which the member has.
 
         .. versionadded:: 2.0
@@ -1171,8 +1170,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         *,
         duration: Optional[Union[float, datetime.timedelta]],
         reason: Optional[str] = None,
-    ) -> Member:
-        ...
+    ) -> Member: ...
 
     @overload
     async def timeout(
@@ -1180,8 +1178,7 @@ class Member(disnake.abc.Messageable, _UserTag):
         *,
         until: Optional[datetime.datetime],
         reason: Optional[str] = None,
-    ) -> Member:
-        ...
+    ) -> Member: ...
 
     async def timeout(
         self,
