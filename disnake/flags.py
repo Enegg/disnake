@@ -9,10 +9,9 @@ from typing import (
     Any,
     Callable,
     ClassVar,
-    Dict,
-    Generic,
     Iterator,
     List,
+    Mapping,
     NoReturn,
     Optional,
     Sequence,
@@ -24,11 +23,10 @@ from typing import (
 )
 
 from .enums import UserFlags
-from .utils import MISSING, _generated
+from .utils import _generated
 
 if TYPE_CHECKING:
     from typing_extensions import Self
-
 
 __all__ = (
     "SystemChannelFlags",
@@ -46,46 +44,23 @@ __all__ = (
 )
 
 BF = TypeVar("BF", bound="BaseFlags")
-T = TypeVar("T", bound="BaseFlags")
 
 
-class flag_value(Generic[T]):
+class flag_value:
+    __slots__ = ("flag", "__doc__")
+
     def __init__(self, func: Callable[[Any], int]) -> None:
         self.flag = func(None)
         self.__doc__ = func.__doc__
-        self._parent: Type[T] = MISSING
-
-    def __or__(self, other: Union[flag_value[T], T]) -> T:
-        if isinstance(other, BaseFlags):
-            if self._parent is not other.__class__:
-                raise TypeError(
-                    f"unsupported operand type(s) for |: flags of '{self._parent.__name__}' and flags of '{other.__class__.__name__}'"
-                )
-            return other._from_value(self.flag | other.value)
-        if not isinstance(other, flag_value):
-            raise TypeError(
-                f"unsupported operand type(s) for |: flags of '{self._parent.__name__}' and {other.__class__}"
-            )
-        if self._parent is not other._parent:
-            raise TypeError(
-                f"unsupported operand type(s) for |: flags of '{self._parent.__name__}' and flags of '{other._parent.__name__}'"
-            )
-        return self._parent._from_value(self.flag | other.flag)
-
-    def __invert__(self: flag_value[T]) -> T:
-        return ~self._parent._from_value(self.flag)
 
     @overload
-    def __get__(self, instance: None, owner: Type[BF]) -> flag_value[BF]:
-        ...
-
+    def __get__(self, instance: None, owner: Type[BF]) -> BF: ...
     @overload
-    def __get__(self, instance: BF, owner: Type[BF]) -> bool:
-        ...
+    def __get__(self, instance: BF, owner: Type[BF]) -> bool: ...
 
-    def __get__(self, instance: Optional[BF], owner: Type[BF]) -> Any:
+    def __get__(self, instance: Optional[BF], owner: Type[BF]) -> Union[BF, bool]:
         if instance is None:
-            return self
+            return owner._from_value(self.flag)
         return instance._has_flag(self.flag)
 
     def __set__(self, instance: BaseFlags, value: bool) -> None:
@@ -99,12 +74,12 @@ class alias_flag_value(flag_value):
     pass
 
 
-def all_flags_value(flags: Dict[str, int]) -> int:
+def all_flags_value(flags: Mapping[str, int]) -> int:
     return functools.reduce(operator.or_, flags.values())
 
 
 class BaseFlags:
-    VALID_FLAGS: ClassVar[Dict[str, int]]
+    VALID_FLAGS: ClassVar[Mapping[str, int]]
     DEFAULT_VALUE: ClassVar[int]
 
     value: int
@@ -118,19 +93,17 @@ class BaseFlags:
                 raise TypeError(f"{key!r} is not a valid flag name.")
             setattr(self, key, value)
 
-    @classmethod
-    def __init_subclass__(cls, inverted: bool = False, no_fill_flags: bool = False):
+    def __init_subclass__(cls, inverted: bool = False, no_fill_flags: bool = False) -> None:
         # add a way to bypass filling flags, eg for ListBaseFlags.
         if no_fill_flags:
-            return cls
+            return
 
         # use the parent's current flags as a base if they exist
-        cls.VALID_FLAGS = getattr(cls, "VALID_FLAGS", {}).copy()
+        cls.VALID_FLAGS = flags = getattr(cls, "VALID_FLAGS", {}).copy()
 
         for name, value in cls.__dict__.items():
             if isinstance(value, flag_value):
-                value._parent = cls
-                cls.VALID_FLAGS[name] = value.flag
+                flags[name] = value.flag
 
         if not cls.VALID_FLAGS:
             raise RuntimeError(
@@ -139,117 +112,69 @@ class BaseFlags:
 
         cls.DEFAULT_VALUE = all_flags_value(cls.VALID_FLAGS) if inverted else 0
 
-        return cls
-
     @classmethod
     def _from_value(cls, value: int) -> Self:
         self = cls.__new__(cls)
         self.value = value
         return self
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, self.__class__) and self.value == other.value
 
-    def __ne__(self, other: Any) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
     def __and__(self, other: Self) -> Self:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"unsupported operand type(s) for &: '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return self._from_value(self.value & other.value)
 
     def __iand__(self, other: Self) -> Self:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"unsupported operand type(s) for &=: '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         self.value &= other.value
         return self
 
-    def __or__(self, other: Union[Self, flag_value[Self]]) -> Self:
-        if isinstance(other, flag_value):
-            if self.__class__ is not other._parent:
-                raise TypeError(
-                    f"unsupported operand type(s) for |: flags of '{self.__class__.__name__}' and flags of '{other._parent.__name__}'"
-                )
-            return self._from_value(self.value | other.flag)
+    def __or__(self, other: Self) -> Self:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"unsupported operand type(s) for |: '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return self._from_value(self.value | other.value)
 
-    def __ior__(self, other: Union[Self, flag_value[Self]]) -> Self:
-        if isinstance(other, flag_value):
-            if self.__class__ is not other._parent:
-                raise TypeError(
-                    f"unsupported operand type(s) for |=: flags of '{self.__class__.__name__}' and flags of '{other._parent.__name__}'"
-                )
-            self.value |= other.flag
-            return self
+    def __ior__(self, other: Self) -> Self:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"unsupported operand type(s) for |=: '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         self.value |= other.value
         return self
 
-    def __xor__(self, other: Union[Self, flag_value[Self]]) -> Self:
-        if isinstance(other, flag_value):
-            if self.__class__ is not other._parent:
-                raise TypeError(
-                    f"unsupported operand type(s) for ^: flags of '{self.__class__.__name__}' and flags of '{other._parent.__name__}'"
-                )
-            return self._from_value(self.value ^ other.flag)
+    def __xor__(self, other: Self) -> Self:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"unsupported operand type(s) for ^: '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return self._from_value(self.value ^ other.value)
 
-    def __ixor__(self, other: Union[Self, flag_value[Self]]) -> Self:
-        if isinstance(other, flag_value):
-            if self.__class__ is not other._parent:
-                raise TypeError(
-                    f"unsupported operand type(s) for ^=: flags of '{self.__class__.__name__}' and flags of '{other._parent.__name__}'"
-                )
-            self.value ^= other.flag
-            return self
+    def __ixor__(self, other: Self) -> Self:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"unsupported operand type(s) for ^=: '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         self.value ^= other.value
         return self
 
     def __le__(self, other: Self) -> bool:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"'<=' not supported between instances of '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return (self.value & other.value) == self.value
 
     def __ge__(self, other: Self) -> bool:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"'>=' not supported between instances of '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return (self.value | other.value) == self.value
 
     def __lt__(self, other: Self) -> bool:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"'<' not supported between instances of '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return (self.value & other.value) == self.value and self.value != other.value
 
     def __gt__(self, other: Self) -> bool:
         if not isinstance(other, self.__class__):
-            raise TypeError(
-                f"'>' not supported between instances of '{self.__class__.__name__}' and '{other.__class__.__name__}'"
-            )
+            return NotImplemented
         return (self.value | other.value) == self.value and self.value != other.value
 
     def __invert__(self) -> Self:
@@ -263,7 +188,7 @@ class BaseFlags:
         return hash(self.value)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} value={self.value}>"
+        return f"{self.__class__.__name__}({self.value})"
 
     def __iter__(self) -> Iterator[Tuple[str, bool]]:
         for name, value in self.__class__.__dict__.items():
@@ -294,7 +219,7 @@ class ListBaseFlags(BaseFlags, no_fill_flags=True):
     __slots__ = ()
 
     @classmethod
-    def _from_values(cls, values: Sequence[int]):
+    def _from_values(cls, values: Sequence[int]) -> Self:
         self = cls.__new__(cls)
         value = 0
         for n in values:
@@ -422,8 +347,7 @@ class SystemChannelFlags(BaseFlags, inverted=True):
             premium_subscriptions: bool = ...,
             role_subscription_purchase_notification_replies: bool = ...,
             role_subscription_purchase_notifications: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     # For some reason the flags for system channels are "inverted"
     # ergo, if they're set then it means "suppress" (off in the GUI toggle)
@@ -594,8 +518,7 @@ class MessageFlags(BaseFlags):
             suppress_embeds: bool = ...,
             suppress_notifications: bool = ...,
             urgent: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @flag_value
     def crossposted(self):
@@ -793,8 +716,7 @@ class PublicUserFlags(BaseFlags):
             team_user: bool = ...,
             verified_bot: bool = ...,
             verified_bot_developer: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @flag_value
     def staff(self):
@@ -1051,13 +973,11 @@ class Intents(BaseFlags):
         typing: bool = ...,
         voice_states: bool = ...,
         webhooks: bool = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     @_generated
-    def __init__(self: NoReturn) -> None:
-        ...
+    def __init__(self: NoReturn) -> None: ...
 
     def __init__(self, value: Optional[int] = None, **kwargs: bool) -> None:
         if value is not None:
@@ -1763,13 +1683,11 @@ class MemberCacheFlags(BaseFlags):
 
     @overload
     @_generated
-    def __init__(self, *, joined: bool = ..., voice: bool = ...) -> None:
-        ...
+    def __init__(self, *, joined: bool = ..., voice: bool = ...) -> None: ...
 
     @overload
     @_generated
-    def __init__(self: NoReturn) -> None:
-        ...
+    def __init__(self: NoReturn) -> None: ...
 
     def __init__(self, **kwargs: bool) -> None:
         self.value = all_flags_value(self.VALID_FLAGS)
@@ -1956,8 +1874,7 @@ class ApplicationFlags(BaseFlags):
             gateway_presence: bool = ...,
             gateway_presence_limited: bool = ...,
             verification_pending_guild_limit: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @flag_value
     def application_auto_moderation_rule_create_badge(self):
@@ -2124,8 +2041,7 @@ class ChannelFlags(BaseFlags):
             hide_media_download_options: bool = ...,
             pinned: bool = ...,
             require_tag: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @flag_value
     def pinned(self):
@@ -2230,8 +2146,7 @@ class AutoModKeywordPresets(ListBaseFlags):
         @_generated
         def __init__(
             self, *, profanity: bool = ..., sexual_content: bool = ..., slurs: bool = ...
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @classmethod
     def all(cls: Type[AutoModKeywordPresets]) -> AutoModKeywordPresets:
@@ -2347,8 +2262,7 @@ class MemberFlags(BaseFlags):
             completed_onboarding: bool = ...,
             did_rejoin: bool = ...,
             started_onboarding: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @flag_value
     def did_rejoin(self):
@@ -2442,8 +2356,7 @@ class RoleFlags(BaseFlags):
     if TYPE_CHECKING:
 
         @_generated
-        def __init__(self, *, in_prompt: bool = ...) -> None:
-            ...
+        def __init__(self, *, in_prompt: bool = ...) -> None: ...
 
     @flag_value
     def in_prompt(self):
@@ -2522,8 +2435,7 @@ class AttachmentFlags(BaseFlags):
     if TYPE_CHECKING:
 
         @_generated
-        def __init__(self, *, is_remix: bool = ...) -> None:
-            ...
+        def __init__(self, *, is_remix: bool = ...) -> None: ...
 
     @flag_value
     def is_remix(self):
@@ -2608,8 +2520,7 @@ class SKUFlags(BaseFlags):
             available: bool = ...,
             guild_subscription: bool = ...,
             user_subscription: bool = ...,
-        ) -> None:
-            ...
+        ) -> None: ...
 
     @flag_value
     def available(self):
