@@ -69,5 +69,5 @@ class VoiceRegion:
     def __repr__(self) -> str:
         return f"<VoiceRegion id={self.id!r} name={self.name!r} optimal={self.optimal!r}>"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, VoiceRegion) and self.id == other.id

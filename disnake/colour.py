@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import colorsys
 import random
-from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -61,11 +61,8 @@ class Colour:
     def _get_byte(self, byte: int) -> int:
         return (self.value >> (8 * byte)) & 0xFF
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, Colour) and self.value == other.value
-
-    def __ne__(self, other: Any) -> bool:
-        return not self.__eq__(other)
 
     def __str__(self) -> str:
         return f"#{self.value:0>6x}"

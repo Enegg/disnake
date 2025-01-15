@@ -245,7 +245,10 @@ class LocalizationValue:
             return None
         return self._data
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: Self) -> bool:
+        if not isinstance(other, LocalizationValue):
+            return NotImplemented
+
         # if both are pending, compare keys instead
         if self._data is MISSING and other._data is MISSING:
             return self._key == other._key

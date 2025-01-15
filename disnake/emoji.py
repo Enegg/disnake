@@ -121,11 +121,8 @@ class Emoji(_EmojiTag, AssetMixin):
     def __repr__(self) -> str:
         return f"<Emoji id={self.id} name={self.name!r} animated={self.animated} managed={self.managed}>"
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, _EmojiTag) and self.id == other.id
-
-    def __ne__(self, other: Any) -> bool:
-        return not self.__eq__(other)
 
     def __hash__(self) -> int:
         return self.id >> 22
@@ -151,7 +148,7 @@ class Emoji(_EmojiTag, AssetMixin):
         and count towards a separate limit of 25 emojis.
         """
         guild = self.guild
-        if guild is None:  # pyright: ignore[reportUnnecessaryComparison]
+        if guild is None:
             return []
 
         return [role for role in guild.roles if self._roles.has(role.id)]
