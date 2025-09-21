@@ -318,7 +318,7 @@ class _BaseRange(ABC, Generic[NumT]):
     def __class_getitem__(cls, params: Tuple[Any, ...]) -> Self:
         if cls is _BaseRange:
             # needed since made generic
-            return super().__class_getitem__(params)  # pyright: ignore
+            return super().__class_getitem__(params)  # pyright: ignore[reportAttributeAccessIssue]
 
         # deconstruct type arguments
         if not isinstance(params, tuple):
@@ -811,8 +811,8 @@ class ParamInfo:
                 raise TypeError("Large integers must be annotated with int or LargeInt")
             self.type = str
             self.min_length, self.max_length = _unbound_range_to_str_len(
-                self.min_value,  # type: ignore
-                self.max_value,  # type: ignore
+                self.min_value,  # pyright: ignore[reportArgumentType]
+                self.max_value,  # pyright: ignore[reportArgumentType]
             )
 
         elif annotation in self.TYPES:
