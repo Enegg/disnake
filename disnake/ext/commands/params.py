@@ -237,7 +237,7 @@ class Injection(Generic[P, T]):
         self.autocompleters: Dict[str, Callable] = autocompleters or {}
         self._injected: Optional[Cog] = None
 
-    def __get__(self, obj: Optional[Any], _: Type[Any]) -> Self:
+    def __get__(self, obj: Optional[Any], _: type) -> Self:
         if obj is None:
             return self
 
@@ -389,7 +389,7 @@ class _BaseRange(ABC, Generic[NumT]):
 
     @staticmethod
     @abstractmethod
-    def _infer_type(params: Tuple[Any, ...]) -> Type[Any]:
+    def _infer_type(params: Tuple[Any, ...]) -> type:
         raise NotImplementedError
 
     # hack to get `typing._type_check` to pass, e.g. when using `Range` as a generic parameter
@@ -440,7 +440,7 @@ else:
                     )
 
         @staticmethod
-        def _infer_type(params: Tuple[Any, ...]) -> Type[Any]:
+        def _infer_type(params: Tuple[Any, ...]) -> type:
             if any(isinstance(p, float) for p in params):
                 return float
             return int
@@ -471,7 +471,7 @@ else:
                     raise ValueError("String bounds may not be negative")
 
         @staticmethod
-        def _infer_type(params: Tuple[Any, ...]) -> Type[Any]:
+        def _infer_type(params: Tuple[Any, ...]) -> type:
             return str
 
 
