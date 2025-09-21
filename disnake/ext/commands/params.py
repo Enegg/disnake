@@ -26,6 +26,7 @@ from typing import (
     Generic,
     List,
     Literal,
+    Mapping,
     NoReturn,
     Optional,
     Sequence,
@@ -35,6 +36,8 @@ from typing import (
     Union,
     get_origin,
 )
+
+from typing_extensions import Concatenate, ParamSpec, Self, TypeAlias, TypeGuard
 
 import disnake
 from disnake.app_commands import Option, OptionChoice
@@ -53,11 +56,10 @@ from disnake.utils import (
 from . import errors
 from .converter import CONVERTER_MAPPING
 
-T_ = TypeVar("T_")
+T = TypeVar("T")
+P = ParamSpec("P")
 
 if TYPE_CHECKING:
-    from typing_extensions import Concatenate, ParamSpec, Self, TypeGuard
-
     from disnake.app_commands import Choices
     from disnake.i18n import LocalizationValue, LocalizedOptional
     from disnake.types.interactions import ApplicationCommandOptionChoiceValue
@@ -69,11 +71,9 @@ if TYPE_CHECKING:
 
     AnySlashCommand = Union[InvokableSlashCommand, SubCommand]
 
-    P = ParamSpec("P")
-
     InjectionCallback = Union[
-        Callable[Concatenate[CogT, P], T_],
-        Callable[P, T_],
+        Callable[Concatenate[CogT, P], T],
+        Callable[P, T],
     ]
     AnyAutocompleter = Union[
         Sequence[Any],
@@ -81,23 +81,18 @@ if TYPE_CHECKING:
         Callable[Concatenate[CogT, ApplicationCommandInteraction, str, P], Any],
     ]
 
-    TChoice = TypeVar("TChoice", bound=ApplicationCommandOptionChoiceValue)
-else:
-    P = TypeVar("P")
-
 
 if sys.version_info >= (3, 10):
     from types import EllipsisType, UnionType
-elif TYPE_CHECKING:
-    EllipsisType = type(Ellipsis)
-    UnionType = NoReturn
+
+    UnionTypes = (Union, UnionType)
 
 else:
-    UnionType = object()
-    EllipsisType = type(Ellipsis)
+    # using 'type' and not 'object', as 'type' is disjoint with 'int | float'
+    EllipsisType: TypeAlias = type
+    UnionTypes = (Union,)
 
-T = TypeVar("T", bound=Any)
-TypeT = TypeVar("TypeT", bound=Type[Any])
+TypeT = TypeVar("TypeT", bound=type)
 BotT = TypeVar("BotT", bound="disnake.Client", covariant=True)
 
 __all__ = (
@@ -131,7 +126,7 @@ def issubclass_(obj: Any, tp: Union[TypeT, Tuple[TypeT, ...]]) -> TypeGuard[Type
     if (origin := get_origin(obj)) is None:
         return False
 
-    if origin in (Union, UnionType):
+    if origin in UnionTypes:
         # If we have a Union, try matching any of its args
         # (recursively, to handle possibly generic types inside this union)
         return any(issubclass_(o, tp) for o in obj.__args__)
@@ -141,7 +136,7 @@ def issubclass_(obj: Any, tp: Union[TypeT, Tuple[TypeT, ...]]) -> TypeGuard[Type
 
 def remove_optionals(annotation: Any) -> Any:
     """Remove unwanted optionals from an annotation."""
-    if get_origin(annotation) in (Union, UnionType):
+    if get_origin(annotation) in UnionTypes:
         args = tuple(i for i in annotation.__args__ if i not in (None, type(None)))
         if len(args) == 1:
             annotation = args[0]
@@ -208,7 +203,7 @@ def _unbound_range_to_str_len(
     return None, None
 
 
-class Injection(Generic[P, T_]):
+class Injection(Generic[P, T]):
     """Represents a slash command injection.
 
     .. versionadded:: 2.3
@@ -230,7 +225,7 @@ class Injection(Generic[P, T_]):
 
     def __init__(
         self,
-        function: InjectionCallback[CogT, P, T_],
+        function: InjectionCallback[CogT, P, T],
         *,
         autocompleters: Optional[Dict[str, Callable]] = None,
     ) -> None:
@@ -238,7 +233,7 @@ class Injection(Generic[P, T_]):
             for autocomp in autocompleters.values():
                 classify_autocompleter(autocomp)
 
-        self.function: InjectionCallback[Any, P, T_] = function
+        self.function: InjectionCallback[Any, P, T] = function
         self.autocompleters: Dict[str, Callable] = autocompleters or {}
         self._injected: Optional[Cog] = None
 
@@ -252,7 +247,7 @@ class Injection(Generic[P, T_]):
 
         return copy
 
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T_:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T:
         """Calls the underlying function that the injection holds.
 
         .. versionadded:: 2.6
@@ -265,11 +260,11 @@ class Injection(Generic[P, T_]):
     @classmethod
     def register(
         cls,
-        function: InjectionCallback[CogT, P, T_],
+        function: InjectionCallback[CogT, P, T],
         annotation: Any,
         *,
         autocompleters: Optional[Dict[str, Callable]] = None,
-    ) -> Injection[P, T_]:
+    ) -> Injection[P, T]:
         self = cls(function, autocompleters=autocompleters)
         cls._registered[annotation] = self
         return self
@@ -536,7 +531,13 @@ class ParamInfo:
         .. versionadded:: 2.6
     """
 
-    TYPES: ClassVar[Dict[Union[type, UnionType], int]] = {
+    if sys.version_info >= (3, 10):
+        TYPES: ClassVar[Mapping[Union[type, UnionType], int]]
+
+    else:
+        TYPES: ClassVar[Mapping[Union[type, object], int]]
+
+    TYPES = {  # noqa: RUF012
         str:                                               OptionType.string.value,
         int:                                               OptionType.integer.value,
         bool:                                              OptionType.boolean.value,
@@ -821,7 +822,7 @@ class ParamInfo:
             or get_origin(annotation) is Literal
         ):
             self._parse_enum(annotation)
-        elif get_origin(annotation) in (Union, UnionType):
+        elif get_origin(annotation) in UnionTypes:
             args = annotation.__args__
             if all(
                 issubclass_(channel, (disnake.abc.GuildChannel, disnake.Thread)) for channel in args
@@ -1407,6 +1408,9 @@ def injection(
     return decorator
 
 
+TChoice = TypeVar("TChoice", bound="ApplicationCommandOptionChoiceValue")
+
+
 def option_enum(
     choices: Union[Dict[str, TChoice], List[TChoice]], **kwargs: TChoice
 ) -> Type[TChoice]:
@@ -1455,10 +1459,10 @@ else:
 
 
 def register_injection(
-    function: InjectionCallback[CogT, P, T_],
+    function: InjectionCallback[CogT, P, T],
     *,
     autocompleters: Optional[Dict[str, Callable]] = None,
-) -> Injection[P, T_]:
+) -> Injection[P, T]:
     """A decorator to register a global injection.
 
     .. versionadded:: 2.3
