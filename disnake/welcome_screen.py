@@ -63,8 +63,11 @@ class WelcomeScreenChannel:
         elif isinstance(emoji, _EmojiTag):
             self.emoji = emoji
         else:
-            msg = "emoji must be None, a str, PartialEmoji, or Emoji instance."
-            raise TypeError(msg)
+            from .emoji import Emoji
+
+            raise utils.parameter_type_error(
+                (str, Emoji, PartialEmoji, None), emoji, param_name="emoji"
+            )
 
     def __repr__(self) -> str:
         return f"<WelcomeScreenChannel id={self.id!r} emoji={self.emoji!r} description={self.description!r}>"

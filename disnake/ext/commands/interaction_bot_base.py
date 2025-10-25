@@ -24,7 +24,7 @@ from disnake.app_commands import ApplicationCommand, Option
 from disnake.custom_warnings import SyncWarning
 from disnake.enums import ApplicationCommandType
 from disnake.flags import ApplicationInstallTypes, InteractionContextTypes
-from disnake.utils import iscoroutinefunction, warn_deprecated
+from disnake.utils import iscoroutinefunction, parameter_type_error, warn_deprecated
 
 from . import errors
 from .base_core import InvokableApplicationCommand
@@ -282,8 +282,7 @@ class InteractionBotBase(CommonBotBase):
             raise NotImplementedError(msg)
 
         if not isinstance(slash_command, InvokableSlashCommand):
-            msg = "The slash_command passed must be an instance of InvokableSlashCommand"
-            raise TypeError(msg)
+            raise parameter_type_error(InvokableSlashCommand, slash_command)
 
         if slash_command.name in self.all_slash_commands:
             raise CommandRegistrationError(slash_command.name)
@@ -315,8 +314,7 @@ class InteractionBotBase(CommonBotBase):
             raise NotImplementedError(msg)
 
         if not isinstance(user_command, InvokableUserCommand):
-            msg = "The user_command passed must be an instance of InvokableUserCommand"
-            raise TypeError(msg)
+            raise parameter_type_error(InvokableUserCommand, user_command)
 
         if user_command.name in self.all_user_commands:
             raise CommandRegistrationError(user_command.name)
@@ -348,8 +346,7 @@ class InteractionBotBase(CommonBotBase):
             raise NotImplementedError(msg)
 
         if not isinstance(message_command, InvokableMessageCommand):
-            msg = "The message_command passed must be an instance of InvokableMessageCommand"
-            raise TypeError(msg)
+            raise parameter_type_error(InvokableMessageCommand, message_command)
 
         if message_command.name in self.all_message_commands:
             raise CommandRegistrationError(message_command.name)
@@ -441,8 +438,7 @@ class InteractionBotBase(CommonBotBase):
             The slash command that was requested. If not found, returns :data:`None`.
         """
         if not isinstance(name, str):
-            msg = f"Expected name to be str, not {name.__class__}"
-            raise TypeError(msg)
+            raise parameter_type_error(str, name, param_name="name")
 
         chain = name.split()
         slash = self.all_slash_commands.get(chain[0])

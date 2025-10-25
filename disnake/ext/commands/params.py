@@ -43,6 +43,7 @@ from disnake.utils import (
     get_signature_parameters,
     get_signature_return,
     maybe_coroutine,
+    parameter_type_error,
     signature_has_self_param,
 )
 
@@ -239,8 +240,7 @@ class Injection(Generic[P, T_]):
             ``option_name`` is not :class:`str`
         """
         if not isinstance(option_name, str):
-            msg = "option_name must be a type of str"
-            raise TypeError(msg)
+            raise parameter_type_error(str, option_name)
 
         if option_name in self.autocompleters:
             msg = f"This injection already has an autocompleter set for option '{option_name}'"

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, TypeVar, Un
 from ..components import Button as ButtonComponent
 from ..enums import ButtonStyle, ComponentType
 from ..partial_emoji import PartialEmoji, _EmojiTag
-from ..utils import MISSING, iscoroutinefunction
+from ..utils import MISSING, iscoroutinefunction, parameter_type_error
 from .item import DecoratedItem, Item
 
 __all__ = (
@@ -148,8 +148,11 @@ class Button(Item[V_co]):
             elif isinstance(emoji, _EmojiTag):
                 emoji = emoji._to_partial()
             else:
-                msg = f"expected emoji to be str, Emoji, or PartialEmoji not {emoji.__class__}"
-                raise TypeError(msg)
+                from ..emoji import Emoji
+
+                raise parameter_type_error(
+                    (str, Emoji, PartialEmoji, None), emoji, param_name="emoji"
+                )
 
         self._underlying = ButtonComponent._raw_construct(
             type=ComponentType.button,
@@ -188,9 +191,7 @@ class Button(Item[V_co]):
     @custom_id.setter
     def custom_id(self, value: Optional[str]) -> None:
         if value is not None and not isinstance(value, str):
-            msg = "custom_id must be None or str"
-            raise TypeError(msg)
-
+            raise parameter_type_error((str, None), value)
         self._underlying.custom_id = value
 
     @property
@@ -201,8 +202,7 @@ class Button(Item[V_co]):
     @url.setter
     def url(self, value: Optional[str]) -> None:
         if value is not None and not isinstance(value, str):
-            msg = "url must be None or str"
-            raise TypeError(msg)
+            raise parameter_type_error((str, None), value)
         self._underlying.url = value
 
     @property
@@ -236,8 +236,9 @@ class Button(Item[V_co]):
             elif isinstance(value, _EmojiTag):
                 self._underlying.emoji = value._to_partial()
             else:
-                msg = f"expected str, Emoji, or PartialEmoji, received {value.__class__} instead"
-                raise TypeError(msg)
+                from ..emoji import Emoji
+
+                raise parameter_type_error((str, Emoji, PartialEmoji, None), value)
         else:
             self._underlying.emoji = None
 
@@ -252,8 +253,7 @@ class Button(Item[V_co]):
     @sku_id.setter
     def sku_id(self, value: Optional[int]) -> None:
         if value is not None and not isinstance(value, int):
-            msg = "sku_id must be None or int"
-            raise TypeError(msg)
+            raise parameter_type_error((int, None), value)
         self._underlying.sku_id = value
 
     @classmethod

@@ -14,7 +14,7 @@ from typing import (
 )
 
 from .flags import BaseFlags, alias_flag_value, flag_value
-from .utils import _generated, _overload_with_permissions
+from .utils import _generated, _overload_with_permissions, parameter_type_error
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -226,8 +226,7 @@ class Permissions(BaseFlags):
     @_overload_with_permissions
     def __init__(self, permissions: int = 0, **kwargs: bool) -> None:
         if not isinstance(permissions, int):
-            msg = f"Expected int parameter, received {permissions.__class__.__name__} instead."
-            raise TypeError(msg)
+            raise parameter_type_error(int, permissions, param_name="permissions")
 
         self.value = permissions
         for key, value in kwargs.items():
@@ -1304,8 +1303,7 @@ class PermissionOverwrite:
 
     def _set(self, key: str, value: Optional[bool]) -> None:
         if value not in (True, None, False):
-            msg = f"Expected bool or NoneType, received {value.__class__.__name__}"
-            raise TypeError(msg)
+            raise parameter_type_error((bool, None), value)
 
         if value is None:
             self._values.pop(key, None)

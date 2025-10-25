@@ -6,6 +6,8 @@ import colorsys
 import random
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from disnake.utils import parameter_type_error
+
 if TYPE_CHECKING:
     from typing_extensions import Self
 
@@ -54,8 +56,7 @@ class Colour:
 
     def __init__(self, value: int) -> None:
         if not isinstance(value, int):
-            msg = f"Expected int parameter, received {value.__class__.__name__} instead."
-            raise TypeError(msg)
+            raise parameter_type_error(int, value, param_name="value")
 
         self.value: int = value
 

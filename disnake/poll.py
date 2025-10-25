@@ -68,10 +68,10 @@ class PollMedia:
             self.emoji = PartialEmoji.from_str(emoji)
         elif isinstance(emoji, _EmojiTag):
             self.emoji = emoji
-        else:
-            if emoji is not None:
-                msg = "Emoji must be None, a str, PartialEmoji, or Emoji instance."
-                raise TypeError(msg)
+        elif emoji is not None:
+            raise utils.parameter_type_error(
+                (str, Emoji, PartialEmoji, None), emoji, param_name="emoji"
+            )
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} text={self.text!r} emoji={self.emoji!r}>"
@@ -254,8 +254,7 @@ class Poll:
         elif isinstance(question, PollMedia):
             self.question: PollMedia = question
         else:
-            msg = f"Expected 'str' or 'PollMedia' for 'question', got {question.__class__.__name__!r}."
-            raise TypeError(msg)
+            raise utils.parameter_type_error((str, PollMedia), question, param_name="question")
 
         self._answers: dict[int, PollAnswer] = {}
         for i, answer in enumerate(answers, 1):

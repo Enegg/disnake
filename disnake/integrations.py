@@ -11,6 +11,7 @@ from .utils import (
     MISSING,
     _get_as_snowflake,
     deprecated,
+    parameter_type_error,
     parse_time,
     snowflake_time,
     warn_deprecated,
@@ -290,8 +291,9 @@ class StreamIntegration(Integration):
         payload: dict[str, Any] = {}
         if expire_behaviour is not MISSING:
             if not isinstance(expire_behaviour, ExpireBehaviour):
-                msg = "expire_behaviour field must be of type ExpireBehaviour"
-                raise TypeError(msg)
+                raise parameter_type_error(
+                    ExpireBehaviour, expire_behaviour, param_name="expire_behaviour"
+                )
 
             payload["expire_behavior"] = expire_behaviour.value
 

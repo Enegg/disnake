@@ -115,7 +115,7 @@ def _check_invalid_sub_kwargs(func: CommandCallback, kwargs: dict[str, Any]) -> 
             invalid_keys.add(decorator_key.strip("_"))
 
     if invalid_keys:
-        msg = f"Cannot set {utils.humanize_list(list(invalid_keys), 'or')} on subcommands or subcommand groups"
+        msg = f"Cannot set {utils.humanize_list(sorted(invalid_keys), 'or')} on subcommands or subcommand groups"
         raise TypeError(msg)
 
 

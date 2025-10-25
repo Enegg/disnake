@@ -18,7 +18,7 @@ from typing import (
 from ...components import AnySelectMenu, SelectDefaultValue
 from ...enums import ComponentType, SelectDefaultValueType
 from ...object import Object
-from ...utils import MISSING, humanize_list, iscoroutinefunction
+from ...utils import MISSING, humanize_list, iscoroutinefunction, parameter_type_error
 from ..item import DecoratedItem, Item
 
 __all__ = ("BaseSelect",)
@@ -115,9 +115,7 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
     @custom_id.setter
     def custom_id(self, value: str) -> None:
         if not isinstance(value, str):
-            msg = "custom_id must be None or str"
-            raise TypeError(msg)
-
+            raise parameter_type_error(str, value)
         self._underlying.custom_id = value
 
     @property
@@ -128,9 +126,7 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
     @placeholder.setter
     def placeholder(self, value: Optional[str]) -> None:
         if value is not None and not isinstance(value, str):
-            msg = "placeholder must be None or str"
-            raise TypeError(msg)
-
+            raise parameter_type_error((str, None), value)
         self._underlying.placeholder = value
 
     @property

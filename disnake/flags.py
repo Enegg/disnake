@@ -19,7 +19,7 @@ from typing import (
 )
 
 from .enums import UserFlags
-from .utils import MISSING, _generated
+from .utils import MISSING, _generated, parameter_type_error
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -1094,8 +1094,7 @@ class Intents(BaseFlags):
     def __init__(self, value: Optional[int] = None, **kwargs: bool) -> None:
         if value is not None:
             if not isinstance(value, int):
-                msg = f"Expected int, received {type(value).__name__} for argument 'value'."
-                raise TypeError(msg)
+                raise parameter_type_error(int, value, param_name="value")
             if value < 0:
                 msg = "Expected a non-negative value."
                 raise ValueError(msg)

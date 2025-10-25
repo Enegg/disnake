@@ -69,7 +69,7 @@ from .template import Template
 from .threads import Thread
 from .ui.view import View
 from .user import ClientUser, User
-from .utils import MISSING, deprecated
+from .utils import MISSING, deprecated, parameter_type_error
 from .voice_client import VoiceClient
 from .voice_region import VoiceRegion
 from .webhook import Webhook
@@ -824,15 +824,14 @@ class Client:
             The function is not a coroutine function,
             or a string or an :class:`.Event` was not passed as the name.
         """
-        if name is not MISSING and not isinstance(name, (str, Event)):
-            msg = f"add_listener expected str or Enum but received {name.__class__.__name__!r} instead."
-            raise TypeError(msg)
-
-        name_ = (
-            func.__name__
-            if name is MISSING
-            else (name if isinstance(name, str) else f"on_{name.value}")
-        )
+        if name is MISSING:
+            name_ = func.__name__
+        elif isinstance(name, str):
+            name_ = name
+        elif isinstance(name, Event):
+            name_ = f"on_{name.value}"
+        else:
+            raise parameter_type_error((str, Event), name, param_name="name")
 
         if not utils.iscoroutinefunction(func):
             msg = "Listeners must be coroutines"
@@ -863,18 +862,18 @@ class Client:
         TypeError
             The name passed was not a string or an :class:`.Event`.
         """
-        if name is not MISSING and not isinstance(name, (str, Event)):
-            msg = f"remove_listener expected str or Enum but received {name.__class__.__name__!r} instead."
-            raise TypeError(msg)
-        name = (
-            func.__name__
-            if name is MISSING
-            else (name if isinstance(name, str) else f"on_{name.value}")
-        )
+        if name is MISSING:
+            name_ = func.__name__
+        elif isinstance(name, str):
+            name_ = name
+        elif isinstance(name, Event):
+            name_ = f"on_{name.value}"
+        else:
+            raise parameter_type_error((str, Event), name, param_name="name")
 
-        if name in self.extra_events:
+        if name_ in self.extra_events:
             try:
-                self.extra_events[name].remove(func)
+                self.extra_events[name_].remove(func)
             except ValueError:
                 pass
 
@@ -917,8 +916,7 @@ class Client:
             or a string or an :class:`.Event` was not passed as the name.
         """
         if name is not MISSING and not isinstance(name, (str, Event)):
-            msg = f"listen expected str or Enum but received {name.__class__.__name__!r} instead."
-            raise TypeError(msg)
+            raise parameter_type_error((str, Event), name, param_name="name")
 
         def decorator(func: CoroT) -> CoroT:
             self.add_listener(func, name)
@@ -1039,8 +1037,7 @@ class Client:
         """
         _log.info("logging in using static token")
         if not isinstance(token, str):
-            msg = f"token must be of type str, got {type(token).__name__} instead"
-            raise TypeError(msg)
+            raise parameter_type_error(str, token, "token")
 
         data = await self.http.static_login(token.strip())
         self._connection.user = ClientUser(state=self._connection, data=data)
@@ -1357,8 +1354,7 @@ class Client:
         elif isinstance(value, Status):
             self._connection._status = str(value)
         else:
-            msg = "status must derive from Status."
-            raise TypeError(msg)
+            raise parameter_type_error(Status, value)
 
     @property
     def allowed_mentions(self) -> Optional[AllowedMentions]:
@@ -1373,8 +1369,7 @@ class Client:
         if value is None or isinstance(value, AllowedMentions):
             self._connection.allowed_mentions = value
         else:
-            msg = f"allowed_mentions must be AllowedMentions not {value.__class__!r}"
-            raise TypeError(msg)
+            raise parameter_type_error(AllowedMentions, value)
 
     @property
     def intents(self) -> Intents:
@@ -2769,8 +2764,7 @@ class Client:
             and all their components have an explicitly provided custom_id.
         """
         if not isinstance(view, View):
-            msg = f"expected an instance of View not {view.__class__!r}"
-            raise TypeError(msg)
+            raise parameter_type_error(View, view, param_name="view")
 
         if not view.is_persistent():
             msg = "View is not persistent. Items need to have a custom_id set and View must have no timeout"

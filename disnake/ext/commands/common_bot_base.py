@@ -63,8 +63,9 @@ class CommonBotBase(Generic[CogT]):
             raise TypeError(msg)
 
         if self.owner_ids and not isinstance(self.owner_ids, collections.abc.Collection):
-            msg = f"owner_ids must be a collection not {self.owner_ids.__class__!r}"
-            raise TypeError(msg)
+            raise disnake.utils.parameter_type_error(
+                (collections.abc.Collection, None), owner_ids, param_name="owner_ids"
+            )
 
         self.reload: bool = reload
 

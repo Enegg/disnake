@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar, Optional, Union, cast
 from ..colour import Colour
 from ..components import Container as ContainerComponent
 from ..enums import ComponentType
-from ..utils import copy_doc
+from ..utils import copy_doc, parameter_type_error
 from .item import UIComponent, ensure_ui_component
 
 if TYPE_CHECKING:
@@ -107,8 +107,7 @@ class Container(UIComponent):
         elif value is None or isinstance(value, Colour):
             self._accent_colour = value
         else:
-            msg = f"Expected Colour, int, or None but received {type(value).__name__} instead."
-            raise TypeError(msg)
+            raise parameter_type_error((Colour, int, None), value)
 
     accent_color = accent_colour
 

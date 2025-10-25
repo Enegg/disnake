@@ -7,7 +7,14 @@ from typing import TYPE_CHECKING, Optional
 
 from .enums import StagePrivacyLevel, try_enum
 from .mixins import Hashable
-from .utils import MISSING, _get_as_snowflake, cached_slot_property, snowflake_time, warn_deprecated
+from .utils import (
+    MISSING,
+    _get_as_snowflake,
+    cached_slot_property,
+    parameter_type_error,
+    snowflake_time,
+    warn_deprecated,
+)
 
 __all__ = ("StageInstance",)
 
@@ -182,8 +189,9 @@ class StageInstance(Hashable):
 
         if privacy_level is not MISSING:
             if not isinstance(privacy_level, StagePrivacyLevel):
-                msg = "privacy_level field must be of type PrivacyLevel"
-                raise TypeError(msg)
+                raise parameter_type_error(
+                    StagePrivacyLevel, privacy_level, param_name="privacy_level"
+                )
             if privacy_level is StagePrivacyLevel.public:
                 warn_deprecated(
                     "Setting privacy_level to public is deprecated and will be removed in a future version.",

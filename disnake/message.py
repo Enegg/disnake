@@ -118,8 +118,9 @@ def convert_emoji_reaction(emoji: Union[EmojiInputType, Reaction]) -> str:
         return s.removeprefix("a:")
 
     assert_never(emoji)
-    msg = f"emoji argument must be str, Emoji, PartialEmoji, or Reaction, not {emoji.__class__.__name__}."
-    raise TypeError(msg)
+    raise utils.parameter_type_error(
+        (str, Emoji, PartialEmoji, Reaction), emoji, param_name="emoji"
+    )
 
 
 async def _edit_handler(

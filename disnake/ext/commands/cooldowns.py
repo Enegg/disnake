@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from disnake.enums import Enum
 from disnake.member import Member
+from disnake.utils import parameter_type_error
 
 from .errors import MaxConcurrencyReached
 
@@ -359,8 +360,7 @@ class MaxConcurrency:
             raise ValueError(msg)
 
         if not isinstance(per, BucketType):
-            msg = f"max_concurrency 'per' must be of type BucketType not {type(per)!r}"
-            raise TypeError(msg)
+            raise parameter_type_error(BucketType, per, param_name="per")
 
     def copy(self) -> Self:
         return self.__class__(self.number, per=self.per, wait=self.wait)

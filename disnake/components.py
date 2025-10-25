@@ -28,7 +28,7 @@ from .enums import (
     try_enum,
 )
 from .partial_emoji import PartialEmoji, _EmojiTag
-from .utils import MISSING, _get_as_snowflake, assert_never, get_slots
+from .utils import MISSING, _get_as_snowflake, assert_never, get_slots, parameter_type_error
 
 if TYPE_CHECKING:
     from typing_extensions import Self, TypeAlias
@@ -817,8 +817,11 @@ class SelectOption:
             elif isinstance(emoji, _EmojiTag):
                 emoji = emoji._to_partial()
             else:
-                msg = f"expected emoji to be str, Emoji, or PartialEmoji not {emoji.__class__}"
-                raise TypeError(msg)
+                from .emoji import Emoji
+
+                raise parameter_type_error(
+                    (str, Emoji, PartialEmoji, None), emoji, param_name="emoji"
+                )
 
         self.emoji = emoji
         self.default = default

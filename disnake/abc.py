@@ -39,7 +39,7 @@ from .partial_emoji import PartialEmoji
 from .permissions import PermissionOverwrite, Permissions
 from .role import Role
 from .sticker import GuildSticker, StandardSticker, StickerItem
-from .utils import _overload_with_permissions
+from .utils import _overload_with_permissions, parameter_type_error
 from .voice_client import VoiceClient, VoiceProtocol
 
 __all__ = (
@@ -396,7 +396,7 @@ class GuildChannel(ABC):
             overwrites_payload = []
             for target, perm in overwrites.items():
                 if not isinstance(perm, PermissionOverwrite):
-                    msg = f"Expected PermissionOverwrite, received {perm.__class__.__name__}"
+                    msg = f"Expected PermissionOverwrite, received {perm.__class__.__name__}."
                     raise TypeError(msg)
 
                 allow, deny = perm.pair()
@@ -411,8 +411,7 @@ class GuildChannel(ABC):
         type_payload: int
         if type is not MISSING:
             if not isinstance(type, ChannelType):
-                msg = "type field must be of type ChannelType"
-                raise TypeError(msg)
+                raise parameter_type_error(ChannelType, type, param_name="type")
             type_payload = type.value
         else:
             type_payload = MISSING
@@ -420,8 +419,7 @@ class GuildChannel(ABC):
         flags_payload: int
         if flags is not MISSING:
             if not isinstance(flags, ChannelFlags):
-                msg = "flags field must be of type ChannelFlags"
-                raise TypeError(msg)
+                raise parameter_type_error(ChannelFlags, flags, param_name="flags")
             flags_payload = flags.value
         else:
             flags_payload = MISSING
@@ -924,11 +922,11 @@ class GuildChannel(ABC):
 
     async def set_permissions(
         self,
-        target,
+        target: Member | Role,
         *,
         overwrite: Optional[PermissionOverwrite] = MISSING,
         reason: Optional[str] = None,
-        **permissions,
+        **permissions: bool | None,
     ) -> None:
         """|coro|
 
@@ -1008,8 +1006,7 @@ class GuildChannel(ABC):
         elif isinstance(target, Role):
             perm_type = _Overwrites.ROLE
         else:
-            msg = "target parameter must be either Member or Role"
-            raise TypeError(msg)
+            raise parameter_type_error((User, Role), target, "target")
 
         if overwrite is MISSING:
             if len(permissions) == 0:
@@ -1020,10 +1017,9 @@ class GuildChannel(ABC):
             except (ValueError, TypeError) as e:
                 msg = "Invalid permissions given to keyword arguments."
                 raise TypeError(msg) from e
-        else:
-            if len(permissions) > 0:
-                msg = "Cannot mix overwrite and keyword arguments."
-                raise TypeError(msg)
+        elif len(permissions) > 0:
+            msg = "Cannot mix overwrite and keyword arguments."
+            raise TypeError(msg)
 
         # TODO: wait for event
 
@@ -1035,8 +1031,7 @@ class GuildChannel(ABC):
                 self.id, target.id, allow.value, deny.value, perm_type, reason=reason
             )
         else:
-            msg = "Invalid overwrite type provided."
-            raise TypeError(msg)
+            raise parameter_type_error((PermissionOverwrite, None), overwrite, "overwrite")
 
     async def _clone_impl(
         self,
@@ -1052,8 +1047,7 @@ class GuildChannel(ABC):
         overwrites_payload: list[PermissionOverwritePayload]
         if overwrites is not MISSING:
             if not isinstance(overwrites, dict):
-                msg = "overwrites parameter expects a dict."
-                raise TypeError(msg)
+                raise parameter_type_error(dict, overwrites, param_name="overwrites")
 
             overwrites_payload = []
             for target, perm in overwrites.items():
@@ -1689,8 +1683,7 @@ class Messageable:
 
         if file is not None:
             if not isinstance(file, File):
-                msg = "file parameter must be File"
-                raise TypeError(msg)
+                raise parameter_type_error(File, file, "file")
             files = [file]
 
         if embed is not None and embeds is not None:
@@ -1736,17 +1729,21 @@ class Messageable:
             try:
                 reference_payload = reference.to_message_reference_dict()
             except AttributeError:
-                msg = "reference parameter must be Message, MessageReference, or PartialMessage"
-                raise TypeError(msg) from None
+                from .message import Message, MessageReference, PartialMessage
+
+                raise parameter_type_error(
+                    (Message, MessageReference, PartialMessage), reference, param_name="reference"
+                ) from None
 
         is_v2 = False
         if view is not None and components is not None:
             msg = "cannot pass both view and components parameter to send()"
             raise TypeError(msg)
-        elif view:
-            if not hasattr(view, "__discord_ui_view__"):
-                msg = f"view parameter must be View not {view.__class__!r}"
-                raise TypeError(msg)
+        elif view is not None:
+            from .ui.view import View
+
+            if not isinstance(view, View):
+                raise parameter_type_error(View, view, "view")
             components_payload = view.to_components()
         elif components:
             from .ui.action_row import normalize_components_to_dict

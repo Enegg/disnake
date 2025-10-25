@@ -20,6 +20,7 @@ from .utils import (
     _get_as_snowflake,
     cached_slot_property,
     isoformat_utc,
+    parameter_type_error,
     parse_time,
     snowflake_time,
 )
@@ -469,15 +470,17 @@ class GuildScheduledEvent(Hashable):
 
         if privacy_level is not MISSING:
             if not isinstance(privacy_level, GuildScheduledEventPrivacyLevel):
-                msg = "privacy_level must be an instance of GuildScheduledEventPrivacyLevel"
-                raise TypeError(msg)
+                raise parameter_type_error(
+                    GuildScheduledEventPrivacyLevel, privacy_level, param_name="privacy_level"
+                )
 
             fields["privacy_level"] = privacy_level.value
 
         if entity_type is not MISSING:
             if not isinstance(entity_type, GuildScheduledEventEntityType):
-                msg = "entity_type must be an instance of GuildScheduledEventEntityType"
-                raise TypeError(msg)
+                raise parameter_type_error(
+                    GuildScheduledEventEntityType, entity_type, param_name="entity_type"
+                )
 
             fields["entity_type"] = entity_type.value
 
@@ -489,13 +492,15 @@ class GuildScheduledEvent(Hashable):
                 fields["entity_metadata"] = entity_metadata.to_dict()
 
             else:
-                msg = "entity_metadata must be an instance of GuildScheduledEventMetadata"
-                raise TypeError(msg)
+                raise parameter_type_error(
+                    (GuildScheduledEventMetadata, None),
+                    entity_metadata,
+                    param_name="entity_metadata",
+                )
 
         if status is not MISSING:
             if not isinstance(status, GuildScheduledEventStatus):
-                msg = "status must be an instance of GuildScheduledEventStatus"
-                raise TypeError(msg)
+                raise parameter_type_error(GuildScheduledEventStatus, status, param_name="status")
 
             fields["status"] = status.value
 

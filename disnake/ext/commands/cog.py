@@ -405,8 +405,7 @@ class Cog(metaclass=CogMeta):
             the name.
         """
         if name is not MISSING and not isinstance(name, (str, Event)):
-            msg = f"Cog.listener expected str or Enum but received {name.__class__.__name__!r} instead."
-            raise TypeError(msg)
+            raise disnake.utils.parameter_type_error((str, Event), name, param_name="name")
 
         def decorator(func: FuncT) -> FuncT:
             actual = func

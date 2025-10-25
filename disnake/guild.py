@@ -1323,8 +1323,7 @@ class Guild(Hashable):
         if overwrites is MISSING:
             overwrites = {}
         elif not isinstance(overwrites, dict):
-            msg = "overwrites parameter expects a dict."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(dict, overwrites, param_name="overwrites")
 
         perms = []
         for target, perm in overwrites.items():
@@ -2389,8 +2388,9 @@ class Guild(Hashable):
 
         if default_notifications is not MISSING:
             if not isinstance(default_notifications, NotificationLevel):
-                msg = "default_notifications field must be of type NotificationLevel"
-                raise TypeError(msg)
+                raise utils.parameter_type_error(
+                    NotificationLevel, default_notifications, param_name="default_notifications"
+                )
             fields["default_message_notifications"] = default_notifications.value
 
         if afk_channel is not MISSING:
@@ -2432,23 +2432,23 @@ class Guild(Hashable):
 
         if verification_level is not MISSING:
             if not isinstance(verification_level, VerificationLevel):
-                msg = "verification_level field must be of type VerificationLevel"
-                raise TypeError(msg)
-
+                raise utils.parameter_type_error(
+                    VerificationLevel, verification_level, param_name="verification_level"
+                )
             fields["verification_level"] = verification_level.value
 
         if explicit_content_filter is not MISSING:
             if not isinstance(explicit_content_filter, ContentFilter):
-                msg = "explicit_content_filter field must be of type ContentFilter"
-                raise TypeError(msg)
-
+                raise utils.parameter_type_error(
+                    ContentFilter, explicit_content_filter, param_name="explicit_content_filter"
+                )
             fields["explicit_content_filter"] = explicit_content_filter.value
 
         if system_channel_flags is not MISSING:
             if not isinstance(system_channel_flags, SystemChannelFlags):
-                msg = "system_channel_flags field must be of type SystemChannelFlags"
-                raise TypeError(msg)
-
+                raise utils.parameter_type_error(
+                    SystemChannelFlags, system_channel_flags, param_name="system_channel_flags"
+                )
             fields["system_channel_flags"] = system_channel_flags.value
 
         if (
@@ -2465,8 +2465,7 @@ class Guild(Hashable):
             features = set(self.features)
             if community is not MISSING:
                 if not isinstance(community, bool):
-                    msg = "community must be a bool"
-                    raise TypeError(msg)
+                    raise utils.parameter_type_error(bool, community, param_name="community")
                 if community:
                     if "rules_channel_id" in fields and "public_updates_channel_id" in fields:
                         features.add("COMMUNITY")
@@ -2484,8 +2483,9 @@ class Guild(Hashable):
                     )
                     raise ValueError(msg)
                 if not isinstance(invites_disabled, bool):
-                    msg = "invites_disabled must be a bool"
-                    raise TypeError(msg)
+                    raise utils.parameter_type_error(
+                        bool, invites_disabled, param_name="invites_disabled"
+                    )
                 if invites_disabled:
                     features.add("INVITES_DISABLED")
                 else:
@@ -2499,8 +2499,9 @@ class Guild(Hashable):
                     )
                     raise ValueError(msg)
                 if not isinstance(raid_alerts_disabled, bool):
-                    msg = "raid_alerts_disabled must be a bool"
-                    raise TypeError(msg)
+                    raise utils.parameter_type_error(
+                        bool, raid_alerts_disabled, param_name="raid_alerts_disabled"
+                    )
                 if raid_alerts_disabled:
                     features.add("RAID_ALERTS_DISABLED")
                 else:
@@ -2807,14 +2808,16 @@ class Guild(Hashable):
                 raise TypeError(msg)
 
         if not isinstance(entity_type, GuildScheduledEventEntityType):
-            msg = "entity_type must be an instance of GuildScheduledEventEntityType"
-            raise TypeError(msg)
+            raise utils.parameter_type_error(
+                GuildScheduledEventEntityType, entity_type, param_name="entity_type"
+            )
 
         if privacy_level is MISSING:
             privacy_level = GuildScheduledEventPrivacyLevel.guild_only
         elif not isinstance(privacy_level, GuildScheduledEventPrivacyLevel):
-            msg = "privacy_level must be an instance of GuildScheduledEventPrivacyLevel"
-            raise TypeError(msg)
+            raise utils.parameter_type_error(
+                GuildScheduledEventPrivacyLevel, privacy_level, param_name="privacy_level"
+            )
 
         fields: dict[str, Any] = {
             "name": name,
@@ -2825,8 +2828,9 @@ class Guild(Hashable):
 
         if entity_metadata is not MISSING:
             if not isinstance(entity_metadata, GuildScheduledEventMetadata):
-                msg = "entity_metadata must be an instance of GuildScheduledEventMetadata"
-                raise TypeError(msg)
+                raise utils.parameter_type_error(
+                    GuildScheduledEventMetadata, entity_metadata, param_name="entity_metadata"
+                )
 
             fields["entity_metadata"] = entity_metadata.to_dict()
 
@@ -3232,8 +3236,7 @@ class Guild(Hashable):
             then this returns :data:`None`.
         """
         if not isinstance(days, int):
-            msg = f"Expected int for ``days``, received {days.__class__.__name__} instead."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(int, days, param_name="days")
 
         if roles:
             role_ids = [str(role.id) for role in roles]
@@ -3328,8 +3331,7 @@ class Guild(Hashable):
             The number of members estimated to be pruned.
         """
         if not isinstance(days, int):
-            msg = f"Expected int for ``days``, received {days.__class__.__name__} instead."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(int, days, param_name="days")
 
         if roles:
             role_ids = [str(role.id) for role in roles]
@@ -4092,8 +4094,7 @@ class Guild(Hashable):
             A list of all the roles in the guild.
         """
         if not isinstance(positions, dict):
-            msg = "positions parameter expects a dict."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(dict, positions, param_name="positions")
 
         role_positions: list[Any] = []
         for role, position in positions.items():
@@ -4227,11 +4228,11 @@ class Guild(Hashable):
         elif isinstance(clean_history_duration, int):
             delete_message_seconds = clean_history_duration
         else:
-            msg = (
-                "`clean_history_duration` should be int or timedelta, "
-                f"not {type(clean_history_duration).__name__}"
+            raise utils.parameter_type_error(
+                (int, datetime.timedelta),
+                clean_history_duration,
+                param_name="clean_history_duration",
             )
-            raise TypeError(msg)
 
         await self._state.http.ban(
             user.id, self.id, delete_message_seconds=delete_message_seconds, reason=reason
@@ -4316,11 +4317,11 @@ class Guild(Hashable):
         elif isinstance(clean_history_duration, int):
             delete_message_seconds = clean_history_duration
         else:
-            msg = (
-                "`clean_history_duration` should be int or timedelta, "
-                f"not {type(clean_history_duration).__name__}"
+            raise utils.parameter_type_error(
+                (int, datetime.timedelta),
+                clean_history_duration,
+                param_name="clean_history_duration",
             )
-            raise TypeError(msg)
 
         data = await self._state.http.bulk_ban(
             [user.id for user in users],
@@ -4625,8 +4626,7 @@ class Guild(Hashable):
             You are not the owner of the guild.
         """
         if isinstance(mfa_level, bool) or not isinstance(mfa_level, int):
-            msg = f"`mfa_level` must be of type int, got {type(mfa_level).__name__}"
-            raise TypeError(msg)
+            raise utils.parameter_type_error(int, mfa_level, param_name=mfa_level)
         if self.owner_id != self._state.self_id:
             msg = "To edit the 2FA level, you must be the owner of the guild."
             raise ValueError(msg)

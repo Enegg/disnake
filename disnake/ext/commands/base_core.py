@@ -27,6 +27,7 @@ from disnake.utils import (
     async_all,
     iscoroutinefunction,
     maybe_coroutine,
+    parameter_type_error,
 )
 
 from .cooldowns import BucketType, CooldownMapping, MaxConcurrency
@@ -188,8 +189,7 @@ class InvokableApplicationCommand(ABC):
         elif isinstance(cooldown, CooldownMapping):
             buckets = cooldown
         else:
-            msg = "Cooldown must be a an instance of CooldownMapping or None."
-            raise TypeError(msg)
+            raise parameter_type_error((CooldownMapping, None), cooldown, param_name="cooldown")
         self._buckets: CooldownMapping = buckets
 
         try:

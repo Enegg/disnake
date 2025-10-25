@@ -9,7 +9,7 @@ with open("disnake/__init__.py", encoding="utf-8") as f:
     version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', f.read(), re.MULTILINE).group(1)  # pyright: ignore[reportOptionalMemberAccess]
 
 if not version:
-    msg = "version is not set"
+    msg = "__version__ is not set"
     raise RuntimeError(msg)
 
 if version.endswith(("a", "b", "rc")):

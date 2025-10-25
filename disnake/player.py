@@ -676,8 +676,7 @@ class PCMVolumeTransformer(AudioSource, Generic[AT]):
             raise RuntimeError(msg)
 
         if not isinstance(original, AudioSource):
-            msg = f"expected AudioSource not {original.__class__.__name__}."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(AudioSource, original, param_name="original")
 
         if original.is_opus():
             msg = "AudioSource must not be Opus encoded."

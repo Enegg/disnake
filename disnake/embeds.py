@@ -19,7 +19,7 @@ from typing import (
 from . import utils
 from .colour import Colour
 from .file import File
-from .utils import MISSING, classproperty, warn_deprecated
+from .utils import MISSING, classproperty, parameter_type_error, warn_deprecated
 
 __all__ = ("Embed",)
 
@@ -342,8 +342,7 @@ class Embed:
         elif value is MISSING or value is None or isinstance(value, Colour):
             self._colour = value
         else:
-            msg = f"Expected disnake.Colour, int, or None but received {type(value).__name__} instead."
-            raise TypeError(msg)
+            raise parameter_type_error((Colour, int, None), value)
 
     @colour.deleter
     def colour(self) -> None:
@@ -364,8 +363,7 @@ class Embed:
         elif value is None:
             self._timestamp = value
         else:
-            msg = f"Expected datetime.datetime or None received {type(value).__name__} instead"
-            raise TypeError(msg)
+            raise parameter_type_error((datetime.datetime, None), value)
 
     @property
     def footer(self) -> _EmbedFooterProxy:
@@ -847,8 +845,7 @@ class Embed:
         elif isinstance(value, int):
             cls._default_colour = Colour(value=value)
         else:
-            msg = f"Expected disnake.Colour, int, or None but received {type(value).__name__} instead."
-            raise TypeError(msg)
+            raise parameter_type_error((Colour, int, None), value)
         return cls._default_colour
 
     set_default_color = set_default_colour

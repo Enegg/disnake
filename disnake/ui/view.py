@@ -13,6 +13,8 @@ from functools import partial
 from itertools import groupby
 from typing import TYPE_CHECKING, Callable, ClassVar, Optional
 
+from disnake.utils import parameter_type_error
+
 from ..components import (
     VALID_ACTION_ROW_MESSAGE_COMPONENT_TYPES,
     ActionRow as ActionRowComponent,
@@ -263,8 +265,7 @@ class View:
             raise ValueError(msg)
 
         if not isinstance(item, Item):
-            msg = f"expected Item not {item.__class__!r}"
-            raise TypeError(msg)
+            raise parameter_type_error(Item, item)
 
         self.__weights.add_item(item)
 

@@ -44,7 +44,7 @@ from .permissions import PermissionOverwrite, Permissions
 from .soundboard import GuildSoundboardSound, PartialSoundboardSound, SoundboardSound
 from .stage_instance import StageInstance
 from .threads import ForumTag, Thread
-from .utils import MISSING
+from .utils import MISSING, parameter_type_error
 
 __all__ = (
     "VoiceChannelEffect",
@@ -934,8 +934,7 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
             raise TypeError(msg)
 
         if not isinstance(destination, TextChannel):
-            msg = f"Expected TextChannel received {destination.__class__.__name__}"
-            raise TypeError(msg)
+            raise parameter_type_error(TextChannel, destination, param_name="destination")
 
         from .webhook import Webhook
 
@@ -2359,8 +2358,9 @@ class StageChannel(disnake.abc.Messageable, VocalGuildChannel):
 
         if privacy_level is not MISSING:
             if not isinstance(privacy_level, StagePrivacyLevel):
-                msg = "privacy_level field must be of type PrivacyLevel"
-                raise TypeError(msg)
+                raise parameter_type_error(
+                    StagePrivacyLevel, privacy_level, param_name="privacy_level"
+                )
             if privacy_level is StagePrivacyLevel.public:
                 utils.warn_deprecated(
                     "Setting privacy_level to public is deprecated and will be removed in a future version.",

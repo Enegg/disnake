@@ -53,7 +53,9 @@ class Object(Hashable):
         try:
             id = int(id)
         except ValueError:
-            msg = f"id parameter must be convertible to int not {id.__class__!r}"
+            msg = (
+                f"'id' parameter must be convertible to int, got {id.__class__.__name__!r} instead."
+            )
             raise TypeError(msg) from None
         else:
             self.id = id

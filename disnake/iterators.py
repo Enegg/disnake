@@ -26,7 +26,14 @@ from .integrations import PartialIntegration
 from .object import Object
 from .subscription import Subscription
 from .threads import Thread
-from .utils import deprecated, maybe_coroutine, parse_time, snowflake_time, time_snowflake
+from .utils import (
+    deprecated,
+    maybe_coroutine,
+    parameter_type_error,
+    parse_time,
+    snowflake_time,
+    time_snowflake,
+)
 
 __all__ = (
     "ReactionIterator",
@@ -1345,8 +1352,11 @@ class ChannelPinsIterator(_AsyncIterator["Message"]):
             elif isinstance(before, Object):
                 before_ = snowflake_time(before.id).isoformat()
             else:
-                msg = f"Expected either `disnake.Snowflake` or `datetime.datetime` for `before`. Got `{before.__class__.__name__!r}`."
-                raise TypeError(msg)
+                from .abc import Snowflake
+
+                raise parameter_type_error(
+                    (Snowflake, datetime.datetime, None), before, param_name="before"
+                )
 
         self.messageable = messageable
         self._state = messageable._state

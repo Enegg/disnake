@@ -466,8 +466,8 @@ class BotBase(CommonBotBase, GroupMixin):
                     raise
 
                 msg = (
-                    "command_prefix must be plain string, iterable of strings, or callable "
-                    f"returning either of these, not {ret.__class__.__name__}"
+                    "'command_prefix' must be plain string, iterable of strings, or callable "
+                    f"returning either of these, not {ret.__class__.__name__!r}"
                 )
                 raise TypeError(msg) from None
 
@@ -533,7 +533,7 @@ class BotBase(CommonBotBase, GroupMixin):
                 if not isinstance(prefix, list):
                     msg = (
                         "get_prefix must return either a string or a list of string, "
-                        f"not {prefix.__class__.__name__}"
+                        f"not {prefix.__class__.__name__!r}"
                     )
                     raise TypeError(msg) from None
 
@@ -542,7 +542,7 @@ class BotBase(CommonBotBase, GroupMixin):
                     if not isinstance(value, str):
                         msg = (
                             "Iterable command_prefix or list returned from get_prefix must "
-                            f"contain only strings, not {value.__class__.__name__}"
+                            f"contain only strings, not {value.__class__.__name__!r}"
                         )
                         raise TypeError(msg) from None
 

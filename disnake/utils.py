@@ -39,7 +39,7 @@ from typing import (
 from urllib.parse import parse_qs, urlencode
 
 if TYPE_CHECKING:
-    from typing_extensions import Self
+    from typing_extensions import Self, Unpack
 
 from .enums import Locale
 
@@ -1516,6 +1516,43 @@ def humanize_list(values: list[str], combine: str) -> str:
         return "<none>"
     else:
         return f" {combine} ".join(values)
+
+
+def parameter_type_error(
+    expected: type[Any] | tuple[type[Any], Unpack[tuple[type[Any], ...]], type[Any] | None],
+    received: object,
+    *,
+    param_name: str = "",
+) -> TypeError:
+    """Create a TypeError with a consistent message of an argument not matching the expected types.
+
+    Depending if `param_name` is non-empty, the message can be:
+    - **'{param_name}' parameter should be A, B or C, got D instead.**
+    - **Expected A, B or C, got D instead.**
+
+    To include `None` in `expected`, pass it as the last element of the tuple.
+    """
+    if isinstance(expected, type):
+        types_ = expected.__name__
+
+    else:
+        *comma_separated, last = expected
+
+        types_ = ", ".join(t.__name__ for t in comma_separated)
+        types_ = f"{types_} or {'None' if last is None else last.__name__}"
+
+    # Yes, it's more nuanced than a vowel check. Yes, I excluded U and Y.
+    article = "an" if types_[0].lower() in "aeoi" else "a"
+
+    if param_name:
+        msg = (
+            f"{param_name!r} parameter should be {article} {types_},"
+            f" got {received.__class__.__name__!r} instead."
+        )
+    else:
+        msg = f"Expected {article} {types_}, got {received.__class__.__name__!r} instead."
+
+    return TypeError(msg)
 
 
 # Similar to typing.assert_never, but returns instead of raising (i.e. has no runtime effect).

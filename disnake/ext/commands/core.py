@@ -27,6 +27,7 @@ from disnake.utils import (
     _overload_with_permissions,
     get_signature_parameters,
     iscoroutinefunction,
+    parameter_type_error,
     unwrap_function,
 )
 
@@ -285,8 +286,7 @@ class Command(_BaseCommand, Generic[CogT, P, T]):
 
         name = kwargs.get("name") or func.__name__
         if not isinstance(name, str):
-            msg = "Name of a command must be a string."
-            raise TypeError(msg)
+            raise parameter_type_error(str, name, param_name="name")
         self.name: str = name
 
         self.callback = func
@@ -333,8 +333,7 @@ class Command(_BaseCommand, Generic[CogT, P, T]):
         elif isinstance(cooldown, CooldownMapping):
             buckets = cooldown
         else:
-            msg = "Cooldown must be a an instance of CooldownMapping or None."
-            raise TypeError(msg)
+            raise parameter_type_error((CooldownMapping, None), cooldown, param_name="cooldown")
         self._buckets: CooldownMapping = buckets
 
         try:

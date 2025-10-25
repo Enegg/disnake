@@ -574,8 +574,7 @@ class VoiceClient(VoiceProtocol):
             raise ClientException(msg)
 
         if not isinstance(source, AudioSource):
-            msg = f"source must be an AudioSource not {source.__class__.__name__}"
-            raise TypeError(msg)
+            raise utils.parameter_type_error(AudioSource, source, param_name="source")
 
         if not self.encoder and not source.is_opus():
             self.encoder = opus.Encoder()
@@ -618,8 +617,7 @@ class VoiceClient(VoiceProtocol):
     @source.setter
     def source(self, value: AudioSource) -> None:
         if not isinstance(value, AudioSource):
-            msg = f"expected AudioSource not {value.__class__.__name__}."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(AudioSource, value)
 
         if self._player is None:
             msg = "Not playing anything."

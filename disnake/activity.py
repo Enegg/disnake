@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, overload
 
+from disnake.utils import parameter_type_error
+
 from .asset import Asset
 from .colour import Colour
 from .enums import ActivityType, StatusDisplayType, try_enum
@@ -865,8 +867,7 @@ class CustomActivity(BaseActivity):
         elif isinstance(emoji, PartialEmoji):
             self.emoji = emoji
         else:
-            msg = f"Expected str, PartialEmoji, or None, received {type(emoji)!r} instead."
-            raise TypeError(msg)
+            raise parameter_type_error((str, PartialEmoji, None), emoji, param_name="emoji")
 
     @property
     def type(self) -> Literal[ActivityType.custom]:

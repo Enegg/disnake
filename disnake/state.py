@@ -229,13 +229,14 @@ class ConnectionState:
             raise ValueError(msg)
 
         if allowed_mentions is not None and not isinstance(allowed_mentions, AllowedMentions):
-            msg = "allowed_mentions parameter must be AllowedMentions."
-            raise TypeError(msg)
+            raise utils.parameter_type_error(
+                (AllowedMentions, None), allowed_mentions, param_name="allowed_mentions"
+            )
 
         self.allowed_mentions: Optional[AllowedMentions] = allowed_mentions
         self._chunk_requests: dict[Union[int, str], ChunkRequest] = {}
 
-        if activity:
+        if activity is not None:
             if not isinstance(activity, BaseActivity):
                 msg = "activity parameter must derive from BaseActivity."
                 raise TypeError(msg)
@@ -250,8 +251,7 @@ class ConnectionState:
 
         if intents is not None:
             if not isinstance(intents, Intents):
-                msg = f"intents parameter must be Intents, not {type(intents)!r}."
-                raise TypeError(msg)
+                raise utils.parameter_type_error((Intents, None), intents, param_name="intents")
 
             if not intents.guilds:
                 _log.warning(
@@ -275,11 +275,7 @@ class ConnectionState:
             member_cache_flags = MemberCacheFlags.from_intents(self._intents)
         else:
             if not isinstance(member_cache_flags, MemberCacheFlags):
-                msg = (
-                    "member_cache_flags parameter must be MemberCacheFlags, "
-                    f"not {type(member_cache_flags)!r}"
-                )
-                raise TypeError(msg)
+                raise utils.parameter_type_error(MemberCacheFlags, member_cache_flags, param_name="member_cache_flags")
 
             member_cache_flags._verify_intents(self._intents)
 

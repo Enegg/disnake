@@ -26,7 +26,7 @@ import aiohttp
 
 import disnake
 from disnake.backoff import ExponentialBackoff
-from disnake.utils import MISSING, iscoroutinefunction, utcnow
+from disnake.utils import MISSING, iscoroutinefunction, parameter_type_error, utcnow
 
 if TYPE_CHECKING:
     from typing_extensions import Concatenate, ParamSpec, Self
@@ -795,7 +795,8 @@ def loop(
         cls = origin
 
     if not isinstance(cls, type) or not issubclass(cls, Loop):
-        msg = f"cls argument must be a subclass of Loop, got {cls!r}"
+        name = cls.__name__ if isinstance(cls, type) else cls.__class__.__name__
+        msg = f"'cls' parameter should be a subclass of Loop, got {name!r} instead."
         raise TypeError(msg)
 
     def decorator(func: LF) -> L_co:

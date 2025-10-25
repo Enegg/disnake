@@ -15,7 +15,14 @@ from .mixins import Hashable
 from .object import Object
 from .partial_emoji import PartialEmoji, _EmojiTag
 from .permissions import Permissions
-from .utils import MISSING, _get_as_snowflake, _unique, parse_time, snowflake_time
+from .utils import (
+    MISSING,
+    _get_as_snowflake,
+    _unique,
+    parameter_type_error,
+    parse_time,
+    snowflake_time,
+)
 
 __all__ = (
     "Thread",
@@ -772,8 +779,7 @@ class Thread(Messageable, Hashable):
 
         if flags is not MISSING:
             if not isinstance(flags, ChannelFlags):
-                msg = "flags field must be of type ChannelFlags"
-                raise TypeError(msg)
+                raise parameter_type_error(ChannelFlags, flags, param_name="flags")
             payload["flags"] = flags.value
 
         if applied_tags is not MISSING:
@@ -1188,8 +1194,9 @@ class ForumTag(Hashable):
         elif isinstance(emoji, _EmojiTag):
             self.emoji = emoji
         else:
-            msg = "emoji must be None, a str, PartialEmoji, or Emoji instance."
-            raise TypeError(msg)
+            from .emoji import Emoji
+
+            raise parameter_type_error((str, Emoji, PartialEmoji, None), emoji, param_name="emoji")
 
     def __str__(self) -> str:
         return self.name
