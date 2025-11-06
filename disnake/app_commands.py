@@ -21,7 +21,14 @@ from .enums import (
 from .flags import ApplicationInstallTypes, InteractionContextTypes
 from .i18n import Localized
 from .permissions import Permissions
-from .utils import MISSING, _get_as_snowflake, _maybe_cast, deprecated, warn_deprecated
+from .utils import (
+    MISSING,
+    _get_as_snowflake,
+    _maybe_cast,
+    deprecated,
+    mutually_exclusive_parameters,
+    warn_deprecated,
+)
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -308,8 +315,7 @@ class Option:
         self.choices: list[OptionChoice] = []
         if choices is not None:
             if autocomplete:
-                msg = "can not specify both choices and autocomplete args"
-                raise TypeError(msg)
+                raise mutually_exclusive_parameters("choices", "autocomplete")
 
             if isinstance(choices, str):  # str matches `Sequence[str]`, but isn't meant to be used
                 msg = "choices argument should be a list/sequence or dict, not str"

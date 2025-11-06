@@ -1230,8 +1230,7 @@ class GuildChannel(ABC):
         before, after = kwargs.get("before"), kwargs.get("after")
         offset = kwargs.get("offset", 0)
         if sum(bool(a) for a in (beginning, end, before, after)) > 1:
-            msg = "Only one of [before, after, end, beginning] can be used."
-            raise TypeError(msg)
+            raise utils.mutually_exclusive_parameters("before", "after", "end", "beginning")
 
         bucket = self._sorting_bucket
         parent_id = kwargs.get("category", MISSING)
@@ -1678,8 +1677,7 @@ class Messageable:
         content = str(content) if content is not None else None
 
         if file is not None and files is not None:
-            msg = "cannot pass both file and files parameter to send()"
-            raise TypeError(msg)
+            raise utils.mutually_exclusive_parameters("file", "files")
 
         if file is not None:
             if not isinstance(file, File):
@@ -1687,8 +1685,7 @@ class Messageable:
             files = [file]
 
         if embed is not None and embeds is not None:
-            msg = "cannot pass both embed and embeds parameter to send()"
-            raise TypeError(msg)
+            raise utils.mutually_exclusive_parameters("embed", "embeds")
 
         if embed is not None:
             embeds = [embed]
@@ -1737,8 +1734,7 @@ class Messageable:
 
         is_v2 = False
         if view is not None and components is not None:
-            msg = "cannot pass both view and components parameter to send()"
-            raise TypeError(msg)
+            raise utils.mutually_exclusive_parameters("view", "components")
         elif view is not None:
             from .ui.view import View
 

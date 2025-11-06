@@ -145,14 +145,11 @@ async def _edit_handler(
     components: Optional[MessageComponents],
 ) -> Message:
     if embed is not MISSING and embeds is not MISSING:
-        err = "Cannot mix embed and embeds keyword arguments."
-        raise TypeError(err)
+        raise utils.mutually_exclusive_parameters("embed", "embeds")
     if file is not MISSING and files is not MISSING:
-        err = "Cannot mix file and files keyword arguments."
-        raise TypeError(err)
+        raise utils.mutually_exclusive_parameters("file", "files")
     if view is not MISSING and components is not MISSING:
-        err = "Cannot mix view and components keyword arguments."
-        raise TypeError(err)
+        raise utils.mutually_exclusive_parameters("view", "components")
     if suppress is not MISSING:
         suppress_deprecated_msg = "'suppress' is deprecated in favour of 'suppress_embeds'."
         if suppress_embeds is not MISSING:

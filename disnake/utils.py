@@ -1518,6 +1518,22 @@ def humanize_list(values: list[str], combine: str) -> str:
         return f" {combine} ".join(values)
 
 
+def mutually_exclusive_parameters(
+    *parameters: Unpack[tuple[str, str, Unpack[tuple[str, ...]]]],
+    one_required: bool = False,
+) -> TypeError:
+    *comma_separated, last = parameters
+
+    if one_required:
+        return TypeError(
+            f"Exactly one of {', '.join(map(repr, comma_separated))} or {last!r} must be provided."
+        )
+
+    return TypeError(
+        f"Mutually exclusive parameters: {', '.join(map(repr, comma_separated))} and {last!r}."
+    )
+
+
 def parameter_type_error(
     expected: type[Any] | tuple[type[Any], Unpack[tuple[type[Any], ...]], type[Any] | None],
     received: object,

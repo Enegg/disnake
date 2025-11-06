@@ -59,8 +59,7 @@ class CommonBotBase(Generic[CogT]):
         self.owners: set[disnake.TeamMember] = set()
 
         if self.owner_id and self.owner_ids:
-            msg = "Both owner_id and owner_ids are set."
-            raise TypeError(msg)
+            raise disnake.utils.mutually_exclusive_parameters("owner_id", "owner_ids")
 
         if self.owner_ids and not isinstance(self.owner_ids, collections.abc.Collection):
             raise disnake.utils.parameter_type_error(

@@ -4212,8 +4212,9 @@ class Guild(Hashable):
             Banning failed.
         """
         if delete_message_days is not MISSING and clean_history_duration is not MISSING:
-            msg = "Only one of `clean_history_duration` and `delete_message_days` may be provided."
-            raise TypeError(msg)
+            raise utils.mutually_exclusive_parameters(
+                "clean_history_duration", "delete_message_days"
+            )
 
         if delete_message_days is not MISSING:
             utils.warn_deprecated(

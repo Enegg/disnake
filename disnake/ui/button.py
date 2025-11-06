@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, TypeVar, Un
 from ..components import Button as ButtonComponent
 from ..enums import ButtonStyle, ComponentType
 from ..partial_emoji import PartialEmoji, _EmojiTag
-from ..utils import MISSING, iscoroutinefunction, parameter_type_error
+from ..utils import (
+    MISSING,
+    iscoroutinefunction,
+    mutually_exclusive_parameters,
+    parameter_type_error,
+)
 from .item import DecoratedItem, Item
 
 __all__ = (
@@ -134,8 +139,7 @@ class Button(Item[V_co]):
         if mutually_exclusive == 0:
             custom_id = os.urandom(16).hex()
         elif mutually_exclusive != 1:
-            msg = "cannot mix url, sku_id and custom_id with Button"
-            raise TypeError(msg)
+            raise mutually_exclusive_parameters("url", "sku_id", "custom_id")
 
         if url is not None:
             style = ButtonStyle.link

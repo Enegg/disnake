@@ -519,14 +519,11 @@ def handle_message_parameters_dict(
     applied_tags: Sequence[Snowflake] = MISSING,
 ) -> DictPayloadParameters:
     if files is not MISSING and file is not MISSING:
-        msg = "Cannot mix file and files keyword arguments."
-        raise TypeError(msg)
+        raise utils.mutually_exclusive_parameters("file", "files")
     if embeds is not MISSING and embed is not MISSING:
-        msg = "Cannot mix embed and embeds keyword arguments."
-        raise TypeError(msg)
+        raise utils.mutually_exclusive_parameters("embed", "embeds")
     if view is not MISSING and components is not MISSING:
-        msg = "Cannot mix view and components keyword arguments."
-        raise TypeError(msg)
+        raise utils.mutually_exclusive_parameters("view", "components")
 
     if file is not MISSING:
         files = [file]
