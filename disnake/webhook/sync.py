@@ -677,12 +677,11 @@ class SyncWebhook(BaseWebhook):
         }
         import requests
 
-        if session is not MISSING:
-            if not isinstance(session, requests.Session):
-                msg = f"expected requests.Session not {session.__class__!r}"
-                raise TypeError(msg)
-        else:
+        if session is MISSING:
             session = requests  # pyright: ignore[reportAssignmentType]
+        elif not isinstance(session, requests.Session):
+            raise utils.parameter_type_error(requests.Session, session, param_name="session")
+
         return cls(data, session, token=bot_token)
 
     @classmethod
@@ -729,12 +728,11 @@ class SyncWebhook(BaseWebhook):
         data: WebhookPayload = {"id": m["id"], "type": 1, "token": m["token"]}
         import requests
 
-        if session is not MISSING:
-            if not isinstance(session, requests.Session):
-                msg = f"expected requests.Session not {session.__class__!r}"
-                raise TypeError(msg)
-        else:
+        if session is MISSING:
             session = requests  # pyright: ignore[reportAssignmentType]
+        elif not isinstance(session, requests.Session):
+            raise utils.parameter_type_error(requests.Session, session, param_name="session")
+
         return cls(data, session, token=bot_token)
 
     def fetch(self, *, prefer_auth: bool = True) -> SyncWebhook:

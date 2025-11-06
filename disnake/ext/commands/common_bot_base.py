@@ -191,8 +191,7 @@ class CommonBotBase(Generic[CogT]):
             A cog with the same name is already loaded.
         """
         if not isinstance(cog, Cog):
-            msg = "cogs must derive from Cog"
-            raise TypeError(msg)
+            raise disnake.utils.parameter_type_error(Cog, cog)
 
         cog_name = cog.__cog_name__
         existing = self.__cogs.get(cog_name)

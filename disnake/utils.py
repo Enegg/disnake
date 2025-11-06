@@ -1535,7 +1535,7 @@ def mutually_exclusive_parameters(
 
 
 def parameter_type_error(
-    expected: type[Any] | tuple[type[Any], Unpack[tuple[type[Any], ...]], type[Any] | None],
+    expected: type | tuple[type, Unpack[tuple[type, ...]], type | None],
     received: object,
     *,
     param_name: str = "",

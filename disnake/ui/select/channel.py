@@ -19,7 +19,7 @@ from ...components import ChannelSelectMenu
 from ...enums import ChannelType, ComponentType, SelectDefaultValueType
 from ...object import Object
 from ...threads import Thread
-from ...utils import MISSING
+from ...utils import MISSING, parameter_type_error
 from .base import BaseSelect, P, SelectDefaultValueInputType, V_co, _create_decorator
 
 if TYPE_CHECKING:
@@ -194,8 +194,7 @@ class ChannelSelect(BaseSelect[ChannelSelectMenu, "AnyChannel", V_co]):
     def channel_types(self, value: Optional[list[ChannelType]]) -> None:
         if value is not None:
             if not isinstance(value, list):
-                msg = "channel_types must be a list of ChannelType"
-                raise TypeError(msg)
+                raise parameter_type_error((list, None), value)
             if not all(isinstance(obj, ChannelType) for obj in value):
                 msg = "all list items must be ChannelType"
                 raise TypeError(msg)

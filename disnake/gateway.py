@@ -776,8 +776,9 @@ class DiscordWebSocket:
     ) -> None:
         if activity is not None:
             if not isinstance(activity, BaseActivity):
-                msg = "activity must derive from BaseActivity."
-                raise TypeError(msg)
+                raise utils.parameter_type_error(
+                    (BaseActivity, None), activity, param_name="activity"
+                )
             activity_data = (activity.to_dict(),)
         else:
             activity_data = ()

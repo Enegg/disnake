@@ -561,10 +561,7 @@ class FFmpegOpusAudio(FFmpegAudio):
             probefunc = method
             fallback = cls._probe_codec_fallback
         else:
-            msg = (
-                f"Expected str or callable for parameter 'probe', not '{method.__class__.__name__}'"
-            )
-            raise TypeError(msg)
+            raise utils.parameter_type_error((str, Callable), method, param_name="method")
 
         codec = bitrate = None
         loop = asyncio.get_running_loop()
@@ -705,7 +702,16 @@ class PCMVolumeTransformer(AudioSource, Generic[AT]):
 class AudioPlayer(threading.Thread):
     DELAY: float = OpusEncoder.FRAME_LENGTH / 1000.0
 
-    def __init__(self, source: AudioSource, client: VoiceClient, *, after=None) -> None:
+    def __init__(
+        self,
+        source: AudioSource,
+        client: VoiceClient,
+        *,
+        after: Optional[Callable[[Optional[Exception]], Any]] = None,
+    ) -> None:
+        if after is not None and not callable(after):
+            raise utils.parameter_type_error((Callable, None), after, param_name="after")
+
         threading.Thread.__init__(self)
         self.daemon: bool = True
         self.source: AudioSource = source
@@ -718,10 +724,6 @@ class AudioPlayer(threading.Thread):
         self._current_error: Optional[Exception] = None
         self._connected: threading.Event = client._connected
         self._lock: threading.Lock = threading.Lock()
-
-        if after is not None and not callable(after):
-            msg = 'Expected a callable for the "after" parameter.'
-            raise TypeError(msg)
 
     def _do_run(self) -> None:
         self._reset_state(speak=True)

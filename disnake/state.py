@@ -238,9 +238,9 @@ class ConnectionState:
 
         if activity is not None:
             if not isinstance(activity, BaseActivity):
-                msg = "activity parameter must derive from BaseActivity."
-                raise TypeError(msg)
-
+                raise utils.parameter_type_error(
+                    (BaseActivity, None), activity, param_name="activity"
+                )
             self._activity: Optional[ActivityPayload] = activity.to_dict()
         else:
             self._activity: Optional[ActivityPayload] = None

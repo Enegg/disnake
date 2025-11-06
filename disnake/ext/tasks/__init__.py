@@ -618,8 +618,7 @@ class Loop(Generic[LF]):
             inner = time if time.tzinfo is not None else time.replace(tzinfo=utc)
             return [inner]
         if not isinstance(time, Sequence):
-            msg = f"Expected datetime.time or a sequence of datetime.time for ``time``, received {type(time)!r} instead."
-            raise TypeError(msg)
+            raise parameter_type_error((datetime.time, Sequence), time, param_name="time")
         if not time:
             msg = "time parameter must not be an empty sequence."
             raise ValueError(msg)

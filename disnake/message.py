@@ -154,7 +154,7 @@ async def _edit_handler(
         suppress_deprecated_msg = "'suppress' is deprecated in favour of 'suppress_embeds'."
         if suppress_embeds is not MISSING:
             raise TypeError(
-                "Cannot mix suppress and suppress_embeds keyword arguments.\n"
+                "Mutually exclusive parameters: 'suppress' and 'suppress_embeds'.\n"
                 + suppress_deprecated_msg
             )
         utils.warn_deprecated(suppress_deprecated_msg, stacklevel=3)

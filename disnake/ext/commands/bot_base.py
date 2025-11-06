@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar, Union
 
 import disnake
-from disnake.utils import iscoroutinefunction
+from disnake.utils import iscoroutinefunction, parameter_type_error
 
 from . import errors
 from .common_bot_base import CommonBotBase
@@ -419,8 +419,7 @@ class BotBase(CommonBotBase, GroupMixin):
     @help_command.setter
     def help_command(self, value: Optional[HelpCommand]) -> None:
         if value is not None and not isinstance(value, HelpCommand):
-            msg = "help_command must be a subclass of HelpCommand or None"
-            raise TypeError(msg)
+            raise parameter_type_error((HelpCommand, None), value)
 
         if self._help_command is not None:
             self._help_command._remove_from_bot(self)

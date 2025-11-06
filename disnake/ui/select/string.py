@@ -17,7 +17,7 @@ from typing import (
 from ...abc import Snowflake
 from ...components import SelectOption, StringSelectMenu
 from ...enums import ComponentType, SelectDefaultValueType
-from ...utils import MISSING
+from ...utils import MISSING, parameter_type_error
 from .base import BaseSelect, P, V_co, _create_decorator
 
 if TYPE_CHECKING:
@@ -193,8 +193,7 @@ class StringSelect(BaseSelect[StringSelectMenu, str, V_co]):
     @options.setter
     def options(self, value: list[SelectOption]) -> None:
         if not isinstance(value, list):
-            msg = "options must be a list of SelectOption"
-            raise TypeError(msg)
+            raise parameter_type_error(list, value)
         if not all(isinstance(obj, SelectOption) for obj in value):
             msg = "all list items must subclass SelectOption"
             raise TypeError(msg)

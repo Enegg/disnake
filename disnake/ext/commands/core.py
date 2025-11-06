@@ -309,8 +309,7 @@ class Command(_BaseCommand, Generic[CogT, P, T]):
         self.extras: dict[str, Any] = kwargs.get("extras", {})
 
         if not isinstance(self.aliases, (list, tuple)):
-            msg = "Aliases of a command must be a list or a tuple of strings."
-            raise TypeError(msg)
+            raise parameter_type_error((list, tuple), self.aliases, param_name="aliases")
 
         self.description: str = inspect.cleandoc(kwargs.get("description", ""))
         self.hidden: bool = kwargs.get("hidden", False)
@@ -1169,8 +1168,7 @@ class GroupMixin(Generic[CogT]):
             If the command passed is not a subclass of :class:`.Command`.
         """
         if not isinstance(command, Command):
-            msg = "The command passed must be a subclass of Command"
-            raise TypeError(msg)
+            raise parameter_type_error(Command, command)
 
         if isinstance(self, Command):
             command.parent = self
@@ -2607,8 +2605,7 @@ def dynamic_cooldown(
         The type of cooldown to have.
     """
     if not callable(cooldown):
-        msg = "A callable must be provided"
-        raise TypeError(msg)
+        raise parameter_type_error((BucketType, Cooldown), cooldown, param_name="cooldown")
 
     def decorator(
         func: Union[Command[CogT, P, T], CoroFunc],

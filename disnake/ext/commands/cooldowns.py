@@ -195,8 +195,7 @@ class CooldownMapping:
         type: Callable[[Message], Any],
     ) -> None:
         if not callable(type):
-            msg = "Cooldown type must be a BucketType or callable"
-            raise TypeError(msg)
+            raise parameter_type_error((BucketType, Callable), type, param_name="type")
 
         self._cache: dict[Any, Cooldown] = {}
         self._cooldown: Optional[Cooldown] = original

@@ -1334,8 +1334,7 @@ class Client:
         elif isinstance(value, BaseActivity):
             self._connection._activity = value.to_dict()
         else:
-            msg = "activity must derive from BaseActivity."
-            raise TypeError(msg)
+            raise parameter_type_error(BaseActivity, value)
 
     @property
     def status(self) -> Status:
