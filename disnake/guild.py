@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import datetime
 from collections.abc import Sequence
 from typing import (
@@ -15,7 +14,7 @@ from typing import (
     overload,
 )
 
-from . import abc, utils
+from . import utils
 from .app_commands import GuildApplicationCommandPermissions
 from .asset import Asset
 from .channel import (
@@ -28,7 +27,6 @@ from .channel import (
     _guild_channel_factory,
     _threaded_guild_channel_factory,
 )
-from .colour import Colour
 from .emoji import Emoji
 from .enums import (
     ChannelType,
@@ -41,14 +39,11 @@ from .enums import (
 )
 from .errors import ClientException, HTTPException, InvalidData
 from .flags import SystemChannelFlags
-from .invite import Invite
 from .iterators import MemberIterator
-from .member import Member, VoiceState
+from .member import Member
 from .mixins import Hashable
-from .object import Object
-from .permissions import PermissionOverwrite
 from .role import Role
-from .threads import Thread, ThreadMember
+from .threads import Thread
 
 __all__ = ("Guild",)
 
@@ -58,17 +53,10 @@ MISSING = utils.MISSING
 if TYPE_CHECKING:
     from .abc import Snowflake, SnowflakeTime
     from .app_commands import APIApplicationCommand
-    from .asset import AssetBytes
-    from .permissions import Permissions
     from .state import ConnectionState
-    from .template import Template
-    from .types.channel import (
-        GuildChannel as GuildChannelPayload,
-    )
+    from .types.channel import GuildChannel as GuildChannelPayload
     from .types.guild import Guild as GuildPayload, GuildFeature, MFALevel
-    from .types.role import CreateRole as CreateRolePayload
     from .types.threads import Thread as ThreadPayload
-    from .types.voice import GuildVoiceState
     from .webhook import Webhook
 
     GuildMessageable: TypeAlias = TextChannel | Thread | VoiceChannel | StageChannel
@@ -342,7 +330,6 @@ class Guild(Hashable):
     def __init__(self, *, data: GuildPayload, state: ConnectionState) -> None:
         self._channels: dict[int, GuildChannel] = {}
         self._members: dict[int, Member] = {}
-        self._voice_states: dict[int, VoiceState] = {}
         self._threads: dict[int, Thread] = {}
         self._state: ConnectionState = state
         self._from_data(data)
@@ -399,32 +386,6 @@ class Guild(Hashable):
         )
         inner = " ".join(f"{k!s}={v!r}" for k, v in attrs)
         return f"<Guild {inner}>"
-
-    def _update_voice_state(
-        self, data: GuildVoiceState, channel_id: int | None
-    ) -> tuple[Member | None, VoiceState, VoiceState]:
-        user_id = int(data["user_id"])
-        channel: VocalGuildChannel | None = self.get_channel(channel_id)  # pyright: ignore[reportAssignmentType, reportArgumentType]
-        try:
-            # check if we should remove the voice state from cache
-            if channel is None:
-                after = self._voice_states.pop(user_id)
-            else:
-                after = self._voice_states[user_id]
-
-            before = copy.copy(after)
-            after._update(data, channel)
-        except KeyError:
-            # if we're here then we're getting added into the cache
-            after = VoiceState(data=data, channel=channel)
-            before = VoiceState(data=data, channel=None)
-            self._voice_states[user_id] = after
-
-        member = self.get_member(user_id)
-        if member is None and "member" in data:
-            member = Member(data=data["member"], state=self._state, guild=self)
-
-        return member, before, after
 
     def _add_role(self, role: Role, /) -> None:
         # roles get added to the bottom (position 1, pos 0 is @everyone)
@@ -555,9 +516,6 @@ class Guild(Hashable):
         self.afk_channel: VocalGuildChannel | None = self.get_channel(
             utils._get_as_snowflake(guild, "afk_channel_id")  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType]
         )
-
-        for obj in guild.get("voice_states", []):
-            self._update_voice_state(obj, utils._get_as_snowflake(obj, "channel_id"))
 
     # TODO: refactor/remove?
     def _sync(self, data: GuildPayload) -> None:
@@ -995,46 +953,6 @@ class Guild(Hashable):
 
         return utils.find(pred, self._members.values())
 
-    def _create_channel(
-        self,
-        name: str,
-        channel_type: ChannelType,
-        overwrites: dict[Role | Member, PermissionOverwrite] = MISSING,
-        category: Snowflake | None = None,
-        **options: Any,
-    ) -> Any:
-        if overwrites is MISSING:
-            overwrites = {}
-        elif not isinstance(overwrites, dict):
-            msg = "overwrites parameter expects a dict."
-            raise TypeError(msg)
-
-        perms = []
-        for target, perm in overwrites.items():
-            if not isinstance(perm, PermissionOverwrite):
-                msg = f"Expected PermissionOverwrite received {perm.__class__.__name__}"
-                raise TypeError(msg)
-
-            allow, deny = perm.pair()
-            payload = {"allow": allow.value, "deny": deny.value, "id": target.id}
-
-            if isinstance(target, Role):
-                payload["type"] = abc._Overwrites.ROLE
-            else:
-                payload["type"] = abc._Overwrites.MEMBER
-
-            perms.append(payload)
-
-        parent_id = category.id if category else None
-        return self._state.http.create_channel(
-            self.id,
-            channel_type.value,
-            name=name,
-            parent_id=parent_id,
-            permission_overwrites=perms,
-            **options,
-        )
-
     async def leave(self) -> None:
         """|coro|
 
@@ -1089,35 +1007,6 @@ class Guild(Hashable):
             )
 
         return [convert(d) for d in data]
-
-    async def active_threads(self) -> list[Thread]:
-        r"""|coro|
-
-        Returns a list of active :class:`Thread` that the client can access.
-
-        This includes both private and public threads.
-
-        .. versionadded:: 2.0
-
-        Raises
-        ------
-        HTTPException
-            The request to get the active threads failed.
-
-        Returns
-        -------
-        :class:`list`\[:class:`Thread`]
-            The active threads.
-        """
-        data = await self._state.http.get_active_threads(self.id)
-        threads = [Thread(guild=self, state=self._state, data=d) for d in data.get("threads", [])]
-        thread_lookup: dict[int, Thread] = {thread.id: thread for thread in threads}
-        for member in data.get("members", []):
-            thread = thread_lookup.get(int(member["id"]))
-            if thread is not None:
-                thread._add_member(ThreadMember(parent=thread, data=member))
-
-        return threads
 
     # TODO: Remove Optional typing here when async iterators are refactored
     def fetch_members(
@@ -1288,77 +1177,6 @@ class Guild(Hashable):
         data = await self._state.http.guild_webhooks(self.id)
         return [Webhook.from_state(d, state=self._state) for d in data]
 
-    async def invites(self) -> list[Invite]:
-        r"""|coro|
-
-        Returns a list of all active instant invites from the guild.
-
-        You must have :attr:`~Permissions.manage_guild` or :attr:`~Permissions.view_audit_log`
-        permission to use this.
-        Some attributes (see :ref:`table <invite_attr_table>`) are only available with
-        :attr:`~Permissions.manage_guild` permissions.
-
-        .. note::
-
-            This method does not include the guild's vanity URL invite.
-            To get the vanity URL :class:`Invite`, refer to :meth:`Guild.vanity_invite`.
-
-        Raises
-        ------
-        Forbidden
-            You do not have proper permissions to get the information.
-        HTTPException
-            An error occurred while fetching the information.
-
-        Returns
-        -------
-        :class:`list`\[:class:`Invite`]
-            The list of invites that are currently active.
-        """
-        data = await self._state.http.invites_from(self.id)
-        result: list[Invite] = []
-        for invite in data:
-            if channel_data := invite.get("channel"):
-                channel = self.get_channel(int(channel_data["id"]))
-            else:
-                channel = None
-            result.append(Invite(state=self._state, data=invite, guild=self, channel=channel))
-
-        return result
-
-    async def create_template(self, *, name: str, description: str = MISSING) -> Template:
-        """|coro|
-
-        Creates a template for the guild.
-
-        You must have :attr:`~Permissions.manage_guild` permission to
-        use this.
-
-        .. versionadded:: 1.7
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The name of the template.
-        description: :class:`str`
-            The description of the template.
-
-        Returns
-        -------
-        :class:`Template`
-            The created template.
-        """
-        from .template import Template
-
-        payload: Any = {"name": name}
-
-        if description:
-            payload["description"] = description
-
-        data = await self._state.http.create_template(self.id, payload)
-
-        return Template(state=self._state, data=data)
-
     async def fetch_emojis(self) -> list[Emoji]:
         r"""|coro|
 
@@ -1410,109 +1228,6 @@ class Guild(Hashable):
         """
         data = await self._state.http.get_custom_emoji(self.id, emoji_id)
         return Emoji(guild=self, state=self._state, data=data)
-
-    async def create_custom_emoji(
-        self,
-        *,
-        name: str,
-        image: AssetBytes,
-        roles: Sequence[Role] = MISSING,
-        reason: str | None = None,
-    ) -> Emoji:
-        r"""|coro|
-
-        Creates a custom :class:`Emoji` for the guild.
-
-        Depending on the boost level of your guild (which can be obtained via :attr:`premium_tier`),
-        the amount of custom emojis that can be created changes:
-
-        .. csv-table::
-            :header: "Boost level", "Max custom emoji limit"
-
-            "0", "50"
-            "1", "100"
-            "2", "150"
-            "3", "250"
-
-        Emojis with subscription roles (see ``roles`` below) are considered premium emoji,
-        and count towards a separate limit of 25 emojis.
-
-        You must have :attr:`~Permissions.create_guild_expressions` permission to
-        do this.
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The emoji name. Must be at least 2 characters.
-        image: |resource_type|
-            The image data of the emoji.
-            Only JPG, PNG and GIF images are supported.
-
-            .. versionchanged:: 2.5
-                Now accepts various resource types in addition to :class:`bytes`.
-
-        roles: :class:`list`\[:class:`Role`]
-            A list of roles that can use this emoji. Leave empty to make it available to everyone.
-
-            An emoji cannot have both subscription roles (see :attr:`RoleTags.integration_id`) and
-            non-subscription roles, and emojis can't be converted between premium and non-premium
-            after creation.
-
-        reason: :class:`str` | :data:`None`
-            The reason for creating this emoji. Shows up on the audit log.
-
-        Raises
-        ------
-        NotFound
-            The ``image`` asset couldn't be found.
-        Forbidden
-            You are not allowed to create emojis.
-        HTTPException
-            An error occurred creating an emoji.
-        TypeError
-            The ``image`` asset is a lottie sticker (see :func:`Sticker.read`).
-        ValueError
-            Wrong image format passed for ``image``.
-
-        Returns
-        -------
-        :class:`Emoji`
-            The newly created emoji.
-        """
-        img = await utils._assetbytes_to_base64_data(image)
-        if roles:
-            role_ids = [role.id for role in roles]
-        else:
-            role_ids = []
-
-        data = await self._state.http.create_custom_emoji(
-            self.id, name, img, roles=role_ids, reason=reason
-        )
-        return self._state.store_emoji(self, data)
-
-    async def delete_emoji(self, emoji: Snowflake, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Deletes the custom :class:`Emoji` from the guild.
-
-        You must have :attr:`~Permissions.manage_guild_expressions` permission to
-        do this.
-
-        Parameters
-        ----------
-        emoji: :class:`abc.Snowflake`
-            The emoji you are deleting.
-        reason: :class:`str` | :data:`None`
-            The reason for deleting this emoji. Shows up on the audit log.
-
-        Raises
-        ------
-        Forbidden
-            You are not allowed to delete this emoji.
-        HTTPException
-            An error occurred deleting the emoji.
-        """
-        await self._state.http.delete_custom_emoji(self.id, emoji.id, reason=reason)
 
     async def fetch_role(self, role_id: int, /) -> Role:
         """|coro|
@@ -1569,38 +1284,6 @@ class Guild(Hashable):
         data = await self._state.http.get_roles(self.id)
         return [Role(guild=self, state=self._state, data=d) for d in data]
 
-    async def fetch_role_member_counts(self) -> dict[Role | Object, int]:
-        r"""|coro|
-
-        Retrieves the member counts of all :class:`Role`\s that the guild has.
-
-        .. note::
-
-            This method is an API call. For general usage, consider :attr:`roles` instead.
-
-        .. versionadded:: 2.12
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the role member counts failed.
-
-        Returns
-        -------
-        :class:`dict`\[:class:`Role` | :class:`Object`, :class:`int`]
-            The member counts of the roles.
-            Roles that could not be found in the bot's cache are
-            :class:`Object` with the corresponding ID instead.
-        """
-        data = await self._state.http.get_role_member_counts(self.id)
-        counts: dict[Role | Object, int] = {}
-        for id_str, count in data.items():
-            id = int(id_str)
-            obj = self.get_role(id) or Object(id)
-            counts[obj] = count
-
-        return counts
-
     @overload
     async def get_or_fetch_member(
         self, member_id: int, *, strict: Literal[False] = ...
@@ -1647,308 +1330,6 @@ class Guild(Hashable):
         return member
 
     getch_member = get_or_fetch_member
-
-    @overload
-    async def create_role(
-        self,
-        *,
-        reason: str | None = ...,
-        name: str = ...,
-        permissions: Permissions = ...,
-        colour: Colour | int = ...,
-        hoist: bool = ...,
-        icon: AssetBytes = ...,
-        emoji: str = ...,
-        mentionable: bool = ...,
-    ) -> Role: ...
-
-    @overload
-    async def create_role(
-        self,
-        *,
-        reason: str | None = ...,
-        name: str = ...,
-        permissions: Permissions = ...,
-        color: Colour | int = ...,
-        hoist: bool = ...,
-        icon: AssetBytes = ...,
-        emoji: str = ...,
-        mentionable: bool = ...,
-    ) -> Role: ...
-
-    async def create_role(
-        self,
-        *,
-        name: str = MISSING,
-        permissions: Permissions = MISSING,
-        color: Colour | int = MISSING,
-        colour: Colour | int = MISSING,
-        primary_colour: Colour | int = MISSING,
-        primary_color: Colour | int = MISSING,
-        secondary_colour: Colour | int | None = None,
-        secondary_color: Colour | int | None = None,
-        tertiary_colour: Colour | int | None = None,
-        tertiary_color: Colour | int | None = None,
-        hoist: bool = MISSING,
-        icon: AssetBytes = MISSING,
-        emoji: str = MISSING,
-        mentionable: bool = MISSING,
-        reason: str | None = None,
-    ) -> Role:
-        """|coro|
-
-        Creates a :class:`Role` for the guild.
-
-        All fields are optional.
-
-        You must have :attr:`~Permissions.manage_roles` permission to
-        do this.
-
-        .. versionchanged:: 1.6
-            Can now pass ``int`` to ``colour`` keyword-only parameter.
-
-        .. versionchanged:: 2.6
-            Raises :exc:`TypeError` instead of ``InvalidArgument``.
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The role name. Defaults to 'new role'.
-        permissions: :class:`Permissions`
-            The permissions the role should have. Defaults to no permissions.
-        colour: :class:`Colour` | :class:`int`
-            The colour for the role. Defaults to :meth:`Colour.default`.
-            This is aliased to ``color`` as well.
-
-            .. note::
-                This is equivalent to ``primary_colour``.
-        primary_colour: :class:`Colour` | :class:`int`
-            The primary_colour for the role. Defaults to :meth:`Colour.default`.
-            This is aliased to ``primary_color`` as well.
-
-            .. versionadded:: 2.11
-        secondary_colour: :class:`Colour` | :class:`int` | :data:`None`
-            The secondary_colour for the role. Defaults to :data:`None`.
-            This is aliased to ``secondary_color`` as well.
-
-            .. versionadded:: 2.11
-        tertiary_colour: :class:`Colour` | :class:`int` | :data:`None`
-            The tertiary_colour for the role. Defaults to :data:`None`.
-            This is aliased to ``tertiary_color`` as well.
-
-            .. note::
-                When passing this the only permitted values are the ones returned by
-                :meth:`Colour.holographic_style`, any other color value will get rejected.
-
-            .. versionadded:: 2.11
-        hoist: :class:`bool`
-            Whether the role should be shown separately in the member list.
-            Defaults to ``False``.
-        icon: |resource_type|
-            The role's icon image (if the guild has the ``ROLE_ICONS`` feature).
-
-            .. versionchanged:: 2.5
-                Now accepts various resource types in addition to :class:`bytes`.
-
-        emoji: :class:`str`
-            The role's unicode emoji.
-        mentionable: :class:`bool`
-            Whether the role should be mentionable by others.
-            Defaults to ``False``.
-        reason: :class:`str` | :data:`None`
-            The reason for creating this role. Shows up on the audit log.
-
-        Raises
-        ------
-        NotFound
-            The ``icon`` asset couldn't be found.
-        Forbidden
-            You do not have permissions to create the role.
-        HTTPException
-            Creating the role failed.
-        TypeError
-            An invalid keyword argument was given,
-            or the ``icon`` asset is a lottie sticker (see :func:`Sticker.read`).
-
-        Returns
-        -------
-        :class:`Role`
-            The newly created role.
-        """
-        fields: CreateRolePayload = {}
-        if permissions is not MISSING:
-            fields["permissions"] = str(permissions.value)
-        else:
-            fields["permissions"] = "0"
-
-        actual_primary_color = colour or color or primary_colour or primary_color
-        actual_secondary_color = secondary_colour or secondary_color
-        actual_tertiary_color = tertiary_colour or tertiary_color
-        if actual_primary_color is MISSING:
-            actual_primary_color = 0
-        elif isinstance(actual_primary_color, Colour):
-            actual_primary_color = actual_primary_color.value
-
-        if isinstance(actual_secondary_color, Colour):
-            actual_secondary_color = actual_secondary_color.value
-
-        if isinstance(actual_tertiary_color, Colour):
-            actual_tertiary_color = actual_tertiary_color.value
-
-        fields["colors"] = {
-            "primary_color": actual_primary_color,
-            "secondary_color": actual_secondary_color,
-            "tertiary_color": actual_tertiary_color,
-        }
-
-        if hoist is not MISSING:
-            fields["hoist"] = hoist
-
-        if mentionable is not MISSING:
-            fields["mentionable"] = mentionable
-
-        if name is not MISSING:
-            fields["name"] = name
-
-        if icon is not MISSING:
-            fields["icon"] = await utils._assetbytes_to_base64_data(icon)
-
-        if emoji is not MISSING:
-            fields["unicode_emoji"] = emoji
-
-        data = await self._state.http.create_role(self.id, reason=reason, **fields)
-
-        # TODO: add to cache
-        return Role(guild=self, data=data, state=self._state)
-
-    async def edit_role_positions(
-        self, positions: dict[Snowflake, int], *, reason: str | None = None
-    ) -> list[Role]:
-        r"""|coro|
-
-        Bulk edits a list of :class:`Role` in the guild.
-
-        You must have :attr:`~Permissions.manage_roles` permission to
-        do this.
-
-        .. versionadded:: 1.4
-
-        .. versionchanged:: 2.6
-            Raises :exc:`TypeError` instead of ``InvalidArgument``.
-
-        Example:
-
-        .. code-block:: python3
-
-            positions = {
-                bots_role: 1, # penultimate role
-                tester_role: 2,
-                admin_role: 6
-            }
-
-            await guild.edit_role_positions(positions=positions)
-
-        Parameters
-        ----------
-        positions
-            A :class:`dict` of :class:`Role` to :class:`int` to change the positions
-            of each given role.
-        reason: :class:`str` | :data:`None`
-            The reason for editing the role positions. Shows up on the audit log.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to move the roles.
-        HTTPException
-            Moving the roles failed.
-        TypeError
-            An invalid keyword argument was given.
-
-        Returns
-        -------
-        :class:`list`\[:class:`Role`]
-            A list of all the roles in the guild.
-        """
-        if not isinstance(positions, dict):
-            msg = "positions parameter expects a dict."
-            raise TypeError(msg)
-
-        role_positions: list[Any] = []
-        for role, position in positions.items():
-            payload = {"id": role.id, "position": position}
-
-            role_positions.append(payload)
-
-        data = await self._state.http.move_role_position(self.id, role_positions, reason=reason)
-        roles: list[Role] = []
-        for d in data:
-            role = Role(guild=self, data=d, state=self._state)
-            roles.append(role)
-            self._roles[role.id] = role
-
-        return roles
-
-    async def vanity_invite(self, *, use_cached: bool = False) -> Invite | None:
-        """|coro|
-
-        Returns the guild's special vanity invite.
-
-        The guild must have ``VANITY_URL`` in :attr:`~Guild.features`.
-
-        If ``use_cached`` is False, then you must have
-        :attr:`~Permissions.manage_guild` permission to use this.
-
-        Parameters
-        ----------
-        use_cached: :class:`bool`
-            Whether to use the cached :attr:`Guild.vanity_url_code`
-            and attempt to convert it into a full invite.
-
-            .. note::
-
-                If set to ``True``, the :attr:`Invite.uses`
-                information will not be accurate.
-
-            .. versionadded:: 2.5
-
-        Raises
-        ------
-        Forbidden
-            You do not have the proper permissions to get this.
-        HTTPException
-            Retrieving the vanity invite failed.
-
-        Returns
-        -------
-        :class:`Invite` | :data:`None`
-            The special vanity invite. If :data:`None` then the guild does not
-            have a vanity invite set.
-        """
-        # we start with { code: abc }
-        if use_cached:
-            if not self.vanity_url_code:
-                return None
-            payload: Any = {"code": self.vanity_url_code}
-        else:
-            payload: Any = await self._state.http.get_vanity_code(self.id)
-            if not payload["code"]:
-                return None
-
-        # get the vanity URL channel since default channels aren't
-        # reliable or a thing anymore
-        data = await self._state.http.get_invite(payload["code"])
-
-        if channel_data := data.get("channel"):
-            channel = self.get_channel(int(channel_data["id"]))
-        else:
-            channel = None
-        payload["temporary"] = False
-        payload["max_uses"] = 0
-        payload["max_age"] = 0
-        payload["uses"] = payload.get("uses", 0)
-        payload["type"] = 0
-        return Invite(state=self._state, data=payload, guild=self, channel=channel)
 
     async def chunk(self, *, cache: bool = True) -> list[Member] | None:
         r"""|coro|
@@ -2066,61 +1447,6 @@ class Guild(Hashable):
         return await self._state.query_members(
             self, query=query, limit=limit, user_ids=user_ids, presences=presences, cache=cache
         )
-
-    async def search_members(
-        self,
-        query: str,
-        *,
-        limit: int = 1,
-        cache: bool = True,
-    ) -> list[Member]:
-        r"""|coro|
-
-        Retrieves members that belong to this guild whose name starts with
-        the query given.
-
-        Note that unlike :func:`query_members`, this is not a websocket operation, but an HTTP operation.
-
-        See also :func:`query_members`.
-
-        .. versionadded:: 2.5
-
-        Parameters
-        ----------
-        query: :class:`str`
-            The string that the names start with.
-        limit: :class:`int`
-            The maximum number of members to send back. This must be
-            a number between 1 and 1000.
-        cache: :class:`bool`
-            Whether to cache the members internally. This makes operations
-            such as :meth:`get_member` work for those that matched.
-
-        Raises
-        ------
-        ValueError
-            Invalid parameters were passed to the function
-
-        Returns
-        -------
-        :class:`list`\[:class:`Member`]
-            The list of members that have matched the query.
-        """
-        if not query:
-            msg = "Cannot pass empty query string."
-            raise ValueError(msg)
-        if limit < 1:
-            msg = "limit must be at least 1"
-            raise ValueError(msg)
-        limit = min(1000, limit)
-        members = await self._state.http.search_guild_members(self.id, query=query, limit=limit)
-        resp: list[Member] = []
-        for member in members:
-            member = Member(state=self._state, data=member, guild=self)
-            if cache and member.id not in self._members:
-                self._add_member(member)
-            resp.append(member)
-        return resp
 
     async def get_or_fetch_members(
         self,

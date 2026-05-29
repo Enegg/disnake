@@ -59,7 +59,6 @@ from .shard import *
 from .sku import *
 from .subscription import *
 from .team import *
-from .template import *
 from .threads import *
 from .user import *
 from .webhook import *

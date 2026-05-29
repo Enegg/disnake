@@ -14,7 +14,6 @@ from .interactions import InteractionDataResolved, InteractionMessageReference, 
 from .member import Member, UserWithMember
 from .poll import Poll
 from .snowflake import Snowflake, SnowflakeList
-from .sticker import StickerItem
 from .threads import Thread
 from .user import User
 
@@ -88,7 +87,6 @@ class ForwardedMessage(TypedDict):
     # apparently mention_roles list is not sent if the msg
     # is not forwarded in the same guild
     mention_roles: NotRequired[SnowflakeList]
-    sticker_items: NotRequired[list[StickerItem]]
     components: NotRequired[list[MessageTopLevelComponent]]
 
 
@@ -139,7 +137,6 @@ class Message(TypedDict):
     interaction_metadata: NotRequired[InteractionMetadata]
     thread: NotRequired[Thread]
     components: NotRequired[list[MessageTopLevelComponent]]
-    sticker_items: NotRequired[list[StickerItem]]
     position: NotRequired[int]
     role_subscription_data: NotRequired[RoleSubscriptionData]
     poll: NotRequired[Poll]

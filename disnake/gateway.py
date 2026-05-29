@@ -39,8 +39,6 @@ if TYPE_CHECKING:
         PresenceUpdateCommand,
         RequestMembersCommand,
         ResumeCommand,
-        VoiceHeartbeatData,
-        VoiceStateCommand,
     )
 
     T = TypeVar("T")
@@ -248,7 +246,7 @@ class HeartbeatWebSocket(Protocol):
 
     async def send_heartbeat(self, data: HeartbeatCommand) -> None: ...
 
-    def get_heartbeat_data(self) -> int | None | VoiceHeartbeatData: ...
+    def get_heartbeat_data(self) -> int | None: ...
 
 
 class DiscordWebSocket:
@@ -788,26 +786,6 @@ class DiscordWebSocket:
         if query is not None:
             payload["d"]["query"] = query
 
-        await self.send_as_json(payload)
-
-    async def voice_state(
-        self,
-        guild_id: int,
-        channel_id: int | None,
-        self_mute: bool = False,
-        self_deaf: bool = False,
-    ) -> None:
-        payload: VoiceStateCommand = {
-            "op": self.VOICE_STATE,
-            "d": {
-                "guild_id": guild_id,
-                "channel_id": channel_id,
-                "self_mute": self_mute,
-                "self_deaf": self_deaf,
-            },
-        }
-
-        _log.debug("Updating our voice state to %s.", payload)
         await self.send_as_json(payload)
 
     async def close(self, code: int = 4000) -> None:

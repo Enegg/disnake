@@ -6,10 +6,8 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from . import utils
-from .abc import Snowflake
 from .emoji import Emoji, _EmojiTag
 from .enums import PollLayoutType, try_enum
-from .iterators import PollAnswerIterator
 from .partial_emoji import PartialEmoji
 
 if TYPE_CHECKING:
@@ -146,50 +144,6 @@ class PollAnswer:
 
     def _to_dict(self) -> PollCreateAnswerPayload:
         return {"poll_media": self.media._to_dict()}
-
-    def voters(
-        self, *, limit: int | None = 100, after: Snowflake | None = None
-    ) -> PollAnswerIterator:
-        """Returns an :class:`AsyncIterator` representing the users that have voted for this answer.
-
-        The ``after`` parameter must represent a member and meet the :class:`abc.Snowflake` abc.
-
-        .. note::
-
-            This method works only on PollAnswer(s) objects that originate from the API and not on the ones built manually.
-
-        Parameters
-        ----------
-        limit: :class:`int` | :data:`None`
-            The maximum number of results to return.
-            If :data:`None`, retrieves every user who voted for this answer.
-            Note, however, that this would make it a slow operation.
-            Defaults to ``100``.
-        after: :class:`abc.Snowflake` | :data:`None`
-            For pagination, votes are sorted by member.
-
-        Raises
-        ------
-        HTTPException
-            Getting the voters for this answer failed.
-        Forbidden
-            Tried to get the voters for this answer without the required permissions.
-        ValueError
-            You tried to invoke this method on an object that didn't originate from the API.
-
-        Yields
-        ------
-        :class:`User` | :class:`Member`
-            The member (if retrievable) or the user that has voted
-            for this answer. The case where it can be a :class:`Member` is
-            in a guild message context. Sometimes it can be a :class:`User`
-            if the member has left the guild.
-        """
-        if not (self.id is not None and self.poll and self.poll.message):
-            msg = "This object was manually built. To use this method, you need to use a poll object retrieved from the Discord API."
-            raise ValueError(msg)
-
-        return PollAnswerIterator(self.poll.message, self.id, limit=limit, after=after)
 
 
 class Poll:
@@ -390,34 +344,3 @@ class Poll:
             "answers": [answer._to_dict() for answer in self._answers.values()],
         }
         return payload
-
-    async def expire(self) -> Message:
-        """|coro|
-
-        Immediately ends a poll.
-
-        .. note::
-
-            This method works only on Poll(s) objects that originate
-            from the API and not on the ones built manually.
-
-        Raises
-        ------
-        HTTPException
-            Expiring the poll failed.
-        Forbidden
-            Tried to expire a poll without the required permissions.
-        ValueError
-            You tried to invoke this method on an object that didn't originate from the API.```
-
-        Returns
-        -------
-        :class:`Message`
-            The message which contains the expired `Poll`.
-        """
-        if not self.message:
-            msg = "This object was manually built. To use this method, you need to use a poll object retrieved from the Discord API."
-            raise ValueError(msg)
-
-        data = await self.message._state.http.expire_poll(self.message.channel.id, self.message.id)
-        return self.message._state.create_message(channel=self.message.channel, data=data)

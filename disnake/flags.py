@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
     from disnake.types.appinfo import ApplicationIntegrationType
-    from disnake.types.automod import AutoModPresetType
     from disnake.types.interactions import InteractionContextType
 
 
@@ -34,7 +33,6 @@ __all__ = (
     "MemberCacheFlags",
     "ApplicationFlags",
     "ChannelFlags",
-    "AutoModKeywordPresets",
     "MemberFlags",
     "RoleFlags",
     "AttachmentFlags",
@@ -2200,121 +2198,6 @@ class ChannelFlags(BaseFlags):
         .. versionadded:: 2.10
         """
         return 1 << 15
-
-
-class AutoModKeywordPresets(ListBaseFlags):
-    """Wraps up the pre-defined auto moderation keyword lists, provided by Discord.
-
-    .. collapse:: operations
-
-        .. describe:: x == y
-
-            Checks if two AutoModKeywordPresets instances are equal.
-        .. describe:: x != y
-
-            Checks if two AutoModKeywordPresets instances are not equal.
-        .. describe:: x <= y
-
-            Checks if an AutoModKeywordPresets instance is a subset of another AutoModKeywordPresets instance.
-        .. describe:: x >= y
-
-            Checks if an AutoModKeywordPresets instance is a superset of another AutoModKeywordPresets instance.
-        .. describe:: x < y
-
-            Checks if an AutoModKeywordPresets instance is a strict subset of another AutoModKeywordPresets instance.
-        .. describe:: x > y
-
-            Checks if an AutoModKeywordPresets instance is a strict superset of another AutoModKeywordPresets instance.
-        .. describe:: x | y, x |= y
-
-            Returns a new AutoModKeywordPresets instance with all enabled flags from both x and y.
-            (Using ``|=`` will update in place).
-        .. describe:: x & y, x &= y
-
-            Returns a new AutoModKeywordPresets instance with only flags enabled on both x and y.
-            (Using ``&=`` will update in place).
-        .. describe:: x ^ y, x ^= y
-
-            Returns a new AutoModKeywordPresets instance with only flags enabled on one of x or y, but not both.
-            (Using ``^=`` will update in place).
-        .. describe:: ~x
-
-            Returns a new AutoModKeywordPresets instance with all flags from x inverted.
-        .. describe:: hash(x)
-
-            Return the flag's hash.
-        .. describe:: iter(x)
-
-            Returns an iterator of ``(name, value)`` pairs. This allows it
-            to be, for example, constructed as a dict or a list of pairs.
-            Note that aliases are not shown.
-
-
-        Additionally supported are a few operations on class attributes.
-
-        .. describe:: AutoModKeywordPresets.y | AutoModKeywordPresets.z, AutoModKeywordPresets(y=True) | AutoModKeywordPresets.z
-
-            Returns an AutoModKeywordPresets instance with all provided flags enabled.
-
-        .. describe:: ~AutoModKeywordPresets.y
-
-            Returns an AutoModKeywordPresets instance with all flags except ``y`` inverted from their default value.
-
-    .. versionadded:: 2.6
-
-    Attributes
-    ----------
-    values: :class:`int`
-        The raw values. You should query flags via the properties
-        rather than using these raw values.
-    """
-
-    __slots__ = ()
-
-    if TYPE_CHECKING:
-
-        @_generated
-        def __init__(
-            self, *, profanity: bool = ..., sexual_content: bool = ..., slurs: bool = ...
-        ) -> None: ...
-
-        @property
-        def values(self) -> list[AutoModPresetType]: ...
-
-    @classmethod
-    def all(cls) -> Self:
-        """A factory method that creates an :class:`AutoModKeywordPresets` instance with everything enabled."""
-        self = cls.__new__(cls)
-        self.value = all_flags_value(cls.VALID_FLAGS)
-        return self
-
-    @classmethod
-    def none(cls) -> Self:
-        """A factory method that creates an :class:`AutoModKeywordPresets` instance with everything disabled."""
-        self = cls.__new__(cls)
-        self.value = self.DEFAULT_VALUE
-        return self
-
-    @flag_value
-    def profanity(self) -> int:
-        """:class:`bool`: Returns ``True`` if the profanity preset is enabled
-        (contains words that may be considered swearing or cursing).
-        """
-        return 1 << 1
-
-    @flag_value
-    def sexual_content(self) -> int:
-        """:class:`bool`: Returns ``True`` if the sexual content preset is enabled
-        (contains sexually explicit words).
-        """
-        return 1 << 2
-
-    @flag_value
-    def slurs(self) -> int:
-        """:class:`bool`: Returns ``True`` if the slurs preset is enabled
-        (contains insults or words that may be considered hate speech).
-        """
-        return 1 << 3
 
 
 class MemberFlags(BaseFlags):

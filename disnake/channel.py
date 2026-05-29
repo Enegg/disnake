@@ -17,7 +17,6 @@ from .enums import (
     try_enum,
 )
 from .flags import ChannelFlags
-from .iterators import ArchivedThreadIterator
 from .mixins import Hashable
 from .object import Object
 from .partial_emoji import PartialEmoji
@@ -45,7 +44,7 @@ if TYPE_CHECKING:
     from .abc import Snowflake
     from .emoji import Emoji
     from .guild import Guild, GuildChannel as GuildChannelType
-    from .member import Member, VoiceState
+    from .member import Member
     from .message import Message, PartialMessage
     from .role import Role
     from .state import ConnectionState
@@ -324,51 +323,6 @@ class TextChannel(disnake.abc.Messageable, disnake.abc.GuildChannel, Hashable):
             return None
         return self.guild.get_thread(thread_id)
 
-    def archived_threads(
-        self,
-        *,
-        private: bool = False,
-        joined: bool = False,
-        limit: int | None = 50,
-        before: Snowflake | datetime.datetime | None = None,
-    ) -> ArchivedThreadIterator:
-        """Returns an :class:`~disnake.AsyncIterator` that iterates over all archived threads in the channel.
-
-        You must have :attr:`~Permissions.read_message_history` permission to use this. If iterating over private threads
-        then :attr:`~Permissions.manage_threads` permission is also required.
-
-        .. versionadded:: 2.0
-
-        Parameters
-        ----------
-        limit: :class:`int` | :data:`None`
-            The number of threads to retrieve.
-            If :data:`None`, retrieves every archived thread in the channel. Note, however,
-            that this would make it a slow operation.
-        before: :class:`abc.Snowflake` | :class:`datetime.datetime` | :data:`None`
-            Retrieve archived channels before the given date or ID.
-        private: :class:`bool`
-            Whether to retrieve private archived threads.
-        joined: :class:`bool`
-            Whether to retrieve private archived threads that you've joined.
-            You cannot set ``joined`` to ``True`` and ``private`` to ``False``.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to get archived threads.
-        HTTPException
-            The request to get the archived threads failed.
-
-        Yields
-        ------
-        :class:`Thread`
-            The archived threads.
-        """
-        return ArchivedThreadIterator(
-            self.id, self.guild, limit=limit, joined=joined, private=private, before=before
-        )
-
 
 class VocalGuildChannel(disnake.abc.GuildChannel, Hashable):
     __slots__ = (
@@ -437,31 +391,6 @@ class VocalGuildChannel(disnake.abc.GuildChannel, Hashable):
                 if member is not None:
                     ret.append(member)
         return ret
-
-    @property
-    def voice_states(self) -> dict[int, VoiceState]:
-        r"""Returns a mapping of member IDs who have voice states in this channel.
-
-        .. versionadded:: 1.3
-
-        .. note::
-
-            This function is intentionally low level to replace :attr:`members`
-            when the member cache is unavailable.
-
-        Returns
-        -------
-        :class:`~collections.abc.Mapping`\[:class:`int`, :class:`VoiceState`]
-            The mapping of member ID to a voice state.
-        """
-        if isinstance(self.guild, Object):
-            return {}
-
-        return {
-            key: value
-            for key, value in self.guild._voice_states.items()
-            if value.channel and value.channel.id == self.id
-        }
 
     @utils.copy_doc(disnake.abc.GuildChannel.permissions_for)
     def permissions_for(
@@ -1258,41 +1187,6 @@ class ThreadOnlyGuildChannel(disnake.abc.GuildChannel, Hashable):
         if isinstance(self.guild, Object):
             return None
         return self.guild.get_thread(thread_id)
-
-    def archived_threads(
-        self,
-        *,
-        limit: int | None = 50,
-        before: Snowflake | datetime.datetime | None = None,
-    ) -> ArchivedThreadIterator:
-        """Returns an :class:`~disnake.AsyncIterator` that iterates over all archived threads in the channel.
-
-        You must have :attr:`~Permissions.read_message_history` permission to use this.
-
-        Parameters
-        ----------
-        limit: :class:`int` | :data:`None`
-            The number of threads to retrieve.
-            If :data:`None`, retrieves every archived thread in the channel. Note, however,
-            that this would make it a slow operation.
-        before: :class:`abc.Snowflake` | :class:`datetime.datetime` | :data:`None`
-            Retrieve archived channels before the given date or ID.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to get archived threads.
-        HTTPException
-            The request to get the archived threads failed.
-
-        Yields
-        ------
-        :class:`Thread`
-            The archived threads.
-        """
-        return ArchivedThreadIterator(
-            self.id, self.guild, limit=limit, joined=False, private=False, before=before
-        )
 
     def get_tag(self, tag_id: int, /) -> ForumTag | None:
         """Returns a thread tag with the given ID.

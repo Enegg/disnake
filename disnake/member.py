@@ -21,10 +21,7 @@ from .permissions import Permissions
 from .user import BaseUser, User, _UserTag
 from .utils import MISSING, _assetbytes_to_base64_data
 
-__all__ = (
-    "VoiceState",
-    "Member",
-)
+__all__ = ("Member",)
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -45,110 +42,9 @@ if TYPE_CHECKING:
         UserWithMember as UserWithMemberPayload,
     )
     from .types.user import AvatarDecorationData as AvatarDecorationDataPayload, User as UserPayload
-    from .types.voice import (
-        GuildVoiceState as GuildVoiceStatePayload,
-        VoiceState as VoiceStatePayload,
-    )
     from .user import Collectibles, PrimaryGuild
 
     VocalGuildChannel: TypeAlias = VoiceChannel | StageChannel
-
-
-class VoiceState:
-    """Represents a Discord user's voice state.
-
-    Attributes
-    ----------
-    deaf: :class:`bool`
-        Whether the user is currently deafened by the guild.
-    mute: :class:`bool`
-        Whether the user is currently muted by the guild.
-    self_mute: :class:`bool`
-        Whether the user is currently muted by their own accord.
-    self_deaf: :class:`bool`
-        Whether the user is currently deafened by their own accord.
-    self_stream: :class:`bool`
-        Whether the user is currently streaming via 'Go Live' feature.
-
-        .. versionadded:: 1.3
-
-    self_video: :class:`bool`
-        Whether the user is currently broadcasting video.
-    suppress: :class:`bool`
-        Whether the user is suppressed from speaking.
-
-        Only applies to stage channels.
-
-        .. versionadded:: 1.7
-
-    requested_to_speak_at: :class:`datetime.datetime` | :data:`None`
-        An aware datetime object that specifies the date and time in UTC that the member
-        requested to speak. It will be :data:`None` if they are not requesting to speak
-        anymore or have been accepted to speak.
-
-        Only applies to stage channels.
-
-        .. versionadded:: 1.7
-
-    afk: :class:`bool`
-        Whether the user is currently in the AFK channel in the guild.
-    channel: :class:`VoiceChannel` | :class:`StageChannel` | :data:`None`
-        The voice channel that the user is currently connected to. :data:`None` if the user
-        is not currently in a voice channel.
-    """
-
-    __slots__ = (
-        "session_id",
-        "deaf",
-        "mute",
-        "self_mute",
-        "self_stream",
-        "self_video",
-        "self_deaf",
-        "afk",
-        "channel",
-        "requested_to_speak_at",
-        "suppress",
-    )
-
-    def __init__(
-        self,
-        *,
-        data: VoiceStatePayload | GuildVoiceStatePayload,
-        channel: VocalGuildChannel | None = None,
-    ) -> None:
-        self.session_id: str = data["session_id"]
-        self._update(data, channel)
-
-    def _update(
-        self,
-        data: VoiceStatePayload | GuildVoiceStatePayload,
-        channel: VocalGuildChannel | None,
-    ) -> None:
-        self.self_mute: bool = data.get("self_mute", False)
-        self.self_deaf: bool = data.get("self_deaf", False)
-        self.self_stream: bool = data.get("self_stream", False)
-        self.self_video: bool = data.get("self_video", False)
-        self.afk: bool = data.get("suppress", False)
-        self.mute: bool = data.get("mute", False)
-        self.deaf: bool = data.get("deaf", False)
-        self.suppress: bool = data.get("suppress", False)
-        self.requested_to_speak_at: datetime.datetime | None = utils.parse_time(
-            data.get("request_to_speak_timestamp")
-        )
-        self.channel: VocalGuildChannel | None = channel
-
-    def __repr__(self) -> str:
-        attrs = (
-            ("self_mute", self.self_mute),
-            ("self_deaf", self.self_deaf),
-            ("self_stream", self.self_stream),
-            ("suppress", self.suppress),
-            ("requested_to_speak_at", self.requested_to_speak_at),
-            ("channel", self.channel),
-        )
-        inner = " ".join(f"{k!s}={v!r}" for k, v in attrs)
-        return f"<{self.__class__.__name__} {inner}>"
 
 
 def flatten_user(cls: type[Member]) -> type[Member]:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-from collections.abc import AsyncIterator, Awaitable, Callable, Generator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -15,8 +15,7 @@ from typing import (
 from .entitlement import Entitlement
 from .errors import NoMoreItems
 from .object import Object
-from .threads import Thread
-from .utils import deprecated, maybe_coroutine, parse_time, snowflake_time, time_snowflake
+from .utils import maybe_coroutine, time_snowflake
 
 __all__ = (
     "ReactionIterator",
@@ -24,7 +23,6 @@ __all__ = (
     "GuildIterator",
     "MemberIterator",
     "EntitlementIterator",
-    "PollAnswerIterator",
 )
 
 if TYPE_CHECKING:
@@ -38,7 +36,6 @@ if TYPE_CHECKING:
     from .types.guild import Guild as GuildPayload
     from .types.member import MemberWithUser as MemberWithUserPayload
     from .types.message import Message as MessagePayload
-    from .types.threads import Thread as ThreadPayload
     from .types.user import PartialUser as PartialUserPayload
     from .user import User
 
@@ -558,103 +555,6 @@ class MemberIterator(_AsyncIterator["Member"]):
         return Member(data=data, guild=self.guild, state=self.state)
 
 
-class ArchivedThreadIterator(_AsyncIterator["Thread"]):
-    def __init__(
-        self,
-        channel_id: int,
-        guild: Guild,
-        limit: int | None,
-        joined: bool,
-        private: bool,
-        before: Snowflake | datetime.datetime | None = None,
-    ) -> None:
-        self.channel_id = channel_id
-        self.guild = guild
-        self.limit = limit
-        self.joined = joined
-        self.private = private
-        self.http = guild._state.http
-
-        if joined and not private:
-            msg = "Cannot iterate over joined public archived threads"
-            raise ValueError(msg)
-
-        self.before: str | None
-        if before is None:
-            self.before = None
-        elif isinstance(before, datetime.datetime):
-            if joined:
-                self.before = str(time_snowflake(before, high=False))
-            else:
-                self.before = before.isoformat()
-        else:
-            if joined:
-                self.before = str(before.id)
-            else:
-                self.before = snowflake_time(before.id).isoformat()
-
-        self.update_before: Callable[[ThreadPayload], str] = self.get_archive_timestamp
-
-        if joined:
-            self.endpoint = self.http.get_joined_private_archived_threads
-            self.update_before = self.get_thread_id
-        elif private:
-            self.endpoint = self.http.get_private_archived_threads
-        else:
-            self.endpoint = self.http.get_public_archived_threads
-
-        self.queue: asyncio.Queue[Thread] = asyncio.Queue()
-        self.has_more: bool = True
-
-    async def next(self) -> Thread:
-        if self.queue.empty():
-            await self.fill_queue()
-
-        try:
-            return self.queue.get_nowait()
-        except asyncio.QueueEmpty:
-            raise NoMoreItems from None
-
-    @staticmethod
-    def get_archive_timestamp(data: ThreadPayload) -> str:
-        return data["thread_metadata"]["archive_timestamp"]
-
-    @staticmethod
-    def get_thread_id(data: ThreadPayload) -> str:
-        return data["id"]  # pyright: ignore[reportReturnType]
-
-    async def fill_queue(self) -> None:
-        if not self.has_more:
-            raise NoMoreItems
-
-        limit = 100 if self.limit is None else min(self.limit, 100)
-        # endpoint requires at least 2, for unknown reasons
-        data = await self.endpoint(self.channel_id, before=self.before, limit=max(2, limit))
-
-        threads: list[ThreadPayload] = data.get("threads", [])
-        # special case: since the minimum limit the endpoint accepts is 2,
-        # we request 2 threads when only needing 1, so slice the list before yielding
-        if limit == 1:
-            threads = threads[:1]
-
-        for d in reversed(threads):
-            self.queue.put_nowait(self.create_thread(d))
-
-        self.has_more = data.get("has_more", False)
-        if self.limit is not None:
-            self.limit -= len(threads)
-            if self.limit <= 0:
-                self.has_more = False
-
-        if self.has_more:
-            self.before = self.update_before(threads[-1])
-
-    def create_thread(self, data: ThreadPayload) -> Thread:
-        from .threads import Thread
-
-        return Thread(guild=self.guild, state=self.guild._state, data=data)
-
-
 # The endpoint for this paginates like audit logs,
 # i.e. descending when no parameter or `before` is given,
 # and ascending when `after` is given.
@@ -772,137 +672,3 @@ class EntitlementIterator(_AsyncIterator["Entitlement"]):
             # endpoint returns items in ascending order when `after` is used
             self.after = Object(id=int(data[-1]["id"]))
         return data
-
-
-class PollAnswerIterator(_AsyncIterator[Union["User", "Member"]]):
-    def __init__(
-        self,
-        message: Message,
-        answer_id: int,
-        *,
-        limit: int | None,
-        after: Snowflake | None = None,
-    ) -> None:
-        self.channel_id: int = message.channel.id
-        self.message_id: int = message.id
-        self.answer_id: int = answer_id
-        self.guild: Guild | None = message.guild
-        self.state: ConnectionState = message._state
-
-        self.limit: int | None = limit
-        self.after: Snowflake | None = after
-
-        self.getter = message._state.http.get_poll_answer_voters
-        self.users = asyncio.Queue()
-
-    async def next(self) -> User | Member:
-        if self.users.empty():
-            await self.fill_users()
-
-        try:
-            return self.users.get_nowait()
-        except asyncio.QueueEmpty:
-            raise NoMoreItems from None
-
-    def _get_retrieve(self) -> bool:
-        self.retrieve = min(self.limit, 100) if self.limit is not None else 100
-        return self.retrieve > 0
-
-    async def fill_users(self) -> None:
-        if self._get_retrieve():
-            after = self.after.id if self.after else None
-            data = (
-                await self.getter(
-                    channel_id=self.channel_id,
-                    message_id=self.message_id,
-                    answer_id=self.answer_id,
-                    after=after,
-                    limit=self.retrieve,
-                )
-            )["users"]
-
-            if len(data):
-                if self.limit is not None:
-                    self.limit -= self.retrieve
-                self.after = Object(id=int(data[-1]["id"]))
-
-            if len(data) < 100:
-                self.limit = 0  # terminate loop
-
-            for element in data:
-                member = None
-                if not (self.guild is None or isinstance(self.guild, Object)):
-                    member = self.guild.get_member(int(element["id"]))
-                await self.users.put(member or self.state.create_user(data=element))
-
-
-class ChannelPinsIterator(_AsyncIterator["Message"]):
-    def __init__(
-        self,
-        messageable: Messageable,
-        *,
-        limit: int | None,
-        before: Snowflake | datetime.datetime | None = None,
-    ) -> None:
-        before_ = None
-        if before is not None:
-            if isinstance(before, datetime.datetime):
-                before_ = before.isoformat()
-            elif isinstance(before, Object):
-                before_ = snowflake_time(before.id).isoformat()
-            else:
-                msg = f"Expected either `disnake.Snowflake` or `datetime.datetime` for `before`. Got `{before.__class__.__name__!r}`."
-                raise TypeError(msg)
-
-        self.messageable = messageable
-        self._state = messageable._state
-        self.limit = limit
-        self.before: str | None = before_
-
-        self.getter = self._state.http.get_pins
-        self.messages: asyncio.Queue[Message] = asyncio.Queue()
-
-    # defined to maintain backward compatibility with the old `pins` method
-    @deprecated("async for msg in channel.pins()")
-    def __await__(self) -> Generator[None, None, list[Message]]:
-        return self.flatten().__await__()
-
-    async def next(self) -> Message:
-        if self.messages.empty():
-            await self.fill_messages()
-
-        try:
-            return self.messages.get_nowait()
-        except asyncio.QueueEmpty:
-            raise NoMoreItems from None
-
-    def _get_retrieve(self) -> bool:
-        self.retrieve = min(self.limit, 50) if self.limit is not None else 50
-        return self.retrieve > 0
-
-    async def fill_messages(self) -> None:
-        if not hasattr(self, "channel"):
-            channel = await self.messageable._get_channel()
-            self.channel = channel
-
-        if self._get_retrieve():
-            data = await self.getter(
-                channel_id=self.channel.id,
-                before=self.before,
-                limit=self.retrieve,
-            )
-
-            if len(data):
-                if self.limit is not None:
-                    self.limit -= self.retrieve
-
-                if data["items"]:
-                    self.before = data["items"][-1]["pinned_at"]
-
-            if not data["has_more"]:
-                self.limit = 0  # terminate loop
-
-            for element in data["items"]:
-                message = self._state.create_message(channel=self.channel, data=element["message"])
-                message._pinned_at = parse_time(element["pinned_at"])
-                await self.messages.put(message)

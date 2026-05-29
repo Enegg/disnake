@@ -75,7 +75,6 @@ if TYPE_CHECKING:
         ActivityTimestamps,
     )
     from .types.emoji import PartialEmoji as PartialEmojiPayload
-    from .types.widget import WidgetActivity as WidgetActivityPayload
 
 
 class _BaseActivity:
@@ -924,7 +923,7 @@ ActivityTypes: TypeAlias = Activity | Game | CustomActivity | Streaming | Spotif
 
 @overload
 def create_activity(
-    data: ActivityPayload | WidgetActivityPayload, *, state: ConnectionState | None = None
+    data: ActivityPayload, *, state: ConnectionState | None = None
 ) -> ActivityTypes: ...
 
 
@@ -933,7 +932,7 @@ def create_activity(data: None, *, state: ConnectionState | None = None) -> None
 
 
 def create_activity(
-    data: ActivityPayload | WidgetActivityPayload | None,
+    data: ActivityPayload | None,
     *,
     state: ConnectionState | None = None,
 ) -> ActivityTypes | None:
@@ -945,16 +944,16 @@ def create_activity(
     if game_type is ActivityType.playing and not (
         "application_id" in data or "session_id" in data or "state" in data
     ):
-        activity = Game(**data)  # pyright: ignore[reportArgumentType]  # pyright bug(?)
+        activity = Game(**data)
     elif game_type is ActivityType.custom and "name" in data:
-        activity = CustomActivity(**data)  # pyright: ignore[reportArgumentType]
+        activity = CustomActivity(**data)
     elif game_type is ActivityType.streaming and "url" in data:
         # url won't be None here
         activity = Streaming(**data)  # pyright: ignore[reportArgumentType]
     elif game_type is ActivityType.listening and "sync_id" in data and "session_id" in data:
         activity = Spotify(**data)
     else:
-        activity = Activity(**data)  # pyright: ignore[reportArgumentType]
+        activity = Activity(**data)
 
     if isinstance(activity, (Activity, CustomActivity)) and activity.emoji and state:
         activity.emoji._state = state

@@ -240,9 +240,6 @@ class Emoji(_EmojiTag, AssetMixin):
         InvalidData
             The emoji data is invalid and cannot be processed.
         """
-        if self.guild_id is not None:
-            await self._state.http.delete_custom_emoji(self.guild_id, self.id, reason=reason)
-            return
         if self._state.application_id is not None:
             await self._state.http.delete_app_emoji(self._state.application_id, self.id)
             return
@@ -311,13 +308,5 @@ class Emoji(_EmojiTag, AssetMixin):
                 self._state.application_id, self.id, name=name
             )
         else:
-            payload = {}
-            if name is not MISSING:
-                payload["name"] = name
-            if roles is not MISSING:
-                payload["roles"] = [role.id for role in roles]
-
-            data = await self._state.http.edit_custom_emoji(
-                self.guild_id, self.id, payload=payload, reason=reason
-            )
+            raise NotImplementedError
         return Emoji(guild=self.guild, data=data, state=self._state)

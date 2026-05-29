@@ -146,7 +146,6 @@ if TYPE_CHECKING:
     from .asset import AssetBytes
     from .invite import Invite
     from .permissions import Permissions
-    from .template import Template
     from .types.appinfo import ApplicationIntegrationType as ApplicationIntegrationTypeLiteral
 
     class _RequestLike(Protocol):
@@ -797,7 +796,7 @@ def resolve_invite(
     return (code, params) if with_params else code
 
 
-def resolve_template(code: Template | str) -> str:
+def resolve_template(code: str) -> str:
     """Resolves a template code from a :class:`~disnake.Template`, URL or code.
 
     .. versionadded:: 1.4
@@ -812,15 +811,10 @@ def resolve_template(code: Template | str) -> str:
     :class:`str`
         The template code.
     """
-    from .template import Template  # circular import
-
-    if isinstance(code, Template):
-        return code.code
-    else:
-        rx = r"(?:https?\:\/\/)?discord(?:\.new|(?:app)?\.com\/template)\/(.+)"
-        m = re.match(rx, code)
-        if m:
-            return m.group(1)
+    rx = r"(?:https?\:\/\/)?discord(?:\.new|(?:app)?\.com\/template)\/(.+)"
+    m = re.match(rx, code)
+    if m:
+        return m.group(1)
     return code
 
 

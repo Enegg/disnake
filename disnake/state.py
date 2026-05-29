@@ -1332,15 +1332,6 @@ class ConnectionState:
         guild.emojis = tuple(self.store_emoji(guild, d) for d in data["emojis"])
         self.dispatch("guild_emojis_update", guild, before_emojis, guild.emojis)
 
-    def parse_guild_stickers_update(self, data: gateway.GuildStickersUpdateEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "GUILD_STICKERS_UPDATE referencing an unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
     def _get_create_guild(self, data: gateway.GuildCreateEvent) -> Guild:
         if data.get("unavailable") is False:
             # GUILD_CREATE with unavailable in the response
@@ -1452,28 +1443,6 @@ class ConnectionState:
         self._remove_guild(guild)
         self.dispatch("guild_remove", guild)
 
-    def parse_guild_ban_add(self, data: gateway.GuildBanAddEvent) -> None:
-        # we make the assumption that GUILD_BAN_ADD is done
-        # before GUILD_MEMBER_REMOVE is called
-        # hence we don't remove it from cache or do anything
-        # strange with it, the main purpose of this event
-        # is mainly to dispatch to another event worth listening to for logging
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is not None:
-            try:
-                user = User(data=data["user"], state=self)
-            except KeyError:
-                pass
-            else:
-                member = guild.get_member(user.id) or user
-                self.dispatch("member_ban", guild, member)
-
-    def parse_guild_ban_remove(self, data: gateway.GuildBanRemoveEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is not None and "user" in data:
-            user = self.store_user(data["user"])
-            self.dispatch("member_unban", guild, user)
-
     def parse_guild_role_create(self, data: gateway.GuildRoleCreateEvent) -> None:
         guild = self._get_guild(int(data["guild_id"]))
         if guild is None:
@@ -1549,16 +1518,6 @@ class ConnectionState:
 
         complete = data.get("chunk_index", 0) + 1 == data.get("chunk_count")
         self.process_chunk_requests(guild_id, data.get("nonce"), members, complete)
-
-    def parse_guild_integrations_update(self, data: gateway.GuildIntegrationsUpdateEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is not None:
-            self.dispatch("guild_integrations_update", guild)
-        else:
-            _log.debug(
-                "GUILD_INTEGRATIONS_UPDATE referencing an unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
 
     def parse_webhooks_update(self, data: gateway.WebhooksUpdateEvent) -> None:
         guild = self._get_guild(int(data["guild_id"]))

@@ -137,30 +137,10 @@ def hooked_wrapped_callback(
     return wrapped
 
 
-class _CaseInsensitiveDict(dict[str, VT]):
-    def __contains__(self, k: str) -> bool:
-        return super().__contains__(k.casefold())
-
-    def __delitem__(self, k: str) -> None:
-        return super().__delitem__(k.casefold())
-
-    def __getitem__(self, k: str) -> VT:
-        return super().__getitem__(k.casefold())
-
-    def get(self, k: str, default: T = None) -> VT | T:
-        return super().get(k.casefold(), default)
-
-    def pop(self, k: str, default: T = None) -> VT | T:
-        return super().pop(k.casefold(), default)
-
-    def __setitem__(self, k: str, v: VT) -> None:
-        super().__setitem__(k.casefold(), v)
-
-
 # Decorators
 
 
-def check(predicate: Check) -> Callable[[T], T]:
+def check(predicate: AppCheck) -> Callable[[T], T]:
     r"""A decorator that adds a check to the :class:`.Command` or its
     subclasses. These checks could be accessed via :attr:`.Command.checks`.
 
@@ -259,7 +239,7 @@ def check(predicate: Check) -> Callable[[T], T]:
     return decorator  # pyright: ignore[reportReturnType]
 
 
-def check_any(*checks: Check) -> Callable[[T], T]:
+def check_any(*checks: AppCheck) -> Callable[[T], T]:
     r"""A :func:`check` that is added that checks if any of the checks passed
     will pass, i.e. using logical OR.
 

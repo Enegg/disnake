@@ -9,26 +9,19 @@ from typing_extensions import NotRequired
 
 from .activity import PartialPresenceUpdate, PresenceData, SendableActivity
 from .appinfo import PartialAppInfo, PartialGatewayAppInfo
-from .audit_log import AuditLogEntry
-from .automod import AutoModAction, AutoModRule, AutoModTriggerType
-from .channel import Channel, GuildChannel, StageInstance
+from .channel import Channel, GuildChannel
 from .emoji import Emoji, PartialEmoji
 from .entitlement import Entitlement
 from .guild import Guild, UnavailableGuild
-from .guild_scheduled_event import GuildScheduledEvent
-from .integration import BaseIntegration
 from .interactions import BaseInteraction, GuildApplicationCommandPermissions
 from .invite import InviteTargetType, InviteType
 from .member import MemberWithUser
 from .message import Message
 from .role import Role
 from .snowflake import Snowflake, SnowflakeList
-from .soundboard import GuildSoundboardSound
-from .sticker import GuildSticker
 from .subscription import Subscription
 from .threads import Thread, ThreadMember, ThreadMemberWithPresence, ThreadType
 from .user import AvatarDecorationData, User
-from .voice import GuildVoiceState, SupportedModes, VoiceChannelEffect
 
 
 class SessionStartLimit(TypedDict):
@@ -69,8 +62,7 @@ class GatewayPayload(TypedDict):
 class HeartbeatCommand(TypedDict):
     op: Literal[1, 3]  # normal ws and voice ws have different heartbeat opcodes
     # normal ws uses a plain int seq, voice ws uses {t: <nonce>, seq_ack: <seq>}
-    d: int | None | VoiceHeartbeatData
-
+    d: int | None
 
 # opcode 2
 
@@ -111,21 +103,6 @@ class PresenceUpdateCommand(TypedDict):
     d: PresenceUpdateData
 
 
-# opcode 4
-
-
-class VoiceStateData(TypedDict):
-    guild_id: Snowflake
-    channel_id: Snowflake | None
-    self_mute: bool
-    self_deaf: bool
-
-
-class VoiceStateCommand(TypedDict):
-    op: Literal[4]
-    d: VoiceStateData
-
-
 # opcode 6
 
 
@@ -155,198 +132,6 @@ class RequestMembersData(TypedDict):
 class RequestMembersCommand(TypedDict):
     op: Literal[8]
     d: RequestMembersData
-
-
-#####
-# Voice payloads (receive)
-#####
-
-
-class VoicePayload(TypedDict):
-    op: Literal[2, 4, 6, 8, 9, 11, 13, 21, 22, 24]
-    d: Any
-    seq: NotRequired[int]  # only present in some messages
-
-
-# voice opcode 2
-
-
-class VoiceReadyPayload(TypedDict):
-    ssrc: int
-    ip: str
-    port: int
-    modes: list[str]
-
-
-# voice opcode 4
-
-
-class VoiceSessionDescriptionPayload(TypedDict):
-    mode: SupportedModes
-    secret_key: list[int]
-    dave_protocol_version: int
-
-
-# voice opcode 6
-
-
-class VoiceHeartbeatAckPayload(TypedDict):
-    t: int
-
-
-# voice opcode 8
-
-
-class VoiceHelloPayload(TypedDict):
-    heartbeat_interval: int
-
-
-# voice opcode 9
-
-
-VoiceResumedPayload = None
-
-
-# voice opcode 11
-
-
-class VoiceClientsConnectPayload(TypedDict):
-    user_ids: list[Snowflake]
-
-
-# voice opcode 13
-
-
-class VoiceClientDisconnectPayload(TypedDict):
-    user_id: Snowflake
-
-
-# voice opcode 21
-
-
-class VoiceDavePrepareTransitionPayload(TypedDict):
-    transition_id: int
-    protocol_version: int
-
-
-# voice opcode 22
-
-
-class VoiceDaveExecuteTransitionPayload(TypedDict):
-    transition_id: int
-
-
-# voice opcode 24
-
-
-class VoiceDavePrepareEpochPayload(TypedDict):
-    epoch: int
-    protocol_version: int
-
-
-#####
-# Voice payloads (send)
-#####
-
-# voice opcode 0
-
-
-class VoiceIdentifyData(TypedDict):
-    server_id: str
-    user_id: str
-    session_id: str
-    token: str
-    max_dave_protocol_version: NotRequired[int]
-
-
-class VoiceIdentifyCommand(TypedDict):
-    op: Literal[0]
-    d: VoiceIdentifyData
-
-
-# voice opcode 1
-
-
-class _VoiceSelectProtocolInnerData(TypedDict):
-    address: str
-    port: int
-    mode: SupportedModes
-
-
-class VoiceSelectProtocolData(TypedDict):
-    protocol: Literal["udp"]
-    data: _VoiceSelectProtocolInnerData
-
-
-class VoiceSelectProtocolCommand(TypedDict):
-    op: Literal[1]
-    d: VoiceSelectProtocolData
-
-
-# voice opcode 3
-
-
-class VoiceHeartbeatData(TypedDict):
-    t: int  # nonce
-    seq_ack: int
-
-
-class VoiceHeartbeatCommand(TypedDict):
-    op: Literal[3]
-    d: VoiceHeartbeatData
-
-
-# voice opcode 5
-
-
-class VoiceSpeakingData(TypedDict):
-    speaking: int  # bitfield of 3 bits
-    delay: int
-    ssrc: int
-
-
-class VoiceSpeakingCommand(TypedDict):
-    op: Literal[5]
-    d: VoiceSpeakingData
-
-
-# voice opcode 7
-
-
-class VoiceResumeData(TypedDict):
-    server_id: str
-    session_id: str
-    token: str
-    seq_ack: int
-
-
-class VoiceResumeCommand(TypedDict):
-    op: Literal[7]
-    d: VoiceResumeData
-
-
-# voice opcode 23
-
-
-class VoiceDaveTransitionReadyData(TypedDict):
-    transition_id: int
-
-
-class VoiceDaveTransitionReadyCommand(TypedDict):
-    op: Literal[23]
-    d: VoiceDaveTransitionReadyData
-
-
-# voice opcode 31
-
-
-class VoiceDaveMlsInvalidCommitWelcomeData(TypedDict):
-    transition_id: int
-
-
-class VoiceDaveMlsInvalidCommitWelcomeCommand(TypedDict):
-    op: Literal[31]
-    d: VoiceDaveMlsInvalidCommitWelcomeData
 
 
 #####
@@ -576,12 +361,6 @@ class GuildEmojisUpdateEvent(TypedDict):
     emojis: list[Emoji]
 
 
-# https://docs.discord.com/developers/events/gateway-events#guild-stickers-update
-class GuildStickersUpdateEvent(TypedDict):
-    guild_id: Snowflake
-    stickers: list[GuildSticker]
-
-
 # https://docs.discord.com/developers/events/gateway-events#guild-create
 GuildCreateEvent: TypeAlias = Guild | UnavailableGuild
 
@@ -592,24 +371,6 @@ GuildUpdateEvent: TypeAlias = Guild
 
 # https://docs.discord.com/developers/events/gateway-events#guild-delete
 GuildDeleteEvent: TypeAlias = UnavailableGuild
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-audit-log-entry-create
-class AuditLogEntryCreate(AuditLogEntry):
-    guild_id: Snowflake
-
-
-class _GuildBanEvent(TypedDict):
-    guild_id: Snowflake
-    user: User
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-ban-add
-GuildBanAddEvent: TypeAlias = _GuildBanEvent
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-ban-remove
-GuildBanRemoveEvent: TypeAlias = _GuildBanEvent
 
 
 # https://docs.discord.com/developers/events/gateway-events#guild-role-create
@@ -630,32 +391,6 @@ class GuildRoleUpdateEvent(TypedDict):
     role: Role
 
 
-# https://docs.discord.com/developers/events/gateway-events#guild-scheduled-event-create
-GuildScheduledEventCreateEvent: TypeAlias = GuildScheduledEvent
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-scheduled-event-update
-GuildScheduledEventUpdateEvent: TypeAlias = GuildScheduledEvent
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-scheduled-event-delete
-GuildScheduledEventDeleteEvent: TypeAlias = GuildScheduledEvent
-
-
-class _GuildScheduledEventUserEvent(TypedDict):
-    guild_scheduled_event_id: Snowflake
-    user_id: Snowflake
-    guild_id: Snowflake
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-scheduled-event-user-add
-GuildScheduledEventUserAddEvent: TypeAlias = _GuildScheduledEventUserEvent
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-scheduled-event-user-remove
-GuildScheduledEventUserRemoveEvent: TypeAlias = _GuildScheduledEventUserEvent
-
-
 # https://docs.discord.com/developers/events/gateway-events#guild-members-chunk
 class GuildMembersChunkEvent(TypedDict):
     guild_id: Snowflake
@@ -667,63 +402,10 @@ class GuildMembersChunkEvent(TypedDict):
     nonce: NotRequired[str]
 
 
-# https://docs.discord.com/developers/events/gateway-events#guild-integrations-update
-class GuildIntegrationsUpdateEvent(TypedDict):
-    guild_id: Snowflake
-
-
-# https://docs.discord.com/developers/events/gateway-events#integration-create
-class IntegrationCreateEvent(BaseIntegration):
-    guild_id: Snowflake
-
-
-# https://docs.discord.com/developers/events/gateway-events#integration-update
-class IntegrationUpdateEvent(BaseIntegration):
-    guild_id: Snowflake
-
-
-# https://docs.discord.com/developers/events/gateway-events#integration-delete
-class IntegrationDeleteEvent(TypedDict):
-    id: Snowflake
-    guild_id: Snowflake
-    application_id: NotRequired[Snowflake]
-
-
 # https://docs.discord.com/developers/events/gateway-events#webhooks-update
 class WebhooksUpdateEvent(TypedDict):
     guild_id: Snowflake
     channel_id: Snowflake
-
-
-# https://docs.discord.com/developers/events/gateway-events#stage-instance-create
-StageInstanceCreateEvent = StageInstance
-
-
-# https://docs.discord.com/developers/events/gateway-events#stage-instance-update
-StageInstanceUpdateEvent: TypeAlias = StageInstance
-
-
-# https://docs.discord.com/developers/events/gateway-events#stage-instance-delete
-StageInstanceDeleteEvent: TypeAlias = StageInstance
-
-
-# https://docs.discord.com/developers/events/gateway-events#voice-state-update
-# We assume that we'll only receive voice states for guilds
-VoiceStateUpdateEvent: TypeAlias = GuildVoiceState
-
-
-# https://docs.discord.com/developers/events/gateway-events#voice-server-update
-class VoiceServerUpdateEvent(TypedDict):
-    token: str
-    guild_id: Snowflake
-    endpoint: str | None
-
-
-# https://docs.discord.com/developers/events/gateway-events#voice-channel-effect-send
-class VoiceChannelEffectSendEvent(VoiceChannelEffect):
-    channel_id: Snowflake
-    guild_id: Snowflake
-    user_id: Snowflake
 
 
 # https://docs.discord.com/developers/events/gateway-events#typing-start
@@ -733,33 +415,6 @@ class TypingStartEvent(TypedDict):
     user_id: Snowflake
     timestamp: int
     member: NotRequired[MemberWithUser]
-
-
-# https://docs.discord.com/developers/events/gateway-events#auto-moderation-rule-create
-AutoModerationRuleCreateEvent: TypeAlias = AutoModRule
-
-
-# https://docs.discord.com/developers/events/gateway-events#auto-moderation-rule-update
-AutoModerationRuleUpdateEvent: TypeAlias = AutoModRule
-
-
-# https://docs.discord.com/developers/events/gateway-events#auto-moderation-rule-delete
-AutoModerationRuleDeleteEvent: TypeAlias = AutoModRule
-
-
-# https://docs.discord.com/developers/events/gateway-events#auto-moderation-action-execution
-class AutoModerationActionExecutionEvent(TypedDict):
-    guild_id: Snowflake
-    action: AutoModAction
-    rule_id: Snowflake
-    rule_trigger_type: AutoModTriggerType
-    user_id: Snowflake
-    channel_id: NotRequired[Snowflake | None]
-    message_id: NotRequired[Snowflake | None]
-    alert_system_message_id: NotRequired[Snowflake | None]
-    content: NotRequired[str]
-    matched_content: NotRequired[str | None]
-    matched_keyword: NotRequired[str | None]
 
 
 # https://docs.discord.com/developers/events/gateway-events#entitlement-create
@@ -784,37 +439,3 @@ SubscriptionUpdate: TypeAlias = Subscription
 
 # https://docs.discord.com/developers/events/gateway-events#subscription-delete
 SubscriptionDelete: TypeAlias = Subscription
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-soundboard-sound-create
-GuildSoundboardSoundCreate: TypeAlias = GuildSoundboardSound
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-soundboard-sound-update
-GuildSoundboardSoundUpdate: TypeAlias = GuildSoundboardSound
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-soundboard-sound-delete
-class GuildSoundboardSoundDelete(TypedDict):
-    guild_id: Snowflake
-    sound_id: Snowflake
-
-
-# https://docs.discord.com/developers/events/gateway-events#guild-soundboard-sounds-update
-class GuildSoundboardSoundsUpdate(TypedDict):
-    guild_id: Snowflake
-    soundboard_sounds: list[GuildSoundboardSound]
-
-
-# https://docs.discord.com/developers/events/gateway-events#voice-channel-status-update
-class VoiceChannelStatusUpdate(TypedDict):
-    id: Snowflake
-    guild_id: Snowflake
-    status: str | None
-
-
-# https://docs.discord.com/developers/events/gateway-events#voice-channel-start-time-update
-class VoiceChannelStartTimeUpdate(TypedDict):
-    id: Snowflake
-    guild_id: Snowflake
-    voice_start_time: NotRequired[int | None]

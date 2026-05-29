@@ -51,13 +51,11 @@ from .gateway import DiscordWebSocket, ReconnectWebSocket
 from .guild import Guild
 from .http import HTTPClient
 from .i18n import LocalizationProtocol, LocalizationStore
-from .invite import Invite
 from .iterators import EntitlementIterator, GuildIterator
 from .mentions import AllowedMentions
 from .object import Object
 from .sku import SKU
 from .state import ConnectionState
-from .template import Template
 from .threads import Thread
 from .ui.view import View
 from .user import ClientUser, User
@@ -1885,32 +1883,6 @@ class Client:
         """
         return GuildIterator(self, limit=limit, before=before, after=after, with_counts=with_counts)
 
-    async def fetch_template(self, code: Template | str) -> Template:
-        """|coro|
-
-        Retrieves a :class:`.Template` from a discord.new URL or code.
-
-        Parameters
-        ----------
-        code: :class:`.Template` | :class:`str`
-            The Discord Template Code or URL (must be a discord.new URL).
-
-        Raises
-        ------
-        NotFound
-            The template is invalid.
-        HTTPException
-            Retrieving the template failed.
-
-        Returns
-        -------
-        :class:`.Template`
-            The template from the URL/code.
-        """
-        code = utils.resolve_template(code)
-        data = await self.http.get_template(code)
-        return Template(data=data, state=self._connection)
-
     async def fetch_guild(self, guild_id: int, /, *, with_counts: bool = True) -> Guild:
         """|coro|
 
@@ -1949,102 +1921,6 @@ class Client:
         """
         data = await self.http.get_guild(guild_id, with_counts=with_counts)
         return Guild(data=data, state=self._connection)
-
-    # Invite management
-
-    async def fetch_invite(
-        self,
-        url: Invite | str,
-        *,
-        with_counts: bool = True,
-        guild_scheduled_event_id: int | None = None,
-        with_expiration: bool = False,
-    ) -> Invite:
-        """|coro|
-
-        Retrieves an :class:`.Invite` from a discord.gg URL or ID.
-
-        .. note::
-
-            If the invite is for a guild you have not joined, the guild and channel
-            attributes of the returned :class:`.Invite` will be :class:`.PartialInviteGuild` and
-            :class:`.PartialInviteChannel` respectively.
-
-        Parameters
-        ----------
-        url: :class:`.Invite` | :class:`str`
-            The Discord invite ID or URL (must be a discord.gg URL).
-        with_counts: :class:`bool`
-            Whether to include count information in the invite. This fills the
-            :attr:`.Invite.approximate_member_count` and :attr:`.Invite.approximate_presence_count`
-            fields.
-        guild_scheduled_event_id: :class:`int`
-            The ID of the scheduled event to include in the invite.
-            If not provided, defaults to the ``event`` parameter in the URL if it exists,
-            or the ID of the scheduled event contained in the provided invite object.
-
-            .. versionadded:: 2.3
-
-        Raises
-        ------
-        NotFound
-            The invite has expired or is invalid.
-        HTTPException
-            Retrieving the invite failed.
-
-        Returns
-        -------
-        :class:`.Invite`
-            The invite from the URL/ID.
-        """
-        if with_expiration:
-            utils.warn_deprecated(
-                "Using the `with_expiration` argument is deprecated and will "
-                "result in an error in future versions. "
-                "The `expires_at` field is always included now.",
-                stacklevel=2,
-            )
-
-        invite_id, params = utils.resolve_invite(url, with_params=True)
-
-        if not guild_scheduled_event_id:
-            # keep scheduled event ID from invite url/object
-            if "event" in params:
-                guild_scheduled_event_id = int(params["event"])
-            elif isinstance(url, Invite) and url.guild_scheduled_event:
-                guild_scheduled_event_id = url.guild_scheduled_event.id
-
-        data = await self.http.get_invite(
-            invite_id,
-            with_counts=with_counts,
-            guild_scheduled_event_id=guild_scheduled_event_id,
-        )
-        return Invite.from_incomplete(state=self._connection, data=data)
-
-    async def delete_invite(self, invite: Invite | str) -> None:
-        """|coro|
-
-        Revokes an :class:`.Invite`, URL, or ID to an invite.
-
-        You must have :attr:`~.Permissions.manage_channels` permission in
-        the associated guild to do this.
-
-        Parameters
-        ----------
-        invite: :class:`.Invite` | :class:`str`
-            The invite to revoke.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to revoke invites.
-        NotFound
-            The invite is invalid or expired.
-        HTTPException
-            Revoking the invite failed.
-        """
-        invite_id = utils.resolve_invite(invite)
-        await self.http.delete_invite(invite_id)
 
     # Miscellaneous stuff
 

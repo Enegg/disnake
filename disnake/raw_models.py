@@ -14,9 +14,6 @@ if TYPE_CHECKING:
     from .partial_emoji import PartialEmoji
     from .threads import Thread, ThreadMember, ThreadType
     from .types.gateway import (
-        GuildScheduledEventUserAddEvent,
-        GuildScheduledEventUserRemoveEvent,
-        IntegrationDeleteEvent,
         MessageDeleteBulkEvent,
         MessageDeleteEvent,
         MessageReactionAddEvent,
@@ -40,8 +37,6 @@ __all__ = (
     "RawReactionActionEvent",
     "RawReactionClearEvent",
     "RawReactionClearEmojiEvent",
-    "RawIntegrationDeleteEvent",
-    "RawGuildScheduledEventUserActionEvent",
     "RawThreadDeleteEvent",
     "RawThreadMemberRemoveEvent",
     "RawTypingEvent",
@@ -312,55 +307,6 @@ class RawReactionClearEmojiEvent(_RawReprMixin):
         self.message_id: int = int(data["message_id"])
         self.channel_id: int = int(data["channel_id"])
         self.guild_id: int | None = _get_as_snowflake(data, "guild_id")
-
-
-class RawIntegrationDeleteEvent(_RawReprMixin):
-    """Represents the event payload for an :func:`on_raw_integration_delete` event.
-
-    .. versionadded:: 2.0
-
-    Attributes
-    ----------
-    integration_id: :class:`int`
-        The ID of the integration that got deleted.
-    application_id: :class:`int` | :data:`None`
-        The ID of the bot/OAuth2 application for this deleted integration.
-    guild_id: :class:`int`
-        The guild ID where the integration deletion took place.
-    """
-
-    __slots__ = ("integration_id", "application_id", "guild_id")
-
-    def __init__(self, data: IntegrationDeleteEvent) -> None:
-        self.integration_id: int = int(data["id"])
-        self.guild_id: int = int(data["guild_id"])
-        self.application_id: int | None = _get_as_snowflake(data, "application_id")
-
-
-class RawGuildScheduledEventUserActionEvent(_RawReprMixin):
-    """Represents the event payload for an :func:`on_raw_guild_scheduled_event_subscribe`
-    and :func:`on_raw_guild_scheduled_event_unsubscribe` events.
-
-    .. versionadded:: 2.3
-
-    Attributes
-    ----------
-    event_id: :class:`int`
-        The ID of the guild scheduled event that the user subscribed to or unsubscribed from.
-    user_id: :class:`int`
-        The ID of the user doing the action.
-    guild_id: :class:`int`
-        The guild ID where the guild scheduled event is located.
-    """
-
-    __slots__ = ("event_id", "user_id", "guild_id")
-
-    def __init__(
-        self, data: GuildScheduledEventUserAddEvent | GuildScheduledEventUserRemoveEvent
-    ) -> None:
-        self.event_id: int = int(data["guild_scheduled_event_id"])
-        self.user_id: int = int(data["user_id"])
-        self.guild_id: int = int(data["guild_id"])
 
 
 class RawThreadDeleteEvent(_RawReprMixin):

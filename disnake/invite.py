@@ -6,16 +6,12 @@ from typing import TYPE_CHECKING, TypeAlias
 
 from .appinfo import PartialAppInfo
 from .asset import Asset
-from .enums import ChannelType, InviteTarget, InviteType, NSFWLevel, VerificationLevel, try_enum
+from .enums import ChannelType, InviteTarget, InviteType, try_enum
 from .mixins import Hashable
 from .object import Object
 from .utils import _get_as_snowflake, parse_time, snowflake_time
 
-__all__ = (
-    "PartialInviteChannel",
-    "PartialInviteGuild",
-    "Invite",
-)
+__all__ = ("PartialInviteChannel", "Invite")
 
 if TYPE_CHECKING:
     import datetime
@@ -30,12 +26,11 @@ if TYPE_CHECKING:
         InviteChannel as InviteChannelPayload,
     )
     from .types.gateway import InviteCreateEvent, InviteDeleteEvent
-    from .types.guild import GuildFeature
-    from .types.invite import Invite as InvitePayload, InviteGuild as InviteGuildPayload
+    from .types.invite import Invite as InvitePayload
     from .user import User
 
     GatewayInvitePayload: TypeAlias = InviteCreateEvent | InviteDeleteEvent
-    InviteGuildType: TypeAlias = "Guild | PartialInviteGuild | Object"
+    InviteGuildType: TypeAlias = "Guild | Object"
     InviteChannelType: TypeAlias = "GuildChannel | PartialInviteChannel | Object"
 
 
@@ -127,125 +122,6 @@ class PartialInviteChannel:
         if self._icon is None:
             return None
         return Asset._from_icon(self._state, self.id, self._icon, path="channel")
-
-
-class PartialInviteGuild:
-    r"""Represents a "partial" invite guild.
-
-    This model will be given when the user is not part of the
-    guild the :class:`Invite` resolves to.
-
-    .. collapse:: operations
-
-        .. describe:: x == y
-
-            Checks if two partial guilds are the same.
-
-        .. describe:: x != y
-
-            Checks if two partial guilds are not the same.
-
-        .. describe:: hash(x)
-
-            Return the partial guild's hash.
-
-        .. describe:: str(x)
-
-            Returns the partial guild's name.
-
-    Attributes
-    ----------
-    name: :class:`str`
-        The partial guild's name.
-    id: :class:`int`
-        The partial guild's ID.
-    description: :class:`str` | :data:`None`
-        The partial guild's description.
-    features: :class:`list`\[:class:`str`]
-        A list of features the partial guild has. See :attr:`Guild.features` for more information.
-    nsfw_level: :class:`NSFWLevel`
-        The partial guild's nsfw level.
-
-        .. versionadded:: 2.4
-
-    vanity_url_code: :class:`str` | :data:`None`
-        The partial guild's vanity url code, if any.
-
-        .. versionadded:: 2.4
-
-    verification_level: :class:`VerificationLevel`
-        The partial guild's verification level.
-    premium_subscription_count: :class:`int`
-        The number of "boosts" this guild currently has.
-
-        .. versionadded:: 2.5
-    """
-
-    __slots__ = (
-        "_state",
-        "features",
-        "_icon",
-        "_banner",
-        "id",
-        "name",
-        "_splash",
-        "description",
-        "nsfw_level",
-        "vanity_url_code",
-        "verification_level",
-        "premium_subscription_count",
-    )
-
-    def __init__(self, state: ConnectionState, data: InviteGuildPayload, id: int) -> None:
-        self._state: ConnectionState = state
-        self.id: int = id
-        self.name: str = data["name"]
-        self.features: list[GuildFeature] = data.get("features", [])
-        self._icon: str | None = data.get("icon")
-        self._banner: str | None = data.get("banner")
-        self._splash: str | None = data.get("splash")
-        self.nsfw_level: NSFWLevel = try_enum(NSFWLevel, data.get("nsfw_level", 0))
-        self.vanity_url_code: str | None = data.get("vanity_url_code")
-        self.verification_level: VerificationLevel = try_enum(
-            VerificationLevel, data.get("verification_level")
-        )
-        self.description: str | None = data.get("description")
-        self.premium_subscription_count: int = data.get("premium_subscription_count") or 0
-
-    def __str__(self) -> str:
-        return self.name
-
-    def __repr__(self) -> str:
-        return (
-            f"<{self.__class__.__name__} id={self.id} name={self.name!r} features={self.features} "
-            f"description={self.description!r}>"
-        )
-
-    @property
-    def created_at(self) -> datetime.datetime:
-        """:class:`datetime.datetime`: Returns the guild's creation time in UTC."""
-        return snowflake_time(self.id)
-
-    @property
-    def icon(self) -> Asset | None:
-        """:class:`Asset` | :data:`None`: Returns the guild's icon asset, if available."""
-        if self._icon is None:
-            return None
-        return Asset._from_guild_icon(self._state, self.id, self._icon)
-
-    @property
-    def banner(self) -> Asset | None:
-        """:class:`Asset` | :data:`None`: Returns the guild's banner asset, if available."""
-        if self._banner is None:
-            return None
-        return Asset._from_banner(self._state, self.id, self._banner)
-
-    @property
-    def splash(self) -> Asset | None:
-        """:class:`Asset` | :data:`None`: Returns the guild's invite splash asset, if available."""
-        if self._splash is None:
-            return None
-        return Asset._from_guild_image(self._state, self.id, self._splash, path="splashes")
 
 
 class Invite(Hashable):
@@ -413,13 +289,13 @@ class Invite(Hashable):
         *,
         state: ConnectionState,
         data: InvitePayload | GatewayInvitePayload,
-        guild: PartialInviteGuild | Guild | None = None,
+        guild: Guild | None = None,
         channel: PartialInviteChannel | GuildChannel | None = None,
     ) -> None:
         self._state: ConnectionState = state
         self.code: str = data["code"]
         self.type: InviteType = try_enum(InviteType, data.get("type", 0))
-        self.guild: InviteGuildType | None = self._resolve_guild(data.get("guild"), guild)
+        self.guild: InviteGuildType | None = None
 
         self.max_age: int | None = data.get("max_age")
         self.max_uses: int | None = data.get("max_uses")
@@ -453,24 +329,11 @@ class Invite(Hashable):
 
     @classmethod
     def from_incomplete(cls, *, state: ConnectionState, data: InvitePayload) -> Self:
-        guild: Guild | PartialInviteGuild | None
-        if "guild" in data:
-            guild_data = data["guild"]
-            guild_id = int(guild_data["id"])
-            guild = state._get_guild(guild_id)
-            if guild is None:
-                # If it's not cached, then it has to be a partial guild
-                guild = PartialInviteGuild(state, guild_data, guild_id)
-        else:
-            # no guild_data means we're in a DM
-            guild = None
+        guild: Guild | None = None
 
         channel: PartialInviteChannel | GuildChannel | None = None
         if channel_data := data.get("channel"):
             channel = PartialInviteChannel(data=channel_data, state=state)
-            if guild is not None and not isinstance(guild, PartialInviteGuild):
-                # Upgrade the partial data if applicable
-                channel = guild.get_channel(channel.id) or channel
 
         return cls(state=state, data=data, guild=guild, channel=channel)
 
@@ -492,20 +355,6 @@ class Invite(Hashable):
             guild=guild,  # pyright: ignore[reportArgumentType]
             channel=channel,  # pyright: ignore[reportArgumentType]
         )
-
-    def _resolve_guild(
-        self,
-        data: InviteGuildPayload | None,
-        guild: Guild | PartialInviteGuild | None = None,
-    ) -> InviteGuildType | None:
-        if guild is not None:
-            return guild
-
-        if data is None:
-            return None
-
-        guild_id = int(data["id"])
-        return PartialInviteGuild(self._state, data, guild_id)
 
     def _resolve_channel(
         self,
@@ -547,26 +396,3 @@ class Invite(Hashable):
         if self.guild_scheduled_event:
             url += f"?event={self.guild_scheduled_event.id}"
         return url
-
-    async def delete(self, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Revokes the instant invite.
-
-        You must have :attr:`~Permissions.manage_channels` permission to do this.
-
-        Parameters
-        ----------
-        reason: :class:`str` | :data:`None`
-            The reason for deleting this invite. Shows up on the audit log.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to revoke invites.
-        NotFound
-            The invite is invalid or expired.
-        HTTPException
-            Revoking the invite failed.
-        """
-        await self._state.http.delete_invite(self.code, reason=reason)

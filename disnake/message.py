@@ -2149,82 +2149,6 @@ class Message(Hashable):
             delete_after=delete_after,
         )
 
-    async def publish(self) -> None:
-        """|coro|
-
-        Publishes this message to your announcement channel.
-
-        You must have the :attr:`~Permissions.send_messages` permission to do this.
-
-        If the message is not your own then the :attr:`~Permissions.manage_messages`
-        permission is also needed.
-
-        Raises
-        ------
-        Forbidden
-            You do not have the proper permissions to publish this message.
-        HTTPException
-            Publishing the message failed.
-        """
-        await self._state.http.publish_message(self.channel.id, self.id)
-
-    async def pin(self, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Pins the message.
-
-        You must have the :attr:`~Permissions.pin_messages` permission to do
-        this in a non-private channel context.
-
-        This does not work with messages sent in a :class:`VoiceChannel` or :class:`StageChannel`.
-
-        Parameters
-        ----------
-        reason: :class:`str` | :data:`None`
-            The reason for pinning the message. Shows up on the audit log.
-
-            .. versionadded:: 1.4
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to pin the message.
-        NotFound
-            The message or channel was not found or deleted.
-        HTTPException
-            Pinning the message failed, probably due to the channel
-            having more than 50 pinned messages or the channel not supporting pins.
-        """
-        await self._state.http.pin_message(self.channel.id, self.id, reason=reason)
-        self.pinned = True
-
-    async def unpin(self, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Unpins the message.
-
-        You must have the :attr:`~Permissions.pin_messages` permission to do
-        this in a non-private channel context.
-
-        Parameters
-        ----------
-        reason: :class:`str` | :data:`None`
-            The reason for unpinning the message. Shows up on the audit log.
-
-            .. versionadded:: 1.4
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to unpin the message.
-        NotFound
-            The message or channel was not found or deleted.
-        HTTPException
-            Unpinning the message failed.
-        """
-        await self._state.http.unpin_message(self.channel.id, self.id, reason=reason)
-        self.pinned = False
-
     async def add_reaction(self, emoji: EmojiInputType) -> None:
         """|coro|
 
@@ -2602,9 +2526,6 @@ class PartialMessage(Hashable):
 
     jump_url = Message.jump_url
     delete = Message.delete
-    publish = Message.publish
-    pin = Message.pin
-    unpin = Message.unpin
     add_reaction = Message.add_reaction
     remove_reaction = Message.remove_reaction
     clear_reaction = Message.clear_reaction

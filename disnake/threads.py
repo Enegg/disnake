@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Literal, TypeAlias
 
 from .abc import GuildChannel, Messageable
-from .enums import ChannelType, ThreadArchiveDuration, try_enum, try_enum_to_int
+from .enums import ChannelType, ThreadArchiveDuration, try_enum
 from .errors import ClientException
 from .flags import ChannelFlags
 from .mixins import Hashable
 from .object import Object
 from .partial_emoji import PartialEmoji, _EmojiTag
 from .permissions import Permissions
-from .utils import MISSING, _get_as_snowflake, _unique, parse_time, snowflake_time
+from .utils import MISSING, _get_as_snowflake, parse_time, snowflake_time
 
 __all__ = (
     "Thread",
@@ -667,121 +667,6 @@ class Thread(Messageable, Hashable):
 
         return ret
 
-    async def edit(
-        self,
-        *,
-        name: str = MISSING,
-        archived: bool = MISSING,
-        locked: bool = MISSING,
-        invitable: bool = MISSING,
-        slowmode_delay: int = MISSING,
-        auto_archive_duration: AnyThreadArchiveDuration = MISSING,
-        pinned: bool = MISSING,
-        flags: ChannelFlags = MISSING,
-        applied_tags: Sequence[Snowflake] = MISSING,
-        reason: str | None = None,
-    ) -> Thread:
-        r"""|coro|
-
-        Edits the thread.
-
-        Editing the thread requires :attr:`.Permissions.manage_threads`. The thread
-        creator can also edit ``name``, ``archived``, ``auto_archive_duration`` and ``applied_tags``.
-        Note that if the thread is locked then only those with :attr:`.Permissions.manage_threads`
-        can unarchive a thread.
-
-        The thread must be unarchived to be edited.
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The new name of the thread.
-        archived: :class:`bool`
-            Whether to archive the thread or not.
-        locked: :class:`bool`
-            Whether to lock the thread or not.
-        invitable: :class:`bool`
-            Whether non-moderators can add other non-moderators to this thread.
-            Only available for private threads.
-        auto_archive_duration: :class:`int` | :class:`ThreadArchiveDuration`
-            The new duration in minutes before a thread is automatically archived for inactivity.
-            Must be one of ``60``, ``1440``, ``4320``, or ``10080``.
-        slowmode_delay: :class:`int`
-            Specifies the slowmode rate limit for users in this thread, in seconds.
-            A value of ``0`` disables slowmode. The maximum value possible is ``21600``.
-        pinned: :class:`bool`
-            Whether to pin the thread or not. This is only available for threads created in a :class:`ForumChannel` or :class:`MediaChannel`.
-
-            .. versionadded:: 2.5
-
-        flags: :class:`ChannelFlags`
-            The new channel flags to set for this thread. This will overwrite any existing flags set on this channel.
-            If parameter ``pinned`` is provided, that will override the setting of :attr:`ChannelFlags.pinned`.
-
-            .. versionadded:: 2.6
-
-        applied_tags: :class:`~collections.abc.Sequence`\[:class:`abc.Snowflake`]
-            The new tags of the thread. Maximum of 5.
-            Can also be used to reorder existing tags.
-
-            This is only available for threads in a :class:`ForumChannel` or :class:`MediaChannel`.
-
-            If :attr:`~ForumTag.moderated` tags are edited, :attr:`Permissions.manage_threads`
-            permissions are required.
-
-            See also :func:`add_tags` and :func:`remove_tags`.
-
-            .. versionadded:: 2.6
-
-        reason: :class:`str` | :data:`None`
-            The reason for editing this thread. Shows up on the audit log.
-
-            .. versionadded:: 2.5
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to edit the thread.
-        HTTPException
-            Editing the thread failed.
-
-        Returns
-        -------
-        :class:`Thread`
-            The newly edited thread.
-        """
-        payload = {}
-        if name is not MISSING:
-            payload["name"] = str(name)
-        if archived is not MISSING:
-            payload["archived"] = archived
-        if auto_archive_duration is not MISSING:
-            payload["auto_archive_duration"] = try_enum_to_int(auto_archive_duration)
-        if locked is not MISSING:
-            payload["locked"] = locked
-        if invitable is not MISSING:
-            payload["invitable"] = invitable
-        if slowmode_delay is not MISSING:
-            payload["rate_limit_per_user"] = slowmode_delay
-
-        if pinned is not MISSING:
-            # create base flags if flags are provided, otherwise use the internal flags.
-            flags = ChannelFlags._from_value(self._flags if flags is MISSING else flags.value)
-            flags.pinned = pinned
-
-        if flags is not MISSING:
-            if not isinstance(flags, ChannelFlags):
-                msg = "flags field must be of type ChannelFlags"
-                raise TypeError(msg)
-            payload["flags"] = flags.value
-
-        if applied_tags is not MISSING:
-            payload["applied_tags"] = [t.id for t in applied_tags]
-
-        data = await self._state.http.edit_channel(self.id, **payload, reason=reason)
-        # The data payload will always be a Thread payload
-        return Thread(data=data, state=self._state, guild=self.guild)  # pyright: ignore[reportArgumentType]
-
     async def join(self) -> None:
         """|coro|
 
@@ -901,104 +786,6 @@ class Thread(Messageable, Hashable):
         """
         members = await self._state.http.get_thread_members(self.id)
         return [ThreadMember(parent=self, data=data) for data in members]
-
-    async def delete(self, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Deletes this thread.
-
-        You must have :attr:`~Permissions.manage_threads` to delete threads.
-        Alternatively, you may delete a thread if it's in a :class:`ForumChannel` or :class:`MediaChannel`,
-        you are the thread creator, and there are no messages other than the initial message.
-
-        Parameters
-        ----------
-        reason: :class:`str` | :data:`None`
-            The reason for deleting this thread. Shows up on the audit log.
-
-            .. versionadded:: 2.5
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to delete this thread.
-        HTTPException
-            Deleting the thread failed.
-        """
-        await self._state.http.delete_channel(self.id, reason=reason)
-
-    async def add_tags(self, *tags: Snowflake, reason: str | None = None) -> None:
-        r"""|coro|
-
-        Adds the given tags to this thread, up to 5 in total.
-
-        The thread must be in a :class:`ForumChannel` or :class:`MediaChannel`.
-
-        Adding tags requires you to have :attr:`.Permissions.manage_threads` permissions,
-        or be the owner of the thread.
-        However, adding :attr:`~ForumTag.moderated` tags always requires :attr:`.Permissions.manage_threads` permissions.
-
-        .. versionadded:: 2.6
-
-        Parameters
-        ----------
-        *tags: :class:`abc.Snowflake`
-            An argument list of :class:`abc.Snowflake` representing the :class:`ForumTag`\s
-            to add to the thread.
-        reason: :class:`str` | :data:`None`
-            The reason for editing this thread. Shows up on the audit log.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permission to add these tags.
-        HTTPException
-            Editing the thread failed.
-        """
-        if not tags:
-            return
-
-        new_tags: list[int] = self._applied_tags.copy()
-        new_tags.extend(t.id for t in tags)
-        new_tags = _unique(new_tags)
-
-        await self._state.http.edit_channel(self.id, applied_tags=new_tags, reason=reason)
-
-    async def remove_tags(self, *tags: Snowflake, reason: str | None = None) -> None:
-        r"""|coro|
-
-        Removes the given tags from this thread.
-
-        The thread must be in a :class:`ForumChannel` or :class:`MediaChannel`.
-
-        Removing tags requires you to have :attr:`.Permissions.manage_threads` permissions,
-        or be the owner of the thread.
-        However, removing :attr:`~ForumTag.moderated` tags always requires :attr:`.Permissions.manage_threads` permissions.
-
-        .. versionadded:: 2.6
-
-        Parameters
-        ----------
-        *tags: :class:`abc.Snowflake`
-            An argument list of :class:`abc.Snowflake` representing the :class:`ForumTag`\s
-            to remove from the thread.
-        reason: :class:`str` | :data:`None`
-            The reason for editing this thread. Shows up on the audit log.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permission to remove these tags.
-        HTTPException
-            Editing the thread failed.
-        """
-        if not tags:
-            return
-
-        to_remove = {t.id for t in tags}
-        new_tags: list[int] = [tag_id for tag_id in self._applied_tags if tag_id not in to_remove]
-
-        await self._state.http.edit_channel(self.id, applied_tags=new_tags, reason=reason)
 
     def get_partial_message(self, message_id: int, /) -> PartialMessage:
         """Creates a :class:`PartialMessage` from the message ID.

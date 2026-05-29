@@ -8,8 +8,6 @@ from typing_extensions import NotRequired
 
 from .appinfo import PartialAppInfo
 from .channel import InviteChannel
-from .guild import InviteGuild
-from .guild_scheduled_event import GuildScheduledEvent
 from .user import PartialUser
 
 InviteType = Literal[0, 1, 2]
@@ -32,7 +30,6 @@ class _InviteMetadata(TypedDict, total=False):
 class Invite(_InviteMetadata):
     code: str
     type: InviteType
-    guild: NotRequired[InviteGuild]
     channel: InviteChannel | None
     inviter: NotRequired[PartialUser]
     target_type: NotRequired[InviteTargetType]
@@ -41,4 +38,3 @@ class Invite(_InviteMetadata):
     approximate_presence_count: NotRequired[int]
     approximate_member_count: NotRequired[int]
     expires_at: str | None
-    guild_scheduled_event: NotRequired[GuildScheduledEvent]

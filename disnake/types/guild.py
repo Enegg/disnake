@@ -7,26 +7,10 @@ from typing_extensions import NotRequired
 from .activity import PartialPresenceUpdate
 from .channel import CreateGuildChannel, GuildChannel, StageInstance
 from .emoji import Emoji
-from .guild_scheduled_event import GuildScheduledEvent
 from .member import Member
 from .role import CreateRole, Role
 from .snowflake import Snowflake
-from .soundboard import GuildSoundboardSound
-from .sticker import GuildSticker
 from .threads import Thread
-from .user import User
-from .voice import GuildVoiceState
-from .welcome_screen import WelcomeScreen
-
-
-class Ban(TypedDict):
-    reason: str | None
-    user: User
-
-
-class BulkBanResult(TypedDict):
-    banned_users: list[Snowflake]
-    failed_users: list[Snowflake]
 
 
 class UnavailableGuild(TypedDict):
@@ -106,7 +90,6 @@ class _BaseGuildPreview(UnavailableGuild):
     emojis: list[Emoji]
     features: list[GuildFeature]
     description: str | None
-    stickers: list[GuildSticker]
 
 
 class GuildPreview(_BaseGuildPreview):
@@ -146,7 +129,6 @@ class Guild(_BaseGuildPreview):
     approximate_member_count: NotRequired[int]
     approximate_presence_count: NotRequired[int]
     nsfw_level: NSFWLevel
-    stickers: NotRequired[list[GuildSticker]]
     premium_progress_bar_enabled: bool
     safety_alerts_channel_id: Snowflake | None
     incidents_data: IncidentsData | None
@@ -155,18 +137,11 @@ class Guild(_BaseGuildPreview):
     joined_at: NotRequired[str | None]
     large: NotRequired[bool]
     member_count: NotRequired[int]
-    voice_states: NotRequired[list[GuildVoiceState]]
     members: NotRequired[list[Member]]
     channels: NotRequired[list[GuildChannel]]
     threads: NotRequired[list[Thread]]
     presences: NotRequired[list[PartialPresenceUpdate]]
     stage_instances: NotRequired[list[StageInstance]]
-    guild_scheduled_events: NotRequired[list[GuildScheduledEvent]]
-    soundboard_sounds: NotRequired[list[GuildSoundboardSound]]
-
-
-class InviteGuild(Guild, total=False):
-    welcome_screen: WelcomeScreen
 
 
 class GuildPrune(TypedDict):
