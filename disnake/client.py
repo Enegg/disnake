@@ -33,7 +33,6 @@ from .app_commands import (
     GuildApplicationCommandPermissions,
 )
 from .appinfo import AppInfo
-from .application_role_connection import ApplicationRoleConnectionMetadata
 from .backoff import ExponentialBackoff
 from .channel import PartialMessageable, _threaded_channel_factory
 from .emoji import Emoji
@@ -49,8 +48,7 @@ from .errors import (
 )
 from .flags import ApplicationFlags, Intents, MemberCacheFlags
 from .gateway import DiscordWebSocket, ReconnectWebSocket
-from .guild import Guild, GuildBuilder
-from .guild_preview import GuildPreview
+from .guild import Guild
 from .http import HTTPClient
 from .i18n import LocalizationProtocol, LocalizationStore
 from .invite import Invite
@@ -58,19 +56,13 @@ from .iterators import EntitlementIterator, GuildIterator
 from .mentions import AllowedMentions
 from .object import Object
 from .sku import SKU
-from .soundboard import GuildSoundboardSound, SoundboardSound
-from .stage_instance import StageInstance
 from .state import ConnectionState
-from .sticker import GuildSticker, StandardSticker, StickerPack, _sticker_factory
 from .template import Template
 from .threads import Thread
 from .ui.view import View
 from .user import ClientUser, User
-from .utils import MISSING, deprecated
-from .voice_client import VoiceClient
-from .voice_region import VoiceRegion
+from .utils import MISSING
 from .webhook import Webhook
-from .widget import Widget
 
 if TYPE_CHECKING:
     from typing_extensions import NotRequired
@@ -81,11 +73,7 @@ if TYPE_CHECKING:
     from .channel import DMChannel
     from .member import Member
     from .message import Message
-    from .types.application_role_connection import (
-        ApplicationRoleConnectionMetadata as ApplicationRoleConnectionMetadataPayload,
-    )
     from .types.gateway import SessionStartLimit as SessionStartLimitPayload
-    from .voice_client import VoiceProtocol
 
 
 __all__ = (
@@ -446,21 +434,6 @@ class Client:
         self._connection._get_websocket = self._get_websocket
         self._connection._get_client = lambda: self
 
-        if VoiceClient.warn_nacl or VoiceClient.warn_dave:
-            missing: list[str] = []
-            if VoiceClient.warn_nacl:
-                missing.append("PyNaCl")
-            if VoiceClient.warn_dave:
-                missing.append("dave.py")
-
-            _log.warning(
-                "%s %s not installed, voice will NOT be supported",
-                " and ".join(missing),
-                "are" if len(missing) > 1 else "is",
-            )
-
-            VoiceClient.warn_nacl = VoiceClient.warn_dave = False
-
         if strict_localization and localization_provider is not None:
             msg = (
                 "Providing both `localization_provider` and `strict_localization` is not supported."
@@ -568,22 +541,6 @@ class Client:
         return self._connection.emojis
 
     @property
-    def stickers(self) -> list[GuildSticker]:
-        r""":class:`list`\[:class:`.GuildSticker`]: The stickers that the connected client has.
-
-        .. versionadded:: 2.0
-        """
-        return self._connection.stickers
-
-    @property
-    def soundboard_sounds(self) -> list[GuildSoundboardSound]:
-        r""":class:`list`\[:class:`.GuildSoundboardSound`]: The soundboard sounds that the connected client has.
-
-        .. versionadded:: 2.10
-        """
-        return self._connection.soundboard_sounds
-
-    @property
     def cached_messages(self) -> Sequence[Message]:
         r""":class:`~collections.abc.Sequence`\[:class:`.Message`]: Read-only list of messages the connected client has cached.
 
@@ -601,14 +558,6 @@ class Client:
             on how Discord deals with private channels.
         """
         return self._connection.private_channels
-
-    @property
-    def voice_clients(self) -> list[VoiceProtocol]:
-        r""":class:`list`\[:class:`.VoiceProtocol`]: Represents a list of voice connections.
-
-        These are usually :class:`.VoiceClient` instances.
-        """
-        return self._connection.voice_clients
 
     @property
     def application_id(self) -> int:
@@ -1206,13 +1155,6 @@ class Client:
 
         self._closed = True
 
-        for voice in self.voice_clients:
-            try:
-                await voice.disconnect(force=True)
-            except Exception:
-                # if an error happens during disconnects, disregard it.
-                pass
-
         # can be None if not connected
         if self.ws is not None and self.ws.open:  # pyright: ignore[reportUnnecessaryComparison]
             await self.ws.close(code=1000)
@@ -1428,29 +1370,6 @@ class Client:
         """
         return PartialMessageable(state=self._connection, id=id, type=type)
 
-    def get_stage_instance(self, id: int, /) -> StageInstance | None:
-        """Returns a stage instance with the given stage channel ID.
-
-        .. versionadded:: 2.0
-
-        Parameters
-        ----------
-        id: :class:`int`
-            The ID to search for.
-
-        Returns
-        -------
-        :class:`.StageInstance` | :data:`None`
-            The returns stage instance or :data:`None` if not found.
-        """
-        from .channel import StageChannel
-
-        channel = self._connection.get_channel(id)
-
-        if isinstance(channel, StageChannel):
-            return channel.instance
-        return None
-
     def get_guild(self, id: int, /) -> Guild | None:
         """Returns a guild with the given ID.
 
@@ -1495,39 +1414,6 @@ class Client:
             The custom emoji or :data:`None` if not found.
         """
         return self._connection.get_emoji(id)
-
-    def get_sticker(self, id: int, /) -> GuildSticker | None:
-        """Returns a guild sticker with the given ID.
-
-        .. versionadded:: 2.0
-
-        .. note::
-
-            To retrieve standard stickers, use :meth:`.fetch_sticker`
-            or :meth:`.fetch_sticker_packs`.
-
-        Returns
-        -------
-        :class:`.GuildSticker` | :data:`None`
-            The sticker or :data:`None` if not found.
-        """
-        return self._connection.get_sticker(id)
-
-    def get_soundboard_sound(self, id: int, /) -> GuildSoundboardSound | None:
-        """Returns a guild soundboard sound with the given ID.
-
-        .. versionadded:: 2.10
-
-        .. note::
-
-            To retrieve standard soundboard sounds, use :meth:`.fetch_default_soundboard_sounds`.
-
-        Returns
-        -------
-        :class:`.GuildSoundboardSound` | :data:`None`
-            The soundboard sound or :data:`None` if not found.
-        """
-        return self._connection.get_soundboard_sound(id)
 
     def get_all_channels(self) -> Generator[GuildChannel]:
         """A generator that retrieves every :class:`.abc.GuildChannel` the client can 'access'.
@@ -2064,172 +1950,6 @@ class Client:
         data = await self.http.get_guild(guild_id, with_counts=with_counts)
         return Guild(data=data, state=self._connection)
 
-    async def fetch_guild_preview(
-        self,
-        guild_id: int,
-        /,
-    ) -> GuildPreview:
-        """|coro|
-
-         Retrieves a :class:`.GuildPreview` from the given ID. Your bot does not have to be in this guild.
-
-        .. note::
-
-            This method may fetch any guild that has ``DISCOVERABLE`` in :attr:`.Guild.features`,
-            but this information can not be known ahead of time.
-
-            This will work for any guild that you are in.
-
-        Parameters
-        ----------
-        guild_id: :class:`int`
-            The ID of the guild to to retrieve a preview object.
-
-        Raises
-        ------
-        NotFound
-            Retrieving the guild preview failed.
-
-        Returns
-        -------
-        :class:`.GuildPreview`
-            The guild preview from the given ID.
-        """
-        data = await self.http.get_guild_preview(guild_id)
-        return GuildPreview(data=data, state=self._connection)
-
-    async def create_guild(
-        self,
-        *,
-        name: str,
-        icon: AssetBytes = MISSING,
-        code: str = MISSING,
-    ) -> Guild:
-        """|coro|
-
-        Creates a :class:`.Guild`.
-
-        See :func:`guild_builder` for a more comprehensive alternative.
-
-        Bot accounts in 10 or more guilds are not allowed to create guilds.
-
-        .. note::
-
-            Using this, you will **not** receive :attr:`.Guild.channels`, :attr:`.Guild.members`,
-            :attr:`.Member.activity` and :attr:`.Member.voice` per :class:`.Member`.
-
-        .. versionchanged:: 2.5
-            Removed the ``region`` parameter.
-
-        .. versionchanged:: 2.6
-            Raises :exc:`ValueError` instead of ``InvalidArgument``.
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The name of the guild.
-        icon: |resource_type|
-            The icon of the guild.
-            See :meth:`.ClientUser.edit` for more details on what is expected.
-
-            .. versionchanged:: 2.5
-                Now accepts various resource types in addition to :class:`bytes`.
-
-        code: :class:`str`
-            The code for a template to create the guild with.
-
-            .. versionadded:: 1.4
-
-        Raises
-        ------
-        NotFound
-            The ``icon`` asset couldn't be found.
-        HTTPException
-            Guild creation failed.
-        ValueError
-            Invalid icon image format given. Must be PNG or JPG.
-        TypeError
-            The ``icon`` asset is a lottie sticker (see :func:`Sticker.read <disnake.Sticker.read>`).
-
-        Returns
-        -------
-        :class:`.Guild`
-            The created guild. This is not the same guild that is added to cache.
-        """
-        if icon is not MISSING:
-            icon_base64 = await utils._assetbytes_to_base64_data(icon)
-        else:
-            icon_base64 = None
-
-        if code:
-            data = await self.http.create_from_template(code, name, icon_base64)
-        else:
-            data = await self.http.create_guild(name, icon_base64)
-        return Guild(data=data, state=self._connection)
-
-    def guild_builder(self, name: str) -> GuildBuilder:
-        """Creates a builder object that can be used to create more complex guilds.
-
-        This is a more comprehensive alternative to :func:`create_guild`.
-        See :class:`.GuildBuilder` for details and examples.
-
-        Bot accounts in 10 or more guilds are not allowed to create guilds.
-
-        .. note::
-
-            Using this, you will **not** receive :attr:`.Guild.channels`, :attr:`.Guild.members`,
-            :attr:`.Member.activity` and :attr:`.Member.voice` per :class:`.Member`.
-
-        .. versionadded:: 2.8
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The name of the guild.
-
-        Returns
-        -------
-        :class:`.GuildBuilder`
-            The guild builder object for configuring and creating a new guild.
-        """
-        return GuildBuilder(name=name, state=self._connection)
-
-    async def fetch_stage_instance(self, channel_id: int, /) -> StageInstance:
-        """|coro|
-
-        Retrieves a :class:`.StageInstance` with the given ID.
-
-        .. note::
-
-            This method is an API call. For general usage, consider :meth:`get_stage_instance` instead.
-
-        .. versionadded:: 2.0
-
-        Parameters
-        ----------
-        channel_id: :class:`int`
-            The stage channel ID.
-
-        Raises
-        ------
-        NotFound
-            The stage instance or channel could not be found.
-        HTTPException
-            Retrieving the stage instance failed.
-
-        Returns
-        -------
-        :class:`.StageInstance`
-            The stage instance from the given ID.
-        """
-        data = await self.http.get_stage_instance(channel_id)
-        guild = self.get_guild(int(data["guild_id"]))
-        return StageInstance(
-            guild=guild,  # pyright: ignore[reportArgumentType]
-            state=self._connection,
-            data=data,
-        )
-
     # Invite management
 
     async def fetch_invite(
@@ -2326,83 +2046,7 @@ class Client:
         invite_id = utils.resolve_invite(invite)
         await self.http.delete_invite(invite_id)
 
-    # Voice region stuff
-
-    async def fetch_voice_regions(self, guild_id: int | None = None) -> list[VoiceRegion]:
-        r"""Retrieves a list of :class:`.VoiceRegion`\s.
-
-        Retrieves voice regions for the user, or a guild if provided.
-
-        .. versionadded:: 2.5
-
-        Parameters
-        ----------
-        guild_id: :class:`int` | :data:`None`
-            The guild to get regions for, if provided.
-
-        Raises
-        ------
-        HTTPException
-            Retrieving voice regions failed.
-        NotFound
-            The provided ``guild_id`` could not be found.
-        """
-        if guild_id:
-            regions = await self.http.get_guild_voice_regions(guild_id)
-        else:
-            regions = await self.http.get_voice_regions()
-        return [VoiceRegion(data=data) for data in regions]
-
     # Miscellaneous stuff
-
-    async def fetch_widget(self, guild_id: int, /) -> Widget:
-        """|coro|
-
-        Retrieves a :class:`.Widget` for the given guild ID.
-
-        .. note::
-
-            The guild must have the widget enabled to get this information.
-
-        Parameters
-        ----------
-        guild_id: :class:`int`
-            The ID of the guild.
-
-        Raises
-        ------
-        Forbidden
-            The widget for this guild is disabled.
-        HTTPException
-            Retrieving the widget failed.
-
-        Returns
-        -------
-        :class:`.Widget`
-            The guild's widget.
-        """
-        data = await self.http.get_widget(guild_id)
-        return Widget(state=self._connection, data=data)
-
-    async def fetch_default_soundboard_sounds(self) -> list[SoundboardSound]:
-        r"""|coro|
-
-        Retrieves the list of default :class:`.SoundboardSound`\s provided by Discord.
-
-        .. versionadded:: 2.10
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the soundboard sounds failed.
-
-        Returns
-        -------
-        :class:`list`\[:class:`.SoundboardSound`]
-            The default soundboard sounds.
-        """
-        data = await self.http.get_default_soundboard_sounds()
-        return [SoundboardSound(data=d, state=self._connection) for d in data]
 
     async def application_info(self) -> AppInfo:
         """|coro|
@@ -2626,92 +2270,6 @@ class Client:
         """
         data = await self.http.get_webhook(webhook_id)
         return Webhook.from_state(data, state=self._connection)
-
-    async def fetch_sticker(self, sticker_id: int, /) -> StandardSticker | GuildSticker:
-        """|coro|
-
-        Retrieves a :class:`.Sticker` with the given ID.
-
-        .. versionadded:: 2.0
-
-        Parameters
-        ----------
-        sticker_id: :class:`int`
-            The ID of the sticker to retrieve.
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the sticker failed.
-        NotFound
-            Invalid sticker ID.
-
-        Returns
-        -------
-        :class:`.StandardSticker` | :class:`.GuildSticker`
-            The sticker you requested.
-        """
-        data = await self.http.get_sticker(sticker_id)
-        cls, _ = _sticker_factory(data["type"])  # pyright: ignore[reportGeneralTypeIssues]
-        return cls(state=self._connection, data=data)  # pyright: ignore[reportReturnType]
-
-    async def fetch_sticker_pack(self, pack_id: int, /) -> StickerPack:
-        """|coro|
-
-        Retrieves a :class:`.StickerPack` with the given ID.
-
-        .. versionadded:: 2.10
-
-        Parameters
-        ----------
-        pack_id: :class:`int`
-            The ID of the sticker pack to retrieve.
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the sticker pack failed.
-        NotFound
-            Invalid sticker pack ID.
-
-        Returns
-        -------
-        :class:`.StickerPack`
-            The sticker pack you requested.
-        """
-        data = await self.http.get_sticker_pack(pack_id)
-        return StickerPack(state=self._connection, data=data)
-
-    async def fetch_sticker_packs(self) -> list[StickerPack]:
-        r"""|coro|
-
-        Retrieves all available sticker packs.
-
-        .. versionadded:: 2.0
-
-        .. versionchanged:: 2.10
-            Renamed from ``fetch_premium_sticker_packs``.
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the sticker packs failed.
-
-        Returns
-        -------
-        :class:`list`\[:class:`.StickerPack`]
-            All available sticker packs.
-        """
-        data = await self.http.list_sticker_packs()
-        return [StickerPack(state=self._connection, data=pack) for pack in data["sticker_packs"]]
-
-    @deprecated("fetch_sticker_packs")
-    async def fetch_premium_sticker_packs(self) -> list[StickerPack]:
-        """An alias of :meth:`fetch_sticker_packs`.
-
-        .. deprecated:: 2.10
-        """
-        return await self.fetch_sticker_packs()
 
     async def create_dm(self, user: Snowflake) -> DMChannel:
         """|coro|
@@ -3176,67 +2734,6 @@ class Client:
             The permissions configured for the specified application command.
         """
         return await self._connection.fetch_command_permissions(guild_id, command_id)
-
-    async def fetch_role_connection_metadata(self) -> list[ApplicationRoleConnectionMetadata]:
-        r"""|coro|
-
-        Retrieves the :class:`.ApplicationRoleConnectionMetadata` records for the application.
-
-        .. versionadded:: 2.8
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the metadata records failed.
-
-        Returns
-        -------
-        :class:`list`\[:class:`.ApplicationRoleConnectionMetadata`]
-            The list of metadata records.
-        """
-        data = await self.http.get_application_role_connection_metadata_records(self.application_id)
-        return [ApplicationRoleConnectionMetadata._from_data(record) for record in data]
-
-    async def edit_role_connection_metadata(
-        self, records: Sequence[ApplicationRoleConnectionMetadata]
-    ) -> list[ApplicationRoleConnectionMetadata]:
-        r"""|coro|
-
-        Edits the :class:`.ApplicationRoleConnectionMetadata` records for the application.
-
-        An application can have up to 5 metadata records.
-
-        .. warning::
-            This will overwrite all existing metadata records.
-            Consider :meth:`fetching <fetch_role_connection_metadata>` them first,
-            and constructing the new list of metadata records based off of the returned list.
-
-        .. versionadded:: 2.8
-
-        Parameters
-        ----------
-        records: :class:`~collections.abc.Sequence`\[:class:`.ApplicationRoleConnectionMetadata`]
-            The new metadata records.
-
-        Raises
-        ------
-        HTTPException
-            Editing the metadata records failed.
-
-        Returns
-        -------
-        :class:`list`\[:class:`.ApplicationRoleConnectionMetadata`]
-            The list of newly edited metadata records.
-        """
-        payload: list[ApplicationRoleConnectionMetadataPayload] = []
-        for record in records:
-            record._localize(self.i18n)
-            payload.append(record.to_dict())
-
-        data = await self.http.edit_application_role_connection_metadata_records(
-            self.application_id, payload
-        )
-        return [ApplicationRoleConnectionMetadata._from_data(record) for record in data]
 
     async def skus(self) -> list[SKU]:
         r"""|coro|

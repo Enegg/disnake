@@ -7,11 +7,9 @@ from typing import TYPE_CHECKING, TypeAlias
 from .appinfo import PartialAppInfo
 from .asset import Asset
 from .enums import ChannelType, InviteTarget, InviteType, NSFWLevel, VerificationLevel, try_enum
-from .guild_scheduled_event import GuildScheduledEvent
 from .mixins import Hashable
 from .object import Object
 from .utils import _get_as_snowflake, parse_time, snowflake_time
-from .welcome_screen import WelcomeScreen
 
 __all__ = (
     "PartialInviteChannel",
@@ -441,21 +439,6 @@ class Invite(Hashable):
 
         self.channel: InviteChannelType | None = self._resolve_channel(data.get("channel"), channel)
 
-        # this is stored here due to disnake.Guild not storing a welcome screen
-        # if it was stored on the Guild object, we would be throwing away this data from the api request
-        if (
-            self.guild is not None
-            and (guild_data := data.get("guild"))
-            and "welcome_screen" in guild_data
-        ):
-            self.guild_welcome_screen: WelcomeScreen | None = WelcomeScreen(
-                state=self._state,
-                data=guild_data["welcome_screen"],
-                guild=self.guild,  # pyright: ignore[reportArgumentType]
-            )
-        else:
-            self.guild_welcome_screen: WelcomeScreen | None = None
-
         target_user_data = data.get("target_user")
         self.target_user: User | None = (
             None if target_user_data is None else self._state.create_user(target_user_data)  # pyright: ignore[reportArgumentType]
@@ -467,13 +450,6 @@ class Invite(Hashable):
         self.target_application: PartialAppInfo | None = (
             PartialAppInfo(data=application, state=state) if application else None
         )
-
-        if scheduled_event := data.get("guild_scheduled_event"):
-            self.guild_scheduled_event: GuildScheduledEvent | None = GuildScheduledEvent(
-                state=state, data=scheduled_event
-            )
-        else:
-            self.guild_scheduled_event: GuildScheduledEvent | None = None
 
     @classmethod
     def from_incomplete(cls, *, state: ConnectionState, data: InvitePayload) -> Self:

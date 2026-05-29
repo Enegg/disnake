@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from disnake.permissions import Permissions
 
     from ._types import AppCheck, CoroFunc
-    from .base_core import CogT, CommandCallback, InteractionCommandCallback
+    from .base_core import CommandCallback, InteractionCommandCallback
 
     P = ParamSpec("P")
 
@@ -622,7 +622,7 @@ class InteractionBotBase(CommonBotBase):
         extras: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Callable[
-        [InteractionCommandCallback[CogT, UserCommandInteraction, P]], InvokableUserCommand
+        [InteractionCommandCallback[UserCommandInteraction, P]], InvokableUserCommand
     ]:
         r"""A shortcut decorator that invokes :func:`~disnake.ext.commands.user_command` and adds it to
         the internal command list.
@@ -692,7 +692,7 @@ class InteractionBotBase(CommonBotBase):
         """
 
         def decorator(
-            func: InteractionCommandCallback[CogT, UserCommandInteraction, P],
+            func: InteractionCommandCallback[UserCommandInteraction, P],
         ) -> InvokableUserCommand:
             result = user_command(
                 name=name,
@@ -725,7 +725,7 @@ class InteractionBotBase(CommonBotBase):
         extras: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Callable[
-        [InteractionCommandCallback[CogT, MessageCommandInteraction, P]], InvokableMessageCommand
+        [InteractionCommandCallback[MessageCommandInteraction, P]], InvokableMessageCommand
     ]:
         r"""A shortcut decorator that invokes :func:`~disnake.ext.commands.message_command` and adds it to
         the internal command list.
@@ -795,7 +795,7 @@ class InteractionBotBase(CommonBotBase):
         """
 
         def decorator(
-            func: InteractionCommandCallback[CogT, MessageCommandInteraction, P],
+            func: InteractionCommandCallback[MessageCommandInteraction, P],
         ) -> InvokableMessageCommand:
             result = message_command(
                 name=name,
@@ -1029,10 +1029,6 @@ class InteractionBotBase(CommonBotBase):
         if command and command.has_error_handler():
             return
 
-        cog = command.cog
-        if cog and cog.has_slash_error_handler():
-            return
-
         print(f"Ignoring exception in slash command {command.name!r}:", file=sys.stderr)
         traceback.print_exception(
             type(exception), exception, exception.__traceback__, file=sys.stderr
@@ -1050,9 +1046,6 @@ class InteractionBotBase(CommonBotBase):
         command = interaction.application_command
         if command and command.has_error_handler():
             return
-        cog = command.cog
-        if cog and cog.has_user_error_handler():
-            return
         print(f"Ignoring exception in user command {command.name!r}:", file=sys.stderr)
         traceback.print_exception(
             type(exception), exception, exception.__traceback__, file=sys.stderr
@@ -1069,9 +1062,6 @@ class InteractionBotBase(CommonBotBase):
             return
         command = interaction.application_command
         if command and command.has_error_handler():
-            return
-        cog = command.cog
-        if cog and cog.has_message_error_handler():
             return
         print(f"Ignoring exception in message command {command.name!r}:", file=sys.stderr)
         traceback.print_exception(

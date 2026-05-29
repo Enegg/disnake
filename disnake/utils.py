@@ -1313,16 +1313,12 @@ def get_signature_parameters(
     iterator = iter(signature.parameters.items())
 
     if skip_standard_params:
-        # skip `self` (if present) and `ctx` parameters,
-        # since their annotations are irrelevant
-        skip = 2 if signature_has_self_param(function) else 1
-
-        for _ in range(skip):
-            try:
-                next(iterator)
-            except StopIteration:
-                msg = f"Expected command callback to have at least {skip} parameter(s)"
-                raise ValueError(msg) from None
+        # skip `self` (if present), since its annotation is irrelevant
+        try:
+            next(iterator)
+        except StopIteration:
+            msg = "Expected command callback to have at least 1 parameter(s)"
+            raise ValueError(msg) from None
 
     # eval all parameter annotations
     for name, parameter in iterator:

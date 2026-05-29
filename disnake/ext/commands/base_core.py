@@ -25,7 +25,6 @@ from disnake.utils import (
     _overload_with_permissions,
     async_all,
     iscoroutinefunction,
-    maybe_coroutine,
 )
 
 from .cooldowns import BucketType, CooldownMapping, MaxConcurrency
@@ -39,7 +38,6 @@ if TYPE_CHECKING:
     from disnake.interactions import ApplicationCommandInteraction
 
     from ._types import AppCheck, Coro, Error, Hook
-    from .cog import Cog
     from .interaction_bot_base import InteractionBotBase
 
     ApplicationCommandInteractionT = TypeVar(
@@ -49,10 +47,9 @@ if TYPE_CHECKING:
     P = ParamSpec("P")
 
     CommandCallback: TypeAlias = Callable[..., Coro[Any]]
-    InteractionCommandCallback: TypeAlias = (
-        Callable[Concatenate["CogT", ApplicationCommandInteractionT, P], Coro[Any]]
-        | Callable[Concatenate[ApplicationCommandInteractionT, P], Coro[Any]]
-    )
+    InteractionCommandCallback: TypeAlias = Callable[
+        Concatenate[ApplicationCommandInteractionT, P], Coro[Any]
+    ]
 
 
 __all__ = (
@@ -65,7 +62,6 @@ __all__ = (
 
 T = TypeVar("T")
 AppCommandT = TypeVar("AppCommandT", bound="InvokableApplicationCommand")
-CogT = TypeVar("CogT", bound="Cog")
 HookT = TypeVar("HookT", bound="Hook")
 ErrorT = TypeVar("ErrorT", bound="Error")
 
@@ -199,7 +195,6 @@ class InvokableApplicationCommand(ABC):
             max_concurrency = kwargs.get("max_concurrency")
         self._max_concurrency: MaxConcurrency | None = max_concurrency
 
-        self.cog: Cog | None = None
         self.guild_ids: tuple[int, ...] | None = None
         self.auto_sync: bool = True
 
@@ -366,10 +361,7 @@ class InvokableApplicationCommand(ABC):
             the proper arguments and types to this function.
 
         """
-        if self.cog is not None:
-            return await self.callback(self.cog, interaction, *args, **kwargs)
-        else:
-            return await self.callback(interaction, *args, **kwargs)
+        return await self.callback(interaction, *args, **kwargs)
 
     def _prepare_cooldowns(self, inter: ApplicationCommandInteraction) -> None:
         if self._buckets.valid:
@@ -508,10 +500,7 @@ class InvokableApplicationCommand(ABC):
             return None
 
         injected = wrap_callback(self.on_error)
-        if self.cog is not None:
-            return await injected(self.cog, inter, error)
-        else:
-            return await injected(inter, error)
+        return await injected(inter, error)
 
     async def _call_external_error_handlers(
         self, inter: ApplicationCommandInteraction, error: CommandError
@@ -528,16 +517,8 @@ class InvokableApplicationCommand(ABC):
     async def call_before_hooks(self, inter: ApplicationCommandInteraction) -> None:
         # now that we're done preparing we can call the pre-command hooks
         # first, call the command local hook:
-        cog = self.cog
         if self._before_invoke is not None:
-            # should be cog if @commands.before_invoke is used
-            instance = getattr(self._before_invoke, "__self__", cog)
-            # __self__ only exists for methods, not functions
-            # however, if @command.before_invoke is used, it will be a function
-            if instance:
-                await self._before_invoke(instance, inter)  # pyright: ignore[reportCallIssue, reportArgumentType]
-            else:
-                await self._before_invoke(inter)  # pyright: ignore[reportArgumentType, reportCallIssue]
+            await self._before_invoke(inter)
 
         if inter.data.type is ApplicationCommandType.chat_input:
             partial_attr_name = "slash_command"
@@ -547,13 +528,6 @@ class InvokableApplicationCommand(ABC):
             partial_attr_name = "message_command"
         else:
             return
-
-        # call the cog local hook if applicable:
-        if cog is not None:
-            meth = getattr(cog, f"cog_before_{partial_attr_name}_invoke", None)
-            hook = _get_overridden_method(meth)
-            if hook is not None:
-                await hook(inter)
 
         # call the bot global hook if necessary
         hook = getattr(inter.bot, f"_before_{partial_attr_name}_invoke", None)
@@ -561,13 +535,8 @@ class InvokableApplicationCommand(ABC):
             await hook(inter)
 
     async def call_after_hooks(self, inter: ApplicationCommandInteraction) -> None:
-        cog = self.cog
         if self._after_invoke is not None:
-            instance = getattr(self._after_invoke, "__self__", cog)
-            if instance:
-                await self._after_invoke(instance, inter)  # pyright: ignore[reportCallIssue, reportArgumentType]
-            else:
-                await self._after_invoke(inter)  # pyright: ignore[reportArgumentType, reportCallIssue]
+            await self._after_invoke(inter)
 
         if inter.data.type is ApplicationCommandType.chat_input:
             partial_attr_name = "slash_command"
@@ -577,13 +546,6 @@ class InvokableApplicationCommand(ABC):
             partial_attr_name = "message_command"
         else:
             return
-
-        # call the cog local hook if applicable:
-        if cog is not None:
-            meth = getattr(cog, f"cog_after_{partial_attr_name}_invoke", None)
-            hook = _get_overridden_method(meth)
-            if hook is not None:
-                await hook(inter)
 
         # call the bot global hook if necessary
         hook = getattr(inter.bot, f"_after_{partial_attr_name}_invoke", None)
@@ -638,11 +600,6 @@ class InvokableApplicationCommand(ABC):
         self._after_invoke = coro
         return coro
 
-    @property
-    def cog_name(self) -> str | None:
-        """:class:`str` | :data:`None`: The name of the cog this application command belongs to, if any."""
-        return type(self.cog).__cog_name__ if self.cog is not None else None
-
     async def can_run(self, inter: ApplicationCommandInteraction) -> bool:
         """|coro|
 
@@ -668,13 +625,11 @@ class InvokableApplicationCommand(ABC):
         original = inter.application_command
         inter.application_command = self
 
-        if inter.data.type is ApplicationCommandType.chat_input:
-            partial_attr_name = "slash_command"
-        elif inter.data.type is ApplicationCommandType.user:
-            partial_attr_name = "user_command"
-        elif inter.data.type is ApplicationCommandType.message:
-            partial_attr_name = "message_command"
-        else:
+        if inter.data.type not in (
+            ApplicationCommandType.chat_input,
+            ApplicationCommandType.user,
+            ApplicationCommandType.message,
+        ):
             return True
 
         try:
@@ -682,21 +637,12 @@ class InvokableApplicationCommand(ABC):
                 msg = f"The global check functions for command {self.qualified_name} failed."
                 raise CheckFailure(msg)
 
-            cog = self.cog
-            if cog is not None:
-                meth = getattr(cog, f"cog_{partial_attr_name}_check", None)
-                local_check = _get_overridden_method(meth)
-                if local_check is not None:
-                    ret = await maybe_coroutine(local_check, inter)
-                    if not ret:
-                        return False
-
             predicates = self.checks
             if not predicates:
                 # since we have no checks, then we just return True.
                 return True
 
-            return await async_all(predicate(inter) for predicate in predicates)  # pyright: ignore[reportCallIssue]
+            return await async_all(predicate(inter) for predicate in predicates)
         finally:
             inter.application_command = original
 

@@ -11,7 +11,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Generic,
-    Literal,
     Protocol,
     TypeVar,
     Union,
@@ -23,23 +22,17 @@ from typing import (
 
 import disnake
 
-from .context import AnyContext, Context
 from .errors import (
     BadArgument,
     BadBoolArgument,
     BadColourArgument,
     BadInviteArgument,
-    BadLiteralArgument,
-    BadUnionArgument,
     ChannelNotFound,
     ChannelNotReadable,
     CommandError,
     ConversionError,
     EmojiNotFound,
     GuildNotFound,
-    GuildScheduledEventNotFound,
-    GuildSoundboardSoundNotFound,
-    GuildStickerNotFound,
     MemberNotFound,
     MessageNotFound,
     NoPrivateMessage,
@@ -80,15 +73,13 @@ __all__ = (
     "GuildConverter",
     "EmojiConverter",
     "PartialEmojiConverter",
-    "GuildStickerConverter",
-    "GuildSoundboardSoundConverter",
     "PermissionsConverter",
-    "GuildScheduledEventConverter",
     "clean_content",
     "Greedy",
-    "run_converters",
 )
 
+
+AnyContext = disnake.ApplicationCommandInteraction
 
 _utils_get = disnake.utils.get
 T = TypeVar("T")
@@ -266,14 +257,7 @@ class MemberConverter(IDConverter[disnake.Member]):
         else:
             user_id = int(match.group(1))
             if guild:
-                mentions: Iterable[disnake.Member]
-                if isinstance(ctx, Context):
-                    mentions = (
-                        user for user in ctx.message.mentions if isinstance(user, disnake.Member)
-                    )
-                else:
-                    mentions = []
-                result = guild.get_member(user_id) or _utils_get(mentions, id=user_id)
+                result = guild.get_member(user_id)
             else:
                 result = _get_from_guilds(bot, lambda g: g.get_member(user_id))
 
@@ -326,13 +310,7 @@ class UserConverter(IDConverter[disnake.User]):
 
         if match is not None:
             user_id = int(match.group(1))
-
-            mentions: Iterable[disnake.User | disnake.Member]
-            if isinstance(ctx, Context):
-                mentions = ctx.message.mentions
-            else:
-                mentions = []
-            result = bot.get_user(user_id) or _utils_get(mentions, id=user_id)
+            result = bot.get_user(user_id)
 
             if result is None:
                 try:
@@ -344,7 +322,7 @@ class UserConverter(IDConverter[disnake.User]):
             if isinstance(result, disnake.Member):
                 return result._user
 
-            return result  # pyright: ignore[reportReturnType]
+            return result
 
         username, _, discriminator = argument.rpartition("#")
         # n.b. there's no builtin method that only matches arabic digits, `isdecimal` is the closest one.
@@ -908,80 +886,6 @@ class PartialEmojiConverter(Converter[disnake.PartialEmoji]):
         raise PartialEmojiConversionFailure(argument)
 
 
-class GuildStickerConverter(IDConverter[disnake.GuildSticker]):
-    """Converts to a :class:`~disnake.GuildSticker`.
-
-    All lookups are done for the local guild first, if available. If that lookup
-    fails, then it checks the client's global cache.
-
-    The lookup strategy is as follows (in order):
-
-    1. Lookup by ID
-    2. Lookup by name
-
-    .. versionadded:: 2.0
-    """
-
-    async def convert(self, ctx: AnyContext, argument: str) -> disnake.GuildSticker:
-        match = self._get_id_match(argument)
-        result = None
-        bot: disnake.Client = ctx.bot
-        guild = ctx.guild
-
-        if match is None:
-            # Try to get the sticker by name. Try local guild first.
-            if guild:
-                result = _utils_get(guild.stickers, name=argument)
-
-            if result is None:
-                result = _utils_get(bot.stickers, name=argument)
-        else:
-            # Try to look up sticker by id.
-            result = bot.get_sticker(int(match.group(1)))
-
-        if result is None:
-            raise GuildStickerNotFound(argument)
-
-        return result
-
-
-class GuildSoundboardSoundConverter(IDConverter[disnake.GuildSoundboardSound]):
-    """Converts to a :class:`~disnake.GuildSoundboardSound`.
-
-    All lookups are done for the local guild first, if available. If that lookup
-    fails, then it checks the client's global cache.
-
-    The lookup strategy is as follows (in order):
-
-    1. Lookup by ID
-    2. Lookup by name
-
-    .. versionadded:: 2.10
-    """
-
-    async def convert(self, ctx: AnyContext, argument: str) -> disnake.GuildSoundboardSound:
-        match = self._get_id_match(argument)
-        result = None
-        bot: disnake.Client = ctx.bot
-        guild = ctx.guild
-
-        if match is None:
-            # Try to get the sound by name. Try local guild first.
-            if guild:
-                result = _utils_get(guild.soundboard_sounds, name=argument)
-
-            if result is None:
-                result = _utils_get(bot.soundboard_sounds, name=argument)
-        else:
-            # Try to look up sound by id.
-            result = bot.get_soundboard_sound(int(match.group(1)))
-
-        if result is None:
-            raise GuildSoundboardSoundNotFound(argument)
-
-        return result
-
-
 class PermissionsConverter(Converter[disnake.Permissions]):
     """Converts to a :class:`~disnake.Permissions`.
 
@@ -1028,46 +932,6 @@ class PermissionsConverter(Converter[disnake.Permissions]):
             return disnake.Permissions(**{name: True})
 
 
-class GuildScheduledEventConverter(IDConverter[disnake.GuildScheduledEvent]):
-    """Converts to a :class:`~disnake.GuildScheduledEvent`.
-
-    The lookup strategy is as follows (in order):
-
-    1. Lookup by ID (in current guild)
-    2. Lookup as event URL
-    3. Lookup by name (in current guild; there is no disambiguation for scheduled events with multiple matching names)
-
-    .. versionadded:: 2.5
-    """
-
-    async def convert(self, ctx: AnyContext, argument: str) -> disnake.GuildScheduledEvent:
-        event_regex = re.compile(
-            r"https?://(?:(?:ptb|canary|www)\.)?discord(?:app)?\.com/events/"
-            r"([0-9]{17,19})/([0-9]{17,19})/?$"
-        )
-        bot: disnake.Client = ctx.bot
-        result: disnake.GuildScheduledEvent | None = None
-        guild = ctx.guild
-
-        # 1.
-        if guild and (match := self._get_id_match(argument)):
-            result = guild.get_scheduled_event(int(match.group(1)))
-
-        # 2.
-        if not result and (match := event_regex.match(argument)):
-            event_guild = bot.get_guild(int(match.group(1)))
-            if event_guild:
-                result = event_guild.get_scheduled_event(int(match.group(2)))
-
-        # 3.
-        if not result and guild:
-            result = _utils_get(guild.scheduled_events, name=argument)
-
-        if not result:
-            raise GuildScheduledEventNotFound(argument)
-        return result
-
-
 class clean_content(Converter[str]):
     """Converts the argument to mention scrubbed version of
     said content.
@@ -1103,21 +967,16 @@ class clean_content(Converter[str]):
         self.remove_markdown = remove_markdown
 
     async def convert(self, ctx: AnyContext, argument: str) -> str:
-        msg = ctx.message if isinstance(ctx, Context) else None
         bot: disnake.Client = ctx.bot
 
         def resolve_user(id: int) -> str:
-            m = (
-                (msg and _utils_get(msg.mentions, id=id))
-                or (ctx.guild and ctx.guild.get_member(id))
-                or bot.get_user(id)
-            )
+            m = (ctx.guild and ctx.guild.get_member(id)) or bot.get_user(id)
             return f"@{m.display_name if self.use_nicknames else m.name}" if m else "@deleted-user"
 
         def resolve_role(id: int) -> str:
             if ctx.guild is None:
                 return "@deleted-role"
-            r = (msg and _utils_get(msg.role_mentions, id=id)) or ctx.guild.get_role(id)
+            r = ctx.guild.get_role(id)
             return f"@{r.name}" if r else "@deleted-role"
 
         def resolve_channel(id: int) -> str:
@@ -1256,15 +1115,12 @@ CONVERTER_MAPPING: dict[type[object], type[Converter]] = {
     disnake.MediaChannel: MediaChannelConverter,
     disnake.Thread: ThreadConverter,
     disnake.abc.GuildChannel: GuildChannelConverter,
-    disnake.GuildSticker: GuildStickerConverter,
-    disnake.GuildSoundboardSound: GuildSoundboardSoundConverter,
     disnake.Permissions: PermissionsConverter,
-    disnake.GuildScheduledEvent: GuildScheduledEventConverter,
 }
 
 
 async def _actual_conversion(
-    ctx: Context,
+    ctx: AnyContext,
     converter: type[T] | type[Converter[T]] | Converter[T] | Callable[[str], T],
     argument: str,
     param: inspect.Parameter,
@@ -1302,96 +1158,3 @@ async def _actual_conversion(
 
         msg = f'Converting to "{name}" failed for parameter "{param.name}".'
         raise BadArgument(msg) from exc
-
-
-async def run_converters(
-    ctx: Context,
-    converter: Any,
-    argument: str,
-    param: inspect.Parameter,
-) -> Any:
-    """|coro|
-
-    Runs converters for a given converter, argument, and parameter.
-
-    This function does the same work that the library does under the hood.
-
-    .. versionadded:: 2.0
-
-    Parameters
-    ----------
-    ctx: :class:`Context`
-        The invocation context to run the converters under.
-    converter: Any
-        The converter to run, this corresponds to the annotation in the function.
-    argument: :class:`str`
-        The argument to convert to.
-    param: :class:`inspect.Parameter`
-        The parameter being converted. This is mainly for error reporting.
-
-    Raises
-    ------
-    CommandError
-        The converter failed to convert.
-
-    Returns
-    -------
-    Any
-        The resulting conversion.
-    """
-    origin = getattr(converter, "__origin__", None)
-
-    if origin is Union:
-        errors: list[CommandError] = []
-        _NoneType = type(None)
-        union_args = converter.__args__
-        for conv in union_args:
-            # if we got to this part in the code, then the previous conversions have failed
-            # so we should just undo the view, return the default, and allow parsing to continue
-            # with the other parameters
-            if conv is _NoneType and param.kind != param.VAR_POSITIONAL:
-                ctx.view.undo()
-                return None if param.default is param.empty else param.default
-
-            try:
-                value = await run_converters(ctx, conv, argument, param)
-            except CommandError as exc:
-                errors.append(exc)
-            else:
-                return value
-
-        # if we're here, then we failed all the converters
-        raise BadUnionArgument(param, union_args, errors)
-
-    if origin is Literal:
-        errors: list[CommandError] = []
-        conversions = {}
-        literal_args = converter.__args__
-        for literal in literal_args:
-            literal_type = type(literal)
-            try:
-                value = conversions[literal_type]
-            except KeyError:
-                try:
-                    value = await _actual_conversion(ctx, literal_type, argument, param)
-                except CommandError as exc:
-                    errors.append(exc)
-                    conversions[literal_type] = object()
-                    continue
-                else:
-                    conversions[literal_type] = value
-
-            if value == literal:
-                return value
-
-        # if we're here, then we failed to match all the literals
-        raise BadLiteralArgument(param, literal_args, errors)
-
-    # This must be the last if-clause in the chain of origin checking
-    # Nearly every type is a generic type within the typing library
-    # So care must be taken to make sure a more specialised origin handle
-    # isn't overwritten by the widest if clause
-    if origin is not None and is_generic_type(converter):
-        converter = origin
-
-    return await _actual_conversion(ctx, converter, argument, param)

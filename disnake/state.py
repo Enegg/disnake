@@ -12,21 +12,11 @@ import os
 import weakref
 from collections import OrderedDict, deque
 from collections.abc import Callable, Coroutine, Sequence
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Generic,
-    Literal,
-    TypeAlias,
-    TypeVar,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeAlias, TypeVar, overload
 
 from . import utils
 from .activity import BaseActivity
 from .app_commands import GuildApplicationCommandPermissions, application_command_factory
-from .audit_logs import AuditLogEntry
-from .automod import AutoModActionExecution, AutoModRule
 from .channel import (
     DMChannel,
     ForumChannel,
@@ -36,7 +26,6 @@ from .channel import (
     StageChannel,
     TextChannel,
     VoiceChannel,
-    VoiceChannelEffect,
     _guild_channel_factory,
     _threaded_channel_factory,
 )
@@ -46,8 +35,6 @@ from .entitlement import Entitlement
 from .enums import ApplicationCommandType, ChannelType, ComponentType, MessageType, Status, try_enum
 from .flags import ApplicationFlags, Intents, MemberCacheFlags
 from .guild import Guild
-from .guild_scheduled_event import GuildScheduledEvent
-from .integrations import _integration_factory
 from .interactions import (
     ApplicationCommandInteraction,
     Interaction,
@@ -63,8 +50,6 @@ from .partial_emoji import PartialEmoji
 from .raw_models import (
     RawBulkMessageDeleteEvent,
     RawGuildMemberRemoveEvent,
-    RawGuildScheduledEventUserActionEvent,
-    RawIntegrationDeleteEvent,
     RawMessageDeleteEvent,
     RawMessageUpdateEvent,
     RawPollVoteActionEvent,
@@ -75,12 +60,8 @@ from .raw_models import (
     RawThreadDeleteEvent,
     RawThreadMemberRemoveEvent,
     RawTypingEvent,
-    RawVoiceChannelEffectEvent,
 )
 from .role import Role
-from .soundboard import GuildSoundboardSound
-from .stage_instance import StageInstance
-from .sticker import GuildSticker
 from .subscription import Subscription
 from .threads import Thread, ThreadMember
 from .ui.modal import Modal, ModalStore
@@ -105,11 +86,8 @@ if TYPE_CHECKING:
     from .types.guild import Guild as GuildPayload, UnavailableGuild as UnavailableGuildPayload
     from .types.interactions import InteractionChannel as InteractionChannelPayload
     from .types.message import Message as MessagePayload
-    from .types.soundboard import GuildSoundboardSound as GuildSoundboardSoundPayload
-    from .types.sticker import GuildSticker as GuildStickerPayload
     from .types.user import User as UserPayload
     from .types.webhook import Webhook as WebhookPayload
-    from .voice_client import VoiceProtocol
 
     Channel: TypeAlias = GuildChannel | VocalGuildChannel | PrivateChannel
     PartialChannel: TypeAlias = Channel | PartialMessageable
@@ -303,8 +281,6 @@ class ConnectionState:
         # - accesses on `_users` are slower, e.g. `__getitem__` takes ~1us with weakrefs and ~0.2us without
         self._users: weakref.WeakValueDictionary[int, User] = weakref.WeakValueDictionary()
         self._emojis: dict[int, Emoji] = {}
-        self._stickers: dict[int, GuildSticker] = {}
-        self._soundboard_sounds: dict[int, GuildSoundboardSound] = {}
         self._guilds: dict[int, Guild] = {}
 
         if application_commands:
@@ -316,8 +292,6 @@ class ConnectionState:
 
         if modals:
             self._modal_store: ModalStore = ModalStore(self)
-
-        self._voice_clients: dict[int, VoiceProtocol] = {}
 
         # LRU of max size 128
         self._private_channels: OrderedDict[int, PrivateChannel] = OrderedDict()
@@ -369,24 +343,6 @@ class ConnectionState:
         ret.value = self._intents.value
         return ret
 
-    @property
-    def voice_clients(self) -> list[VoiceProtocol]:
-        return list(self._voice_clients.values())
-
-    def _get_voice_client(self, guild_id: int | None) -> VoiceProtocol | None:
-        # the keys of self._voice_clients are ints
-        return self._voice_clients.get(guild_id)  # pyright: ignore[reportArgumentType]
-
-    def _add_voice_client(self, guild_id: int, voice: VoiceProtocol) -> None:
-        self._voice_clients[guild_id] = voice
-
-    def _remove_voice_client(self, guild_id: int) -> None:
-        self._voice_clients.pop(guild_id, None)
-
-    def _update_references(self, ws: DiscordWebSocket) -> None:
-        for vc in self.voice_clients:
-            vc.main_ws = ws  # pyright: ignore[reportAttributeAccessIssue]
-
     def store_user(self, data: UserPayload) -> User:
         user_id = int(data["id"])
         try:
@@ -410,20 +366,6 @@ class ConnectionState:
         emoji_id = int(data["id"])
         self._emojis[emoji_id] = emoji = Emoji(guild=guild, state=self, data=data)
         return emoji
-
-    def store_sticker(self, guild: Guild, data: GuildStickerPayload) -> GuildSticker:
-        sticker_id = int(data["id"])
-        self._stickers[sticker_id] = sticker = GuildSticker(state=self, data=data)
-        return sticker
-
-    def store_soundboard_sound(
-        self, guild: Guild, data: GuildSoundboardSoundPayload
-    ) -> GuildSoundboardSound:
-        sound_id = int(data["sound_id"])
-        self._soundboard_sounds[sound_id] = sound = GuildSoundboardSound(
-            state=self, data=data, guild_id=guild.id
-        )
-        return sound
 
     def store_view(self, view: View, message_id: int | None = None) -> None:
         self._view_store.add_view(view, message_id)
@@ -456,12 +398,6 @@ class ConnectionState:
 
         for emoji in guild.emojis:
             self._emojis.pop(emoji.id, None)
-
-        for sticker in guild.stickers:
-            self._stickers.pop(sticker.id, None)
-
-        for sound in guild.soundboard_sounds:
-            self._soundboard_sounds.pop(sound.id, None)
 
         del guild
 
@@ -539,25 +475,9 @@ class ConnectionState:
     def emojis(self) -> list[Emoji]:
         return list(self._emojis.values())
 
-    @property
-    def stickers(self) -> list[GuildSticker]:
-        return list(self._stickers.values())
-
-    @property
-    def soundboard_sounds(self) -> list[GuildSoundboardSound]:
-        return list(self._soundboard_sounds.values())
-
     def get_emoji(self, emoji_id: int | None) -> Emoji | None:
         # the keys of self._emojis are ints
         return self._emojis.get(emoji_id)  # pyright: ignore[reportArgumentType]
-
-    def get_sticker(self, sticker_id: int | None) -> GuildSticker | None:
-        # the keys of self._stickers are ints
-        return self._stickers.get(sticker_id)  # pyright: ignore[reportArgumentType]
-
-    def get_soundboard_sound(self, sound_id: int | None) -> GuildSoundboardSound | None:
-        # the keys of self._soundboard_sounds are ints
-        return self._soundboard_sounds.get(sound_id)  # pyright: ignore[reportArgumentType]
 
     @property
     def private_channels(self) -> list[PrivateChannel]:
@@ -1421,12 +1341,6 @@ class ConnectionState:
             )
             return
 
-        before_stickers = guild.stickers
-        for sticker in before_stickers:
-            self._stickers.pop(sticker.id, None)
-        guild.stickers = tuple(self.store_sticker(guild, d) for d in data["stickers"])
-        self.dispatch("guild_stickers_update", guild, before_stickers, guild.stickers)
-
     def _get_create_guild(self, data: gateway.GuildCreateEvent) -> Guild:
         if data.get("unavailable") is False:
             # GUILD_CREATE with unavailable in the response
@@ -1606,83 +1520,6 @@ class ConnectionState:
                 data["guild_id"],
             )
 
-    def parse_guild_scheduled_event_create(
-        self, data: gateway.GuildScheduledEventCreateEvent
-    ) -> None:
-        scheduled_event = GuildScheduledEvent(state=self, data=data)
-        guild = scheduled_event.guild
-        if guild is not None:
-            guild._scheduled_events[scheduled_event.id] = scheduled_event
-        self.dispatch("guild_scheduled_event_create", scheduled_event)
-
-    def parse_guild_scheduled_event_update(
-        self, data: gateway.GuildScheduledEventUpdateEvent
-    ) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-
-        if guild is None:
-            _log.debug(
-                "GUILD_SCHEDULED_EVENT_UPDATE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        scheduled_event = guild._scheduled_events.get(int(data["id"]))
-        if scheduled_event is not None:
-            old_scheduled_event = copy.copy(scheduled_event)
-            scheduled_event._update(data)
-            self.dispatch("guild_scheduled_event_update", old_scheduled_event, scheduled_event)
-
-        else:
-            _log.debug(
-                "GUILD_SCHEDULED_EVENT_UPDATE referencing "
-                "unknown scheduled event ID: %s. Discarding.",
-                data["id"],
-            )
-
-    def parse_guild_scheduled_event_delete(
-        self, data: gateway.GuildScheduledEventDeleteEvent
-    ) -> None:
-        scheduled_event = GuildScheduledEvent(state=self, data=data)
-        guild = scheduled_event.guild
-        if guild is not None:
-            guild._scheduled_events.pop(scheduled_event.id, None)
-        self.dispatch("guild_scheduled_event_delete", scheduled_event)
-
-    def parse_guild_scheduled_event_user_add(
-        self, data: gateway.GuildScheduledEventUserAddEvent
-    ) -> None:
-        payload = RawGuildScheduledEventUserActionEvent(data)
-        self.dispatch("raw_guild_scheduled_event_subscribe", payload)
-        guild = self._get_guild(payload.guild_id)
-        if guild is None:
-            return
-
-        event = guild.get_scheduled_event(payload.event_id)
-        user = guild.get_member(payload.user_id)
-        if user is None:
-            user = self.get_user(payload.user_id)
-
-        if event is not None and user is not None:
-            self.dispatch("guild_scheduled_event_subscribe", event, user)
-
-    def parse_guild_scheduled_event_user_remove(
-        self, data: gateway.GuildScheduledEventUserRemoveEvent
-    ) -> None:
-        payload = RawGuildScheduledEventUserActionEvent(data)
-        self.dispatch("raw_guild_scheduled_event_unsubscribe", payload)
-        guild = self._get_guild(payload.guild_id)
-        if guild is None:
-            return
-
-        event = guild.get_scheduled_event(payload.event_id)
-        user = guild.get_member(payload.user_id)
-        if user is None:
-            user = self.get_user(payload.user_id)
-
-        if event is not None and user is not None:
-            self.dispatch("guild_scheduled_event_unsubscribe", event, user)
-
     def parse_guild_members_chunk(self, data: gateway.GuildMembersChunkEvent) -> None:
         guild_id = int(data["guild_id"])
         guild = self._get_guild(guild_id)
@@ -1723,41 +1560,6 @@ class ConnectionState:
                 data["guild_id"],
             )
 
-    def parse_integration_create(self, data: gateway.IntegrationCreateEvent) -> None:
-        guild_id = int(data["guild_id"])
-        guild = self._get_guild(guild_id)
-        if guild is not None:
-            cls, _ = _integration_factory(data["type"])
-            integration = cls(data=data, guild=guild)
-            self.dispatch("integration_create", integration)
-        else:
-            _log.debug(
-                "INTEGRATION_CREATE referencing an unknown guild ID: %s. Discarding.", guild_id
-            )
-
-    def parse_integration_update(self, data: gateway.IntegrationUpdateEvent) -> None:
-        guild_id = int(data["guild_id"])
-        guild = self._get_guild(guild_id)
-        if guild is not None:
-            cls, _ = _integration_factory(data["type"])
-            integration = cls(data=data, guild=guild)
-            self.dispatch("integration_update", integration)
-        else:
-            _log.debug(
-                "INTEGRATION_UPDATE referencing an unknown guild ID: %s. Discarding.", guild_id
-            )
-
-    def parse_integration_delete(self, data: gateway.IntegrationDeleteEvent) -> None:
-        guild_id = int(data["guild_id"])
-        guild = self._get_guild(guild_id)
-        if guild is not None:
-            raw = RawIntegrationDeleteEvent(data)
-            self.dispatch("raw_integration_delete", raw)
-        else:
-            _log.debug(
-                "INTEGRATION_DELETE referencing an unknown guild ID: %s. Discarding.", guild_id
-            )
-
     def parse_webhooks_update(self, data: gateway.WebhooksUpdateEvent) -> None:
         guild = self._get_guild(int(data["guild_id"]))
         if guild is None:
@@ -1774,170 +1576,6 @@ class ConnectionState:
                 "WEBHOOKS_UPDATE referencing an unknown channel ID: %s. Discarding.",
                 data["channel_id"],
             )
-
-    def parse_stage_instance_create(self, data: gateway.StageInstanceCreateEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is not None:
-            stage_instance = StageInstance(guild=guild, state=self, data=data)
-            guild._stage_instances[stage_instance.id] = stage_instance
-            self.dispatch("stage_instance_create", stage_instance)
-        else:
-            _log.debug(
-                "STAGE_INSTANCE_CREATE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-
-    def parse_stage_instance_update(self, data: gateway.StageInstanceUpdateEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is not None:
-            stage_instance = guild._stage_instances.get(int(data["id"]))
-            if stage_instance is not None:
-                old_stage_instance = copy.copy(stage_instance)
-                stage_instance._update(data)
-                self.dispatch("stage_instance_update", old_stage_instance, stage_instance)
-            else:
-                _log.debug(
-                    "STAGE_INSTANCE_UPDATE referencing unknown stage instance ID: %s. Discarding.",
-                    data["id"],
-                )
-        else:
-            _log.debug(
-                "STAGE_INSTANCE_UPDATE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-
-    def parse_stage_instance_delete(self, data: gateway.StageInstanceDeleteEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is not None:
-            try:
-                stage_instance = guild._stage_instances.pop(int(data["id"]))
-            except KeyError:
-                pass
-            else:
-                self.dispatch("stage_instance_delete", stage_instance)
-        else:
-            _log.debug(
-                "STAGE_INSTANCE_DELETE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-
-    def parse_voice_state_update(self, data: gateway.VoiceStateUpdateEvent) -> None:
-        guild = self._get_guild(utils._get_as_snowflake(data, "guild_id"))
-        channel_id = utils._get_as_snowflake(data, "channel_id")
-        flags = self.member_cache_flags
-        # self.user is *always* cached when this is called
-        self_id = self.user.id
-        if guild is not None:
-            if int(data["user_id"]) == self_id:
-                voice = self._get_voice_client(guild.id)
-                if voice is not None:
-                    coro = voice.on_voice_state_update(data)
-                    asyncio.create_task(
-                        logging_coroutine(coro, info="Voice Protocol voice state update handler")
-                    )
-
-            member, before, after = guild._update_voice_state(data, channel_id)
-            if member is not None:
-                if flags.voice:
-                    if channel_id is None and flags._voice_only and member.id != self_id:
-                        # Only remove from cache if we only have the voice flag enabled
-                        guild._remove_member(member)
-                    elif channel_id is not None:
-                        guild._add_member(member)
-
-                self.dispatch("voice_state_update", member, before, after)
-            else:
-                _log.debug(
-                    "VOICE_STATE_UPDATE referencing an unknown member ID: %s. Discarding.",
-                    data["user_id"],
-                )
-
-    def parse_voice_server_update(self, data: gateway.VoiceServerUpdateEvent) -> None:
-        key_id = int(data["guild_id"])
-
-        vc = self._get_voice_client(key_id)
-        if vc is not None:
-            coro = vc.on_voice_server_update(data)
-            asyncio.create_task(
-                logging_coroutine(coro, info="Voice Protocol voice server update handler")
-            )
-
-    def parse_voice_channel_effect_send(self, data: gateway.VoiceChannelEffectSendEvent) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "VOICE_CHANNEL_EFFECT_SEND referencing an unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        effect = VoiceChannelEffect(data=data, state=self)
-        raw = RawVoiceChannelEffectEvent(data, effect)
-
-        channel = guild.get_channel(raw.channel_id)
-        raw.cached_member = member = guild.get_member(raw.user_id)
-        self.dispatch("raw_voice_channel_effect", raw)
-
-        if channel and member:
-            self.dispatch("voice_channel_effect", channel, member, effect)
-
-    def parse_voice_channel_status_update(self, data: gateway.VoiceChannelStatusUpdate) -> None:
-        guild_id = int(data["guild_id"])
-        guild = self._get_guild(guild_id)
-
-        if guild is None:
-            _log.debug(
-                "VOICE_CHANNEL_STATUS_UPDATE referencing an unknown guild ID: %s. Discarding",
-                guild_id,
-            )
-            return
-
-        channel_id = int(data["id"])
-        channel = guild.get_channel(channel_id)
-        if channel is None:
-            _log.debug(
-                "VOICE_CHANNEL_STATUS_UPDATE referencing an unknown channel ID: %s. Discarding",
-                channel_id,
-            )
-            return
-
-        if isinstance(channel, VoiceChannel):
-            # in case stage channels ever get statuses too
-            old_status = channel.status
-            channel.status = data.get("status")
-        else:
-            old_status = None
-
-        self.dispatch("voice_channel_status_update", channel, old_status, data.get("status"))
-
-    def parse_voice_channel_start_time_update(
-        self, data: gateway.VoiceChannelStartTimeUpdate
-    ) -> None:
-        guild_id = int(data["guild_id"])
-        guild = self._get_guild(guild_id)
-
-        if guild is None:
-            _log.debug(
-                "VOICE_CHANNEL_START_TIME_UPDATE referencing an unknown guild ID: %s. Discarding",
-                guild_id,
-            )
-            return
-
-        channel_id = int(data["id"])
-        channel = guild.get_channel(channel_id)
-        if channel is None:
-            _log.debug(
-                "VOICE_CHANNEL_START_TIME_UPDATE referencing an unknown channel ID: %s. Discarding",
-                channel_id,
-            )
-            return
-
-        timestamp = (
-            datetime.datetime.fromtimestamp(start_ts, tz=datetime.timezone.utc)
-            if (start_ts := data.get("voice_start_time"))
-            else None
-        )
-        self.dispatch("voice_channel_start_time_update", channel, timestamp)
 
     # FIXME: this should be refactored. The `GroupChannel` path will never be hit,
     # `raw.timestamp` exists so no need to parse it twice, and `.get_user` should be used before falling back
@@ -1972,84 +1610,6 @@ class ConnectionState:
                 )
                 self.dispatch("typing", channel, member, timestamp)
 
-    def parse_auto_moderation_rule_create(
-        self, data: gateway.AutoModerationRuleCreateEvent
-    ) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "AUTO_MODERATION_RULE_CREATE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        rule = AutoModRule(data=data, guild=guild)
-        self.dispatch("automod_rule_create", rule)
-
-    def parse_auto_moderation_rule_update(
-        self, data: gateway.AutoModerationRuleUpdateEvent
-    ) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "AUTO_MODERATION_RULE_UPDATE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        rule = AutoModRule(data=data, guild=guild)
-        self.dispatch("automod_rule_update", rule)
-
-    def parse_auto_moderation_rule_delete(
-        self, data: gateway.AutoModerationRuleDeleteEvent
-    ) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "AUTO_MODERATION_RULE_DELETE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        rule = AutoModRule(data=data, guild=guild)
-        self.dispatch("automod_rule_delete", rule)
-
-    def parse_auto_moderation_action_execution(
-        self, data: gateway.AutoModerationActionExecutionEvent
-    ) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "AUTO_MODERATION_ACTION_EXECUTION referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        event = AutoModActionExecution(data=data, guild=guild)
-        self.dispatch("automod_action_execution", event)
-
-    def parse_guild_audit_log_entry_create(self, data: gateway.AuditLogEntryCreate) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "GUILD_AUDIT_LOG_ENTRY_CREATE referencing unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        entry = AuditLogEntry(
-            data=data,
-            guild=guild,
-            application_commands={},
-            automod_rules={},
-            guild_scheduled_events=guild._scheduled_events,
-            integrations={},
-            threads=guild._threads,
-            users=self._users,
-            webhooks={},
-        )
-        self.dispatch("audit_log_entry_create", entry)
-
     def parse_entitlement_create(self, data: gateway.EntitlementCreate) -> None:
         entitlement = Entitlement(data=data, state=self)
         self.dispatch("entitlement_create", entitlement)
@@ -2073,107 +1633,6 @@ class ConnectionState:
     def parse_subscription_delete(self, data: gateway.SubscriptionDelete) -> None:
         subscription = Subscription(data=data, state=self)
         self.dispatch("subscription_delete", subscription)
-
-    def parse_guild_soundboard_sound_create(self, data: gateway.GuildSoundboardSoundCreate) -> None:
-        guild_id = utils._get_as_snowflake(data, "guild_id")
-        guild = self._get_guild(guild_id)
-        if guild is None:
-            _log.debug(
-                "GUILD_SOUNDBOARD_SOUND_CREATE referencing unknown guild ID: %s. Discarding.",
-                guild_id,
-            )
-            return
-
-        sound = self.store_soundboard_sound(guild, data)
-
-        # since both single-target `SOUND_CREATE`/`_UPDATE`/`_DELETE`s and a generic `SOUNDS_UPDATE`
-        # exist, turn these events into synthetic `SOUNDS_UPDATE`s
-        self._handle_soundboard_update(
-            guild,
-            # append new sound
-            (*guild.soundboard_sounds, sound),
-        )
-
-    def parse_guild_soundboard_sound_update(self, data: gateway.GuildSoundboardSoundUpdate) -> None:
-        guild_id = utils._get_as_snowflake(data, "guild_id")
-        guild = self._get_guild(guild_id)
-        if guild is None:
-            _log.debug(
-                "GUILD_SOUNDBOARD_SOUND_UPDATE referencing an unknown guild ID: %s. Discarding.",
-                guild_id,
-            )
-            return
-
-        sound_id = int(data["sound_id"])
-        sound = self.get_soundboard_sound(sound_id)
-        if sound is None:
-            _log.debug(
-                "GUILD_SOUNDBOARD_SOUND_UPDATE referencing unknown sound ID: %s. Discarding.",
-                sound_id,
-            )
-            return
-
-        self._soundboard_sounds.pop(sound.id, None)
-        new_sound = self.store_soundboard_sound(guild, data)
-
-        self._handle_soundboard_update(
-            guild,
-            # replace sound in tuple at same position
-            tuple((new_sound if s.id == sound.id else s) for s in guild.soundboard_sounds),
-        )
-
-    def parse_guild_soundboard_sound_delete(self, data: gateway.GuildSoundboardSoundDelete) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "GUILD_SOUNDBOARD_SOUND_DELETE referencing an unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        sound_id = int(data["sound_id"])
-        sound = self.get_soundboard_sound(sound_id)
-        if sound is None:
-            _log.debug(
-                "GUILD_SOUNDBOARD_SOUND_UPDATE referencing unknown sound ID: %s. Discarding.",
-                sound_id,
-            )
-            return
-
-        self._soundboard_sounds.pop(sound.id, None)
-
-        self._handle_soundboard_update(
-            guild,
-            # remove sound from tuple
-            tuple(s for s in guild.soundboard_sounds if s.id != sound.id),
-        )
-
-    def parse_guild_soundboard_sounds_update(
-        self, data: gateway.GuildSoundboardSoundsUpdate
-    ) -> None:
-        guild = self._get_guild(int(data["guild_id"]))
-        if guild is None:
-            _log.debug(
-                "GUILD_SOUNDBOARD_SOUNDS_UPDATE referencing an unknown guild ID: %s. Discarding.",
-                data["guild_id"],
-            )
-            return
-
-        for sound in guild.soundboard_sounds:
-            self._soundboard_sounds.pop(sound.id, None)
-
-        self._handle_soundboard_update(
-            guild,
-            tuple(self.store_soundboard_sound(guild, d) for d in data["soundboard_sounds"]),
-        )
-
-    def _handle_soundboard_update(
-        self, guild: Guild, new_sounds: tuple[GuildSoundboardSound, ...]
-    ) -> None:
-        before_sounds = guild.soundboard_sounds
-        guild.soundboard_sounds = new_sounds
-
-        self.dispatch("guild_soundboard_sounds_update", guild, before_sounds, new_sounds)
 
     def _get_reaction_user(self, channel: MessageableChannel, user_id: int) -> User | Member | None:
         if isinstance(channel, (TextChannel, VoiceChannel, Thread, StageChannel)):
@@ -2483,22 +1942,6 @@ class AutoShardedConnectionState(ConnectionState):
                 channel = new_guild._resolve_channel(channel_id) or Object(id=channel_id)
                 # channel will either be a TextChannel, VoiceChannel, Thread, StageChannel, or Object
                 msg._rebind_cached_references(new_guild, channel)  # pyright: ignore[reportArgumentType]
-
-        # these generally get deallocated once the voice reconnect times out
-        # (it never succeeds after gateway reconnects)
-        # but we rebind the channel reference just in case
-        for vc in self._voice_clients.values():
-            if not getattr(vc.channel, "guild", None):
-                continue
-
-            new_guild = self._get_guild(vc.channel.guild.id)
-            if new_guild is None:
-                continue
-
-            # TODO: use PartialMessageable instead of Object (3.0)
-            new_channel = new_guild._resolve_channel(vc.channel.id) or Object(id=vc.channel.id)
-            if new_channel is not vc.channel:
-                vc.channel = new_channel  # pyright: ignore[reportAttributeAccessIssue]
 
     def _update_member_references(self) -> None:
         messages: Sequence[Message] = self._messages or []

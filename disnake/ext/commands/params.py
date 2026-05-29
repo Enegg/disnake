@@ -35,7 +35,6 @@ import disnake
 from disnake.app_commands import Option, OptionChoice
 from disnake.channel import _channel_type_factory
 from disnake.enums import ChannelType, OptionType, try_enum_to_int
-from disnake.ext import commands
 from disnake.i18n import Localized
 from disnake.interactions import ApplicationCommandInteraction
 from disnake.utils import (
@@ -60,19 +59,15 @@ if TYPE_CHECKING:
     from disnake.types.interactions import ApplicationCommandOptionChoiceValue
 
     from ._types import FuncT
-    from .base_core import CogT
-    from .cog import Cog
     from .slash_core import InvokableSlashCommand, SubCommand
 
     AnySlashCommand: TypeAlias = InvokableSlashCommand | SubCommand
 
     P = ParamSpec("P")
 
-    InjectionCallback: TypeAlias = Callable[Concatenate[CogT, P], T_] | Callable[P, T_]
+    InjectionCallback: TypeAlias = Callable[P, T_]
     AnyAutocompleter: TypeAlias = (
-        Sequence[Any]
-        | Callable[Concatenate[ApplicationCommandInteraction, str, P], Any]
-        | Callable[Concatenate[CogT, ApplicationCommandInteraction, str, P], Any]
+        Sequence[Any] | Callable[Concatenate[ApplicationCommandInteraction, str, P], Any]
     )
 
     TChoice = TypeVar("TChoice", bound=ApplicationCommandOptionChoiceValue)
@@ -175,24 +170,18 @@ class Injection(Generic[P, T_]):
 
     def __init__(
         self,
-        function: InjectionCallback[CogT, P, T_],
+        function: InjectionCallback[P, T_],
         *,
         autocompleters: dict[str, Callable] | None = None,
     ) -> None:
-        if autocompleters is not None:
-            for autocomp in autocompleters.values():
-                classify_autocompleter(autocomp)
-
-        self.function: InjectionCallback[Any, P, T_] = function
+        self.function: InjectionCallback[P, T_] = function
         self.autocompleters: dict[str, Callable] = autocompleters or {}
-        self._injected: Cog | None = None
 
     def __get__(self, obj: Any | None, _: type[object]) -> Self:
         if obj is None:
             return self
 
         copy = type(self)(function=self.function, autocompleters=self.autocompleters)
-        copy._injected = obj
         setattr(obj, self.function.__name__, copy)
 
         return copy
@@ -202,15 +191,12 @@ class Injection(Generic[P, T_]):
 
         .. versionadded:: 2.6
         """
-        if self._injected is not None:
-            return self.function(self._injected, *args, **kwargs)  # pyright: ignore[reportCallIssue]
-        else:
-            return self.function(*args, **kwargs)  # pyright: ignore[reportCallIssue]
+        return self.function(*args, **kwargs)
 
     @classmethod
     def register(
         cls,
-        function: InjectionCallback[CogT, P, T_],
+        function: InjectionCallback[P, T_],
         annotation: Any,
         *,
         autocompleters: dict[str, Callable] | None = None,
@@ -245,7 +231,6 @@ class Injection(Generic[P, T_]):
             raise ValueError(msg)
 
         def decorator(func: FuncT) -> FuncT:
-            classify_autocompleter(func)
             self.autocompleters[option_name] = func
             return func
 
@@ -523,9 +508,6 @@ class ParamInfo:
         self.param_name: str = self.name
         self.converter = converter
         self.convert_default = convert_default
-
-        if autocomplete:
-            classify_autocompleter(autocomplete)
         self.autocomplete = autocomplete
 
         self.choices = choices or []
@@ -922,41 +904,6 @@ def isolate_self(
     return (cog_param, inter_param), parameters
 
 
-def classify_autocompleter(autocompleter: AnyAutocompleter) -> None:
-    """Detects whether an autocomplete function can take a cog as the first argument.
-    The result is then saved as a boolean value in `func.__has_cog_param__`
-    """
-    if not callable(autocompleter):
-        return
-
-    sig = inspect.signature(autocompleter)
-    positional_param_count = 0
-
-    for param in sig.parameters.values():
-        if (
-            param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
-        ) and param.default is param.empty:
-            positional_param_count += 1
-        else:
-            break
-
-    if positional_param_count < 2:
-        msg = (
-            "An autocomplete function should have 2 or 3 non-optional positional arguments. "
-            "For example, foo(inter, string) or foo(cog, inter, string)"
-        )
-        raise ValueError(msg)
-
-    if positional_param_count > 3:
-        msg = (
-            "Any additional arguments of an autocomplete function "
-            "(apart from the first 3) should be keyword-only"
-        )
-        raise ValueError(msg)
-
-    autocompleter.__has_cog_param__ = positional_param_count == 3
-
-
 def collect_params(
     function: Callable[..., Any],
     parameters: dict[str, inspect.Parameter] | None = None,
@@ -992,12 +939,6 @@ def collect_params(
             else:
                 msg = f"Found two candidates for the interaction parameter in {function!r}: {inter_param.name} and {parameter.name}"
                 raise TypeError(msg)
-        elif issubclass_(parameter.annotation, commands.Cog):
-            if cog_param is None:
-                cog_param = parameter
-            else:
-                msg = f"Found two candidates for the cog parameter in {function!r}: {cog_param.name} and {parameter.name}"
-                raise TypeError(msg)
         else:
             paraminfo = ParamInfo.from_param(parameter, {}, doc)
             paraminfos.append(paraminfo)
@@ -1030,19 +971,10 @@ def format_kwargs(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Create kwargs from appropriate information"""
-    first = args[0] if args else None
-
     if len(args) > 1:
         msg = "When calling a slash command only self and the interaction should be positional"
         raise TypeError(msg)
-    elif first and not isinstance(first, commands.Cog):
-        msg = "Method slash commands may be created only in cog subclasses"
-        raise TypeError(msg)
 
-    cog: commands.Cog | None = first
-
-    if cog_param:
-        kwargs[cog_param] = cog
     if inter_param:
         kwargs[inter_param] = interaction
 
@@ -1380,7 +1312,7 @@ else:
 
 
 def register_injection(
-    function: InjectionCallback[CogT, P, T_],
+    function: InjectionCallback[P, T_],
     *,
     autocompleters: dict[str, Callable] | None = None,
 ) -> Injection[P, T_]:

@@ -5,16 +5,9 @@ from __future__ import annotations
 import datetime
 import itertools
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from operator import attrgetter
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Literal,
-    TypeAlias,
-    cast,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, TypeAlias, cast, overload
 
 import disnake.abc
 
@@ -24,7 +17,6 @@ from .asset import Asset, AssetBytes
 from .colour import Colour
 from .enums import Status, try_enum
 from .flags import MemberFlags
-from .object import Object
 from .permissions import Permissions
 from .user import BaseUser, User, _UserTag
 from .utils import MISSING, _assetbytes_to_base64_data
@@ -37,7 +29,6 @@ __all__ = (
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from .abc import Snowflake
     from .channel import DMChannel, StageChannel, VoiceChannel
     from .flags import PublicUserFlags
     from .guild import Guild
@@ -442,7 +433,7 @@ class Member(disnake.abc.Messageable, _UserTag):
     def _presence_update(self, data: PresenceData, user: UserPayload) -> tuple[User, User] | None:
         self.activities = tuple(create_activity(a, state=self._state) for a in data["activities"])
         self._client_status = {
-            sys.intern(key): sys.intern(value)  # pyright: ignore[reportArgumentType]
+            sys.intern(key): sys.intern(value)  # pyright: ignore[reportArgumentType, reportCallIssue]
             for key, value in data.get("client_status", {}).items()
         }
         self._client_status[None] = sys.intern(data["status"])
@@ -728,11 +719,6 @@ class Member(disnake.abc.Messageable, _UserTag):
         return base
 
     @property
-    def voice(self) -> VoiceState | None:
-        """:class:`VoiceState` | :data:`None`: Returns the member's current voice state."""
-        return self.guild._voice_state_for(self._user.id)
-
-    @property
     def current_timeout(self) -> datetime.datetime | None:
         """:class:`datetime.datetime` | :data:`None`: Returns the datetime when the timeout expires.
 
@@ -799,54 +785,6 @@ class Member(disnake.abc.Messageable, _UserTag):
             return None
         return Asset._from_avatar_decoration(self._state, self._avatar_decoration_data["asset"])
 
-    @overload
-    async def ban(
-        self,
-        *,
-        clean_history_duration: int | datetime.timedelta = 86400,
-        reason: str | None = None,
-    ) -> None: ...
-
-    @overload
-    async def ban(
-        self,
-        *,
-        delete_message_days: Literal[0, 1, 2, 3, 4, 5, 6, 7] = 1,
-        reason: str | None = None,
-    ) -> None: ...
-
-    async def ban(
-        self,
-        *,
-        clean_history_duration: int | datetime.timedelta = MISSING,
-        delete_message_days: Literal[0, 1, 2, 3, 4, 5, 6, 7] = MISSING,
-        reason: str | None = None,
-    ) -> None:
-        """|coro|
-
-        Bans this member. Equivalent to :meth:`Guild.ban`.
-        """
-        await self.guild.ban(
-            self,
-            reason=reason,
-            clean_history_duration=clean_history_duration,
-            delete_message_days=delete_message_days,
-        )  # pyright: ignore[reportCallIssue]  # no matching overload
-
-    async def unban(self, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Unbans this member. Equivalent to :meth:`Guild.unban`.
-        """
-        await self.guild.unban(self, reason=reason)
-
-    async def kick(self, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Kicks this member. Equivalent to :meth:`Guild.kick`.
-        """
-        await self.guild.kick(self, reason=reason)
-
     async def _edit_self(
         self,
         *,
@@ -873,361 +811,6 @@ class Member(disnake.abc.Messageable, _UserTag):
         data = await self._state.http.edit_my_member(self.guild.id, reason=reason, **payload)
         return Member(data=data, guild=self.guild, state=self._state)
 
-    async def edit(
-        self,
-        *,
-        nick: str | None = MISSING,
-        mute: bool = MISSING,
-        deafen: bool = MISSING,
-        suppress: bool = MISSING,
-        roles: Sequence[disnake.abc.Snowflake] = MISSING,
-        voice_channel: VocalGuildChannel | None = MISSING,
-        timeout: float | datetime.timedelta | datetime.datetime | None = MISSING,
-        flags: MemberFlags = MISSING,
-        bypasses_verification: bool = MISSING,
-        bio: str | None = MISSING,
-        avatar: AssetBytes | None = MISSING,
-        banner: AssetBytes | None = MISSING,
-        reason: str | None = None,
-    ) -> Member | None:
-        r"""|coro|
-
-        Edits the member's data.
-
-        Depending on the parameter passed, this requires different permissions listed below:
-
-        +------------------------------+--------------------------------------+
-        |   Parameter                  |              Permission              |
-        +==============================+======================================+
-        | nick                         | :attr:`Permissions.manage_nicknames` |
-        +------------------------------+--------------------------------------+
-        | mute                         | :attr:`Permissions.mute_members`     |
-        +------------------------------+--------------------------------------+
-        | deafen                       | :attr:`Permissions.deafen_members`   |
-        +------------------------------+--------------------------------------+
-        | roles                        | :attr:`Permissions.manage_roles`     |
-        +------------------------------+--------------------------------------+
-        | voice_channel                | :attr:`Permissions.move_members`     |
-        +------------------------------+--------------------------------------+
-        | timeout                      | :attr:`Permissions.moderate_members` |
-        +------------------------------+--------------------------------------+
-        | flags                        | :attr:`Permissions.manage_guild` or  |
-        |                              | :attr:`Permissions.manage_roles` or  |
-        |                              | (:attr:`Permissions.moderate_members`|
-        |                              | + :attr:`Permissions.kick_members`   |
-        |                              | + :attr:`Permissions.ban_members`)   |
-        +------------------------------+--------------------------------------+
-        | bypasses_verification        | (same as ``flags``)                  |
-        +------------------------------+--------------------------------------+
-
-        All parameters are optional.
-
-        .. versionchanged:: 1.1
-            Can now pass :data:`None` to ``voice_channel`` to kick a member from voice.
-
-        .. versionchanged:: 2.0
-            The newly edited member is now optionally returned, if applicable.
-
-        Parameters
-        ----------
-        nick: :class:`str` | :data:`None`
-            The member's new nickname. Use :data:`None` to remove the nickname.
-
-            To change your own nickname, :attr:`~Permissions.change_nickname`
-            permission is sufficient.
-        mute: :class:`bool`
-            Whether the member should be guild muted or un-muted.
-        deafen: :class:`bool`
-            Whether the member should be guild deafened or un-deafened.
-        suppress: :class:`bool`
-            Whether the member should be suppressed in stage channels.
-
-            .. versionadded:: 1.7
-
-        roles: :class:`~collections.abc.Sequence`\[:class:`Role`]
-            The member's new list of roles. This *replaces* the roles.
-        voice_channel: :class:`VoiceChannel` | :data:`None`
-            The voice channel to move the member to.
-            Pass :data:`None` to kick them from voice.
-        timeout: :class:`float` | :class:`datetime.timedelta` | :class:`datetime.datetime` | :data:`None`
-            The duration (seconds or timedelta) or the expiry (datetime) of the timeout;
-            until then, the member will not be able to interact with the guild.
-            Set to :data:`None` to remove the timeout. Supports up to 28 days in the future.
-
-            .. versionadded:: 2.3
-
-        flags: :class:`MemberFlags`
-            The member's new flags. To know what flags are editable,
-            see :ddocs:`the documentation <resources/guild#guild-member-object-guild-member-flags>`.
-
-            If parameter ``bypasses_verification`` is provided, that will override the setting of :attr:`MemberFlags.bypasses_verification`.
-
-            .. versionadded:: 2.8
-
-        bypasses_verification: :class:`bool`
-            Whether the member bypasses guild verification requirements.
-
-            .. versionadded:: 2.8
-
-        bio: :class:`str` | :data:`None`
-            The member's new guild bio.
-            Can only be used on the bot's guild member, not other members.
-
-            .. versionadded:: 2.11
-
-        avatar: |resource_type| | :data:`None`
-            The member's new guild avatar.
-            Use :data:`None` to remove the avatar and revert back to the member's global avatar.
-            Can only be used on the bot's guild member, not other members.
-
-            .. versionadded:: 2.11
-
-        banner: |resource_type| | :data:`None`
-            The member's new guild banner.
-            Use :data:`None` to remove the banner and revert back to the member's global banner.
-            Can only be used on the bot's guild member, not other members.
-
-            .. versionadded:: 2.11
-
-        reason: :class:`str` | :data:`None`
-            The reason for editing this member. Shows up on the audit log.
-
-        Raises
-        ------
-        NotFound
-            The ``avatar`` or ``banner`` asset couldn't be found.
-        Forbidden
-            You do not have the proper permissions to the action requested.
-        HTTPException
-            The operation failed.
-        ValueError
-            Wrong image format passed for ``avatar`` or ``banner``.
-
-        Returns
-        -------
-        :class:`.Member` | :data:`None`
-            The newly updated member, if applicable. This is only returned
-            when certain fields are updated.
-        """
-        http = self._state.http
-        guild_id = self.guild.id
-        me = self._state.self_id == self.id
-
-        member: Member | None = None  # return value
-        payload: dict[str, Any] = {}
-
-        if me and any(v is not MISSING for v in (nick, bio, avatar, banner)):
-            member = await self._edit_self(
-                nick=nick, bio=bio, avatar=avatar, banner=banner, reason=reason
-            )
-            # clear used fields, avoid attempting to edit them again below
-            nick = MISSING
-
-        if nick is not MISSING:
-            payload["nick"] = nick or ""
-
-        if deafen is not MISSING:
-            payload["deaf"] = deafen
-
-        if mute is not MISSING:
-            payload["mute"] = mute
-
-        if suppress is not MISSING:
-            if self.voice is None or self.voice.channel is None:
-                msg = "Cannot suppress a member which isn't in a vc"
-                raise Exception(msg)  # noqa: TRY002
-
-            voice_state_payload: dict[str, Any] = {
-                "channel_id": self.voice.channel.id,
-                "suppress": suppress,
-            }
-
-            if suppress or self.bot:
-                voice_state_payload["request_to_speak_timestamp"] = None
-
-            if me:
-                await http.edit_my_voice_state(guild_id, voice_state_payload)
-            else:
-                if not suppress:
-                    voice_state_payload["request_to_speak_timestamp"] = utils.utcnow().isoformat()
-                await http.edit_voice_state(guild_id, self.id, voice_state_payload)
-
-        if voice_channel is not MISSING:
-            payload["channel_id"] = voice_channel and voice_channel.id
-
-        if roles is not MISSING:
-            payload["roles"] = tuple(r.id for r in roles)
-
-        if timeout is not MISSING:
-            if timeout is not None:
-                if isinstance(timeout, datetime.datetime):
-                    dt = timeout.astimezone(tz=datetime.timezone.utc)
-                elif isinstance(timeout, datetime.timedelta):
-                    dt = utils.utcnow() + timeout
-                else:
-                    dt = utils.utcnow() + datetime.timedelta(seconds=timeout)
-                payload["communication_disabled_until"] = dt.isoformat()
-            else:
-                payload["communication_disabled_until"] = None
-
-        if bypasses_verification is not MISSING:
-            # create base flags if flags are provided, otherwise use the internal flags.
-            flags = MemberFlags._from_value(self._flags if flags is MISSING else flags.value)
-            flags.bypasses_verification = bypasses_verification
-
-        if flags is not MISSING:
-            payload["flags"] = flags.value
-
-        if payload:
-            data = await http.edit_member(guild_id, self.id, reason=reason, **payload)
-            member = Member(data=data, guild=self.guild, state=self._state)
-        return member
-
-    async def request_to_speak(self) -> None:
-        """|coro|
-
-        Requests to speak in the connected channel.
-
-        Only applies to stage channels.
-
-        .. note::
-
-            Requesting members that are not the client is equivalent
-            to :attr:`.edit` providing ``suppress`` as ``False``.
-
-        .. versionadded:: 1.7
-
-        Raises
-        ------
-        Forbidden
-            You do not have the proper permissions to the action requested.
-        HTTPException
-            The operation failed.
-        """
-        if self.voice is None or self.voice.channel is None:
-            msg = "Cannot request to speak when not in a vc"
-            raise Exception(msg)  # noqa: TRY002
-
-        payload = {
-            "channel_id": self.voice.channel.id,
-            "request_to_speak_timestamp": utils.utcnow().isoformat(),
-        }
-
-        if self._state.self_id != self.id:
-            payload["suppress"] = False
-            await self._state.http.edit_voice_state(self.guild.id, self.id, payload)
-        else:
-            await self._state.http.edit_my_voice_state(self.guild.id, payload)
-
-    async def move_to(self, channel: VocalGuildChannel, *, reason: str | None = None) -> None:
-        """|coro|
-
-        Moves a member to a new voice channel (they must be connected first).
-
-        You must have :attr:`~Permissions.move_members` permission to
-        use this.
-
-        This raises the same exceptions as :meth:`edit`.
-
-        .. versionchanged:: 1.1
-            Can now pass :data:`None` to kick a member from voice.
-
-        Parameters
-        ----------
-        channel: :class:`VoiceChannel` | :data:`None`
-            The new voice channel to move the member to.
-            Pass :data:`None` to kick them from voice.
-        reason: :class:`str` | :data:`None`
-            The reason for doing this action. Shows up on the audit log.
-        """
-        await self.edit(voice_channel=channel, reason=reason)
-
-    async def add_roles(
-        self, *roles: Snowflake, reason: str | None = None, atomic: bool = True
-    ) -> None:
-        r"""|coro|
-
-        Gives the member a number of :class:`Role`\s.
-
-        You must have :attr:`~Permissions.manage_roles` permission to
-        use this, and the added :class:`Role`\s must appear lower in the list
-        of roles than the highest role of the member.
-
-        Parameters
-        ----------
-        *roles: :class:`abc.Snowflake`
-            An argument list of :class:`abc.Snowflake` representing a :class:`Role`
-            to give to the member.
-        reason: :class:`str` | :data:`None`
-            The reason for adding these roles. Shows up on the audit log.
-        atomic: :class:`bool`
-            Whether to atomically add roles. This will ensure that multiple
-            operations will always be applied regardless of the current
-            state of the cache.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to add these roles.
-        HTTPException
-            Adding roles failed.
-        """
-        if not atomic:
-            new_roles = utils._unique(Object(id=r.id) for s in (self.roles[1:], roles) for r in s)
-            await self.edit(roles=new_roles, reason=reason)
-        else:
-            req = self._state.http.add_role
-            guild_id = self.guild.id
-            user_id = self.id
-            for role in roles:
-                await req(guild_id, user_id, role.id, reason=reason)
-
-    async def remove_roles(
-        self, *roles: Snowflake, reason: str | None = None, atomic: bool = True
-    ) -> None:
-        r"""|coro|
-
-        Removes :class:`Role`\s from this member.
-
-        You must have :attr:`~Permissions.manage_roles` permission to
-        use this, and the removed :class:`Role`\s must appear lower in the list
-        of roles than the highest role of the member.
-
-        Parameters
-        ----------
-        *roles: :class:`abc.Snowflake`
-            An argument list of :class:`abc.Snowflake` representing a :class:`Role`
-            to remove from the member.
-        reason: :class:`str` | :data:`None`
-            The reason for removing these roles. Shows up on the audit log.
-        atomic: :class:`bool`
-            Whether to atomically remove roles. This will ensure that multiple
-            operations will always be applied regardless of the current
-            state of the cache.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to remove these roles.
-        HTTPException
-            Removing the roles failed.
-        """
-        if not atomic:
-            new_roles = [Object(id=r.id) for r in self.roles[1:]]  # remove @everyone
-            for role in roles:
-                try:
-                    new_roles.remove(Object(id=role.id))
-                except ValueError:
-                    pass
-
-            await self.edit(roles=new_roles, reason=reason)
-        else:
-            req = self._state.http.remove_role
-            guild_id = self.guild.id
-            user_id = self.id
-            for role in roles:
-                await req(guild_id, user_id, role.id, reason=reason)
-
     def get_role(self, role_id: int, /) -> Role | None:
         """Returns a role with the given ID from roles which the member has.
 
@@ -1244,66 +827,3 @@ class Member(disnake.abc.Messageable, _UserTag):
             The role or :data:`None` if not found in the member's roles.
         """
         return self.guild.get_role(role_id) if self._roles.has(role_id) else None
-
-    @overload
-    async def timeout(
-        self,
-        *,
-        duration: float | datetime.timedelta | None,
-        reason: str | None = None,
-    ) -> Member: ...
-
-    @overload
-    async def timeout(
-        self,
-        *,
-        until: datetime.datetime | None,
-        reason: str | None = None,
-    ) -> Member: ...
-
-    async def timeout(
-        self,
-        *,
-        duration: float | datetime.timedelta | None = MISSING,
-        until: datetime.datetime | None = MISSING,
-        reason: str | None = None,
-    ) -> Member:
-        """|coro|
-
-        Times out the member from the guild; until then, the member will not be able to interact with the guild.
-
-        Exactly one of ``duration`` or ``until`` must be provided. To remove a timeout, set one of the parameters to :data:`None`.
-
-        You must have the :attr:`Permissions.moderate_members` permission to do this.
-
-        .. versionadded:: 2.3
-
-        Parameters
-        ----------
-        duration: :class:`float` | :class:`datetime.timedelta` | :data:`None`
-            The duration (seconds or timedelta) of the member's timeout. Set to :data:`None` to remove the timeout.
-            Supports up to 28 days in the future.
-            May not be used in combination with the ``until`` parameter.
-        until: :class:`datetime.datetime` | :data:`None`
-            The expiry date/time of the member's timeout. Set to :data:`None` to remove the timeout.
-            Supports up to 28 days in the future.
-            May not be used in combination with the ``duration`` parameter.
-        reason: :class:`str` | :data:`None`
-            The reason for this timeout. Appears on the audit log.
-
-        Raises
-        ------
-        Forbidden
-            You do not have permissions to timeout this member.
-        HTTPException
-            Timing out the member failed.
-
-        Returns
-        -------
-        :class:`Member`
-            The newly updated member.
-        """
-        if duration is not MISSING:
-            return await self.guild.timeout(self, duration=duration, reason=reason)
-        else:
-            return await self.guild.timeout(self, until=until, reason=reason)

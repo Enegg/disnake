@@ -94,7 +94,6 @@ class Loop(Generic[LF]):
         self._current_loop = 0
         self._handle: SleepHandle = MISSING
         self._task: asyncio.Task[None] = MISSING
-        self._injected: Any = None
         self._valid_exception = (
             OSError,
             disnake.GatewayNotFound,
@@ -127,10 +126,7 @@ class Loop(Generic[LF]):
         if coro is None:
             return
 
-        if self._injected is not None:
-            await coro(self._injected, *args, **kwargs)
-        else:
-            await coro(*args, **kwargs)
+        await coro(*args, **kwargs)
 
     def _try_sleep_until(self, dt: datetime.datetime) -> asyncio.Future[bool]:
         self._handle = SleepHandle(dt=dt, loop=self.loop)
@@ -191,14 +187,6 @@ class Loop(Generic[LF]):
             self._stop_next_iteration = False
             self._has_failed = False
 
-    def __get__(self, obj: T, objtype: type[T]) -> Self:
-        if obj is None:
-            return self
-        clone = self.clone()
-        clone._injected = obj
-        setattr(obj, self.coro.__name__, clone)
-        return clone
-
     def clone(self) -> Self:
         instance = type(self)(
             self.coro,
@@ -213,7 +201,6 @@ class Loop(Generic[LF]):
         instance._before_loop = self._before_loop
         instance._after_loop = self._after_loop
         instance._error = self._error
-        instance._injected = self._injected
         return instance
 
     @property
@@ -289,9 +276,6 @@ class Loop(Generic[LF]):
         **kwargs
             The keyword arguments to use.
         """
-        if self._injected is not None:
-            args = (self._injected, *args)
-
         return await self.coro(*args, **kwargs)
 
     def start(self, *args: Any, **kwargs: Any) -> asyncio.Task[None]:
@@ -317,9 +301,6 @@ class Loop(Generic[LF]):
         if self._task is not MISSING and not self._task.done():
             msg = "Task is already launched and is not completed."
             raise RuntimeError(msg)
-
-        if self._injected is not None:
-            args = (self._injected, *args)
 
         if self.loop is MISSING:
             self.loop = disnake.utils.get_event_loop()

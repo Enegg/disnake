@@ -61,7 +61,6 @@ if TYPE_CHECKING:
     from ..message import Attachment
     from ..poll import Poll
     from ..state import ConnectionState
-    from ..sticker import GuildSticker, StandardSticker, StickerItem
     from ..types.message import Message as MessagePayload
     from ..types.webhook import Webhook as WebhookPayload
     from ..ui._types import MessageComponents
@@ -510,7 +509,6 @@ def handle_message_parameters_dict(
     components: MessageComponents | None = MISSING,
     allowed_mentions: AllowedMentions | None = MISSING,
     previous_allowed_mentions: AllowedMentions | None = None,
-    stickers: Sequence[GuildSticker | StandardSticker | StickerItem] = MISSING,
     poll: Poll = MISSING,
     # these parameters are exclusive to webhooks in forum/media channels
     thread_name: str = MISSING,
@@ -559,8 +557,8 @@ def handle_message_parameters_dict(
         flags = MessageFlags._from_value(0 if flags is MISSING else flags.value)
         flags.is_components_v2 = True
     # components v2 cannot be used with other content fields
-    if flags and flags.is_components_v2 and (content or embeds or stickers or poll):
-        msg = "Cannot use v2 components with content, embeds, stickers, or polls"
+    if flags and flags.is_components_v2 and (content or embeds or poll):
+        msg = "Cannot use v2 components with content, embeds, or polls"
         raise ValueError(msg)
 
     if attachments is not MISSING:
@@ -591,9 +589,6 @@ def handle_message_parameters_dict(
     elif previous_allowed_mentions is not None:
         payload["allowed_mentions"] = previous_allowed_mentions.to_dict()
 
-    if stickers is not MISSING:
-        payload["sticker_ids"] = [s.id for s in stickers]
-
     if thread_name:
         payload["thread_name"] = thread_name
     if applied_tags:
@@ -622,7 +617,6 @@ def handle_message_parameters(
     components: MessageComponents | None = MISSING,
     allowed_mentions: AllowedMentions | None = MISSING,
     previous_allowed_mentions: AllowedMentions | None = None,
-    stickers: Sequence[GuildSticker | StandardSticker | StickerItem] = MISSING,
     poll: Poll = MISSING,
     # these parameters are exclusive to webhooks in forum/media channels
     thread_name: str = MISSING,
@@ -645,7 +639,6 @@ def handle_message_parameters(
         components=components,
         allowed_mentions=allowed_mentions,
         previous_allowed_mentions=previous_allowed_mentions,
-        stickers=stickers,
         thread_name=thread_name,
         applied_tags=applied_tags,
         poll=poll,

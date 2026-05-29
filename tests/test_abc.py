@@ -54,7 +54,6 @@ class TestGuildChannelEdit:
             },
             bitrate=42000,
             user_limit=3,
-            rtc_region="there",
             video_quality_mode=disnake.VideoQualityMode.full,
             flags=disnake.ChannelFlags(pinned=False, require_tag=True),
             available_tags=[disnake.ForumTag(name="tag", emoji="woo")],
@@ -83,7 +82,6 @@ class TestGuildChannelEdit:
             ],
             bitrate=42000,
             user_limit=3,
-            rtc_region="there",
             video_quality_mode=2,
             flags=16,
             available_tags=[

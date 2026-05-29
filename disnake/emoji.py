@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 
     from .abc import Snowflake
     from .guild import Guild
-    from .guild_preview import GuildPreview
     from .role import Role
     from .state import ConnectionState
     from .types.emoji import Emoji as EmojiPayload
@@ -98,7 +97,7 @@ class Emoji(_EmojiTag, AssetMixin):
     def __init__(
         self,
         *,
-        guild: Guild | GuildPreview | None,
+        guild: Guild | None,
         state: ConnectionState,
         data: EmojiPayload,
     ) -> None:

@@ -7,13 +7,10 @@ from typing import TYPE_CHECKING
 
 from .enums import SKUType, try_enum
 from .flags import SKUFlags
-from .iterators import SubscriptionIterator
 from .mixins import Hashable
-from .subscription import Subscription
 from .utils import snowflake_time
 
 if TYPE_CHECKING:
-    from .abc import Snowflake, SnowflakeTime
     from .state import ConnectionState
     from .types.sku import SKU as SKUPayload
 
@@ -86,71 +83,3 @@ class SKU(Hashable):
     def flags(self) -> SKUFlags:
         """:class:`SKUFlags`: Returns the SKU's flags."""
         return SKUFlags._from_value(self._flags)
-
-    def subscriptions(
-        self,
-        user: Snowflake,
-        *,
-        limit: int | None = 50,
-        before: SnowflakeTime | None = None,
-        after: SnowflakeTime | None = None,
-    ) -> SubscriptionIterator:
-        """Retrieves an :class:`.AsyncIterator` that enables receiving subscriptions for the SKU.
-
-        All parameters, except ``user``, are optional.
-
-        .. versionchanged:: 2.12
-            Now returns an async iterator, like all other iterator methods.
-            Previously, this mistakenly returned a coroutine.
-
-        Parameters
-        ----------
-        user: :class:`abc.Snowflake`
-            The user to retrieve subscriptions for.
-        limit: :class:`int` | :data:`None`
-            The number of subscriptions to retrieve.
-            If :data:`None`, retrieves every subscription.
-            Note, however, that this would make it a slow operation.
-            Defaults to ``50``.
-        before: :class:`.abc.Snowflake` | :class:`datetime.datetime`
-            Retrieves subscriptions created before this date or object.
-            If a datetime is provided, it is recommended to use a UTC aware datetime.
-            If the datetime is naive, it is assumed to be local time.
-        after: :class:`.abc.Snowflake` | :class:`datetime.datetime`
-            Retrieve subscriptions created after this date or object.
-            If a datetime is provided, it is recommended to use a UTC aware datetime.
-            If the datetime is naive, it is assumed to be local time.
-
-        Raises
-        ------
-        HTTPException
-            Retrieving the subscriptions failed.
-
-        Yields
-        ------
-        :class:`.Subscription`
-            The subscriptions for the given parameters.
-        """
-        return SubscriptionIterator(
-            self.id,
-            state=self._state,
-            user_id=user.id,
-            limit=limit,
-            before=before,
-            after=after,
-        )
-
-    async def fetch_subscription(self, subscription_id: int, /) -> Subscription:
-        """|coro|
-
-        Retrieve a subscription for this SKU given its ID.
-
-        Raises
-        ------
-        NotFound
-            The subscription does not exist.
-        HTTPException
-            Retrieving the subscription failed.
-        """
-        data = await self._state.http.get_subscription(self.id, subscription_id)
-        return Subscription(data=data, state=self._state)

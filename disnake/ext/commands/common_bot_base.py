@@ -12,22 +12,19 @@ import sys
 import time
 import types
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import disnake
 import disnake.utils
 
 from . import errors
-from .cog import Cog
 
 if TYPE_CHECKING:
     from ._types import CoroFunc
-    from .help import HelpCommand
 
 __all__ = ("CommonBotBase",)
 _log = logging.getLogger(__name__)
 
-CogT = TypeVar("CogT", bound="Cog")
 CFT = TypeVar("CFT", bound="CoroFunc")
 
 MISSING: Any = disnake.utils.MISSING
@@ -37,7 +34,7 @@ def _is_submodule(parent: str, child: str) -> bool:
     return parent == child or child.startswith(parent + ".")
 
 
-class CommonBotBase(Generic[CogT]):
+class CommonBotBase:
     if TYPE_CHECKING:
         extra_events: dict[str, list[CoroFunc]]
 
@@ -49,7 +46,6 @@ class CommonBotBase(Generic[CogT]):
         reload: bool = False,
         **kwargs: Any,
     ) -> None:
-        self.__cogs: dict[str, Cog] = {}
         self.__extensions: dict[str, types.ModuleType] = {}
         self._is_closed: bool = False
 
@@ -102,13 +98,6 @@ class CommonBotBase(Generic[CogT]):
                 error.__suppress_context__ = True
                 _log.error("Failed to unload extension %r", extension, exc_info=error)
 
-        for cog in tuple(self.__cogs):
-            try:
-                self.remove_cog(cog)
-            except Exception as error:
-                error.__suppress_context__ = True
-                _log.exception("Failed to remove cog %r", cog, exc_info=error)
-
         await super().close()  # pyright: ignore[reportAttributeAccessIssue]
 
     @disnake.utils.copy_doc(disnake.Client.login)
@@ -157,122 +146,10 @@ class CommonBotBase(Generic[CogT]):
         else:
             return user.id in self.owner_ids
 
-    def add_cog(self, cog: Cog, *, override: bool = False) -> None:
-        """Adds a "cog" to the bot.
-
-        A cog is a class that has its own event listeners and commands.
-
-        This automatically re-syncs application commands, provided that
-        :attr:`command_sync_flags.sync_on_cog_actions <.CommandSyncFlags.sync_on_cog_actions>`
-        isn't disabled.
-
-        .. versionchanged:: 2.0
-
-            :exc:`.ClientException` is raised when a cog with the same name
-            is already loaded.
-
-        Parameters
-        ----------
-        cog: :class:`.Cog`
-            The cog to register to the bot.
-        override: :class:`bool`
-            If a previously loaded cog with the same name should be ejected
-            instead of raising an error.
-
-            .. versionadded:: 2.0
-
-        Raises
-        ------
-        TypeError
-            The cog does not inherit from :class:`.Cog`.
-        CommandError
-            An error happened during loading.
-        ClientException
-            A cog with the same name is already loaded.
-        """
-        if not isinstance(cog, Cog):
-            msg = "cogs must derive from Cog"
-            raise TypeError(msg)
-
-        cog_name = cog.__cog_name__
-        existing = self.__cogs.get(cog_name)
-
-        if existing is not None:
-            if not override:
-                msg = f"Cog named {cog_name!r} already loaded"
-                raise disnake.ClientException(msg)
-            self.remove_cog(cog_name)
-
-        # NOTE: Should be covariant
-        cog = cog._inject(self)  # pyright: ignore[reportArgumentType]
-        self.__cogs[cog_name] = cog
-
-    def get_cog(self, name: str) -> Cog | None:
-        """Gets the cog instance requested.
-
-        If the cog is not found, :data:`None` is returned instead.
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The name of the cog you are requesting.
-            This is equivalent to the name passed via keyword
-            argument in class creation or the class name if unspecified.
-
-        Returns
-        -------
-        :class:`Cog` | :data:`None`
-            The cog that was requested. If not found, returns :data:`None`.
-        """
-        return self.__cogs.get(name)
-
-    def remove_cog(self, name: str) -> Cog | None:
-        """Removes a cog from the bot and returns it.
-
-        All registered commands and event listeners that the
-        cog has registered will be removed as well.
-
-        If no cog is found then this method has no effect.
-
-        This automatically re-syncs application commands, provided that
-        :attr:`command_sync_flags.sync_on_cog_actions <.CommandSyncFlags.sync_on_cog_actions>`
-        isn't disabled.
-
-        Parameters
-        ----------
-        name: :class:`str`
-            The name of the cog to remove.
-
-        Returns
-        -------
-        :class:`.Cog` | :data:`None`
-            The cog that was removed. Returns :data:`None` if not found.
-        """
-        cog = self.__cogs.pop(name, None)
-        if cog is None:
-            return None
-
-        help_command: HelpCommand | None = getattr(self, "_help_command", None)
-        if help_command and help_command.cog is cog:
-            help_command.cog = None
-        # NOTE: Should be covariant
-        cog._eject(self)  # pyright: ignore[reportArgumentType]
-
-        return cog
-
-    @property
-    def cogs(self) -> Mapping[str, Cog]:
-        r""":class:`~collections.abc.Mapping`\[:class:`str`, :class:`Cog`]: A read-only mapping of cog name to cog."""
-        return types.MappingProxyType(self.__cogs)
-
     # extensions
 
     def _remove_module_references(self, name: str) -> None:
         # find all references to the module
-        # remove the cogs registered from the module
-        for cogname, cog in self.__cogs.copy().items():
-            if _is_submodule(name, cog.__module__):
-                self.remove_cog(cogname)
         # remove all the listeners from the module
         for event_list in self.extra_events.copy().values():
             remove = [

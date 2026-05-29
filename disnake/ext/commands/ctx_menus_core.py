@@ -11,7 +11,7 @@ from disnake.i18n import Localized
 from disnake.permissions import Permissions
 from disnake.utils import iscoroutinefunction
 
-from .base_core import InvokableApplicationCommand, _get_overridden_method
+from .base_core import InvokableApplicationCommand
 from .errors import CommandError
 from .params import safe_call
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
         UserCommandInteraction,
     )
 
-    from .base_core import CogT, InteractionCommandCallback
+    from .base_core import InteractionCommandCallback
 
     P = ParamSpec("P")
 
@@ -72,7 +72,7 @@ class InvokableUserCommand(InvokableApplicationCommand):
 
     def __init__(
         self,
-        func: InteractionCommandCallback[CogT, UserCommandInteraction, P],
+        func: InteractionCommandCallback[UserCommandInteraction, P],
         *,
         name: LocalizedOptional = None,
         dm_permission: bool | None = None,  # deprecated
@@ -116,17 +116,7 @@ class InvokableUserCommand(InvokableApplicationCommand):
     async def _call_external_error_handlers(
         self, inter: ApplicationCommandInteraction, error: CommandError
     ) -> None:
-        stop_propagation = False
-        cog = self.cog
-        try:
-            if cog is not None:
-                local = _get_overridden_method(cog.cog_user_command_error)
-                if local is not None:
-                    stop_propagation = await local(inter, error)
-                    # User has an option to cancel the global error handler by returning True
-        finally:
-            if not stop_propagation:
-                inter.bot.dispatch("user_command_error", inter, error)
+        inter.bot.dispatch("user_command_error", inter, error)
 
     async def __call__(
         self,
@@ -137,10 +127,7 @@ class InvokableUserCommand(InvokableApplicationCommand):
     ) -> None:
         # the target may just not be passed in
         args = (target or interaction.target, *args)
-        if self.cog is not None:
-            await safe_call(self.callback, self.cog, interaction, *args, **kwargs)
-        else:
-            await safe_call(self.callback, interaction, *args, **kwargs)
+        await safe_call(self.callback, interaction, *args, **kwargs)
 
 
 class InvokableMessageCommand(InvokableApplicationCommand):
@@ -183,7 +170,7 @@ class InvokableMessageCommand(InvokableApplicationCommand):
 
     def __init__(
         self,
-        func: InteractionCommandCallback[CogT, MessageCommandInteraction, P],
+        func: InteractionCommandCallback[MessageCommandInteraction, P],
         *,
         name: LocalizedOptional = None,
         dm_permission: bool | None = None,  # deprecated
@@ -227,17 +214,7 @@ class InvokableMessageCommand(InvokableApplicationCommand):
     async def _call_external_error_handlers(
         self, inter: ApplicationCommandInteraction, error: CommandError
     ) -> None:
-        stop_propagation = False
-        cog = self.cog
-        try:
-            if cog is not None:
-                local = _get_overridden_method(cog.cog_message_command_error)
-                if local is not None:
-                    stop_propagation = await local(inter, error)
-                    # User has an option to cancel the global error handler by returning True
-        finally:
-            if not stop_propagation:
-                inter.bot.dispatch("message_command_error", inter, error)
+        inter.bot.dispatch("message_command_error", inter, error)
 
     async def __call__(
         self,
@@ -248,10 +225,7 @@ class InvokableMessageCommand(InvokableApplicationCommand):
     ) -> None:
         # the target may just not be passed in
         args = (target or interaction.target, *args)
-        if self.cog is not None:
-            await safe_call(self.callback, self.cog, interaction, *args, **kwargs)
-        else:
-            await safe_call(self.callback, interaction, *args, **kwargs)
+        await safe_call(self.callback, interaction, *args, **kwargs)
 
 
 def user_command(
@@ -266,7 +240,7 @@ def user_command(
     auto_sync: bool | None = None,
     extras: dict[str, Any] | None = None,
     **kwargs: Any,
-) -> Callable[[InteractionCommandCallback[CogT, UserCommandInteraction, P]], InvokableUserCommand]:
+) -> Callable[[InteractionCommandCallback[UserCommandInteraction, P]], InvokableUserCommand]:
     r"""A shortcut decorator that builds a user command.
 
     Parameters
@@ -334,7 +308,7 @@ def user_command(
     """
 
     def decorator(
-        func: InteractionCommandCallback[CogT, UserCommandInteraction, P],
+        func: InteractionCommandCallback[UserCommandInteraction, P],
     ) -> InvokableUserCommand:
         if not iscoroutinefunction(func):
             msg = f"<{func.__qualname__}> must be a coroutine function"
@@ -375,7 +349,7 @@ def message_command(
     extras: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> Callable[
-    [InteractionCommandCallback[CogT, MessageCommandInteraction, P]],
+    [InteractionCommandCallback[MessageCommandInteraction, P]],
     InvokableMessageCommand,
 ]:
     r"""A shortcut decorator that builds a message command.
@@ -445,7 +419,7 @@ def message_command(
     """
 
     def decorator(
-        func: InteractionCommandCallback[CogT, MessageCommandInteraction, P],
+        func: InteractionCommandCallback[MessageCommandInteraction, P],
     ) -> InvokableMessageCommand:
         if not iscoroutinefunction(func):
             msg = f"<{func.__qualname__}> must be a coroutine function"

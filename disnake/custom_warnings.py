@@ -2,25 +2,11 @@
 
 from __future__ import annotations
 
-__all__ = (
-    "DiscordWarning",
-    "ConfigWarning",
-    "SyncWarning",
-    "LocalizationWarning",
-)
+__all__ = ("DiscordWarning", "SyncWarning", "LocalizationWarning")
 
 
 class DiscordWarning(Warning):
     """Base warning class for disnake.
-
-    .. versionadded:: 2.3
-    """
-
-    pass
-
-
-class ConfigWarning(DiscordWarning):
-    """Warning class related to configuration issues.
 
     .. versionadded:: 2.3
     """

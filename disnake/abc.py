@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import copy
 from abc import ABC
 from collections.abc import Callable, Mapping, Sequence
@@ -11,14 +10,12 @@ from typing import (
     Any,
     Protocol,
     TypeAlias,
-    TypeVar,
     cast,
     overload,
     runtime_checkable,
 )
 
 from . import utils
-from .context_managers import Typing
 from .enums import (
     ChannelType,
     PartyType,
@@ -27,7 +24,6 @@ from .enums import (
     VideoQualityMode,
     try_enum_to_int,
 )
-from .errors import ClientException
 from .file import File
 from .flags import ChannelFlags, MessageFlags
 from .invite import Invite
@@ -36,9 +32,7 @@ from .object import Object
 from .partial_emoji import PartialEmoji
 from .permissions import PermissionOverwrite, Permissions
 from .role import Role
-from .sticker import GuildSticker, StandardSticker, StickerItem
 from .utils import _overload_with_permissions
-from .voice_client import VoiceClient, VoiceProtocol
 
 __all__ = (
     "Snowflake",
@@ -46,10 +40,7 @@ __all__ = (
     "PrivateChannel",
     "GuildChannel",
     "Messageable",
-    "Connectable",
 )
-
-VoiceProtocolT = TypeVar("VoiceProtocolT", bound=VoiceProtocol)
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -58,12 +49,10 @@ if TYPE_CHECKING:
 
     from .asset import Asset
     from .channel import CategoryChannel, DMChannel, GroupChannel, PartialMessageable
-    from .client import Client
     from .embeds import Embed
     from .emoji import Emoji
     from .enums import InviteTarget
     from .guild import Guild, GuildChannel as AnyGuildChannel, GuildMessageable
-    from .guild_scheduled_event import GuildScheduledEvent
     from .iterators import ChannelPinsIterator, HistoryIterator
     from .member import Member
     from .message import Message, MessageReference, PartialMessage
@@ -82,7 +71,6 @@ if TYPE_CHECKING:
     from .ui._types import MessageComponents
     from .ui.view import View
     from .user import ClientUser
-    from .voice_region import VoiceRegion
 
     MessageableChannel: TypeAlias = GuildMessageable | DMChannel | GroupChannel | PartialMessageable
     # include non-messageable channels, e.g. category/forum
@@ -333,7 +321,6 @@ class GuildChannel(ABC):
         overwrites: Mapping[Role | Member, PermissionOverwrite] = MISSING,
         bitrate: int = MISSING,
         user_limit: int = MISSING,
-        rtc_region: str | VoiceRegion | None = MISSING,
         video_quality_mode: VideoQualityMode = MISSING,
         flags: ChannelFlags = MISSING,
         available_tags: Sequence[ForumTag] = MISSING,
@@ -349,12 +336,6 @@ class GuildChannel(ABC):
         else:
             # if it's not given, don't change the category
             parent_id = MISSING
-
-        rtc_region_payload: str | None
-        if rtc_region is not MISSING:
-            rtc_region_payload = str(rtc_region) if rtc_region is not None else None
-        else:
-            rtc_region_payload = MISSING
 
         video_quality_mode_payload: int | None
         if video_quality_mode is not MISSING:
@@ -461,7 +442,7 @@ class GuildChannel(ABC):
             "rate_limit_per_user": slowmode_delay,
             "default_thread_rate_limit_per_user": default_thread_slowmode_delay,
             "type": type_payload,
-            "rtc_region": rtc_region_payload,
+            "rtc_region": MISSING,
             "video_quality_mode": video_quality_mode_payload,
             "default_auto_archive_duration": default_auto_archive_duration_payload,
             "flags": flags_payload,
@@ -600,7 +581,7 @@ class GuildChannel(ABC):
         """
         if isinstance(self.guild, Object):
             return None
-        return self.guild.get_channel(self.category_id)  # pyright: ignore[reportArgumentType, reportReturnType]
+        return self.guild.get_channel(self.category_id)  # pyright: ignore[reportReturnType, reportArgumentType]
 
     @property
     def permissions_synced(self) -> bool:
@@ -1302,7 +1283,6 @@ class GuildChannel(ABC):
         target_type: InviteTarget | None = None,
         target_user: User | None = None,
         target_application: Snowflake | PartyType | None = None,
-        guild_scheduled_event: GuildScheduledEvent | None = None,
     ) -> Invite:
         """|coro|
 
@@ -1382,9 +1362,7 @@ class GuildChannel(ABC):
             target_user_id=target_user.id if target_user else None,
             target_application_id=target_application.id if target_application else None,
         )
-        invite = Invite.from_incomplete(data=data, state=self._state)
-        invite.guild_scheduled_event = guild_scheduled_event
-        return invite
+        return Invite.from_incomplete(data=data, state=self._state)
 
     async def invites(self) -> list[Invite]:
         r"""|coro|
@@ -1442,7 +1420,6 @@ class Messageable:
         tts: bool = ...,
         embed: Embed = ...,
         file: File = ...,
-        stickers: Sequence[GuildSticker | StandardSticker | StickerItem] = ...,
         delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
@@ -1463,7 +1440,6 @@ class Messageable:
         tts: bool = ...,
         embed: Embed = ...,
         files: list[File] = ...,
-        stickers: Sequence[GuildSticker | StandardSticker | StickerItem] = ...,
         delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
@@ -1484,7 +1460,6 @@ class Messageable:
         tts: bool = ...,
         embeds: list[Embed] = ...,
         file: File = ...,
-        stickers: Sequence[GuildSticker | StandardSticker | StickerItem] = ...,
         delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
@@ -1505,7 +1480,6 @@ class Messageable:
         tts: bool = ...,
         embeds: list[Embed] = ...,
         files: list[File] = ...,
-        stickers: Sequence[GuildSticker | StandardSticker | StickerItem] = ...,
         delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
@@ -1527,7 +1501,6 @@ class Messageable:
         embeds: list[Embed] | None = None,
         file: File | None = None,
         files: list[File] | None = None,
-        stickers: Sequence[GuildSticker | StandardSticker | StickerItem] | None = None,
         delete_after: float | None = None,
         nonce: str | int | None = None,
         suppress_embeds: bool | None = None,
@@ -1546,7 +1519,7 @@ class Messageable:
         The content must be a type that can convert to a string through ``str(content)``.
 
         At least one of ``content``, ``embed``/``embeds``, ``file``/``files``,
-        ``stickers``, ``components``, ``poll`` or ``view`` must be provided.
+        ``components``, ``poll`` or ``view`` must be provided.
 
         To upload a single file, the ``file`` parameter should be used with a
         single :class:`~disnake.File` object. To upload multiple files, the ``files``
@@ -1581,11 +1554,6 @@ class Messageable:
         files: :class:`list`\[:class:`~disnake.File`]
             A list of files to upload. Must be a maximum of 10.
             This cannot be mixed with the ``file`` parameter.
-        stickers: :class:`~collections.abc.Sequence`\[:class:`.GuildSticker` | :class:`.StandardSticker` | :class:`.StickerItem`]
-            A list of stickers to upload. Must be a maximum of 3.
-
-            .. versionadded:: 2.0
-
         nonce: :class:`str` | :class:`int`
             The nonce to use for sending this message. If the message was successfully sent,
             then the message will have a nonce with this value.
@@ -1711,10 +1679,6 @@ class Messageable:
                     files.extend(embed._files.values())
             embeds_payload = [embed.to_dict() for embed in embeds]
 
-        stickers_payload = None
-        if stickers is not None:
-            stickers_payload = [sticker.id for sticker in stickers]
-
         poll_payload = None
         if poll:
             poll_payload = poll._to_dict()
@@ -1760,8 +1724,8 @@ class Messageable:
             flags = MessageFlags._from_value(0 if flags is None else flags.value)
             flags.is_components_v2 = True
         # components v2 cannot be used with other content fields
-        if flags and flags.is_components_v2 and (content or embeds or stickers or poll):
-            msg = "Cannot use v2 components with content, embeds, stickers, or polls"
+        if flags and flags.is_components_v2 and (content or embeds or poll):
+            msg = "Cannot use v2 components with content, embeds, or polls"
             raise ValueError(msg)
 
         flags_payload = None
@@ -1789,7 +1753,6 @@ class Messageable:
                     nonce=nonce,
                     allowed_mentions=allowed_mentions_payload,
                     message_reference=reference_payload,
-                    stickers=stickers_payload,
                     components=components_payload,
                     poll=poll_payload,
                     flags=flags_payload,
@@ -1806,7 +1769,6 @@ class Messageable:
                 nonce=nonce,
                 allowed_mentions=allowed_mentions_payload,
                 message_reference=reference_payload,
-                stickers=stickers_payload,
                 components=components_payload,
                 poll=poll_payload,
                 flags=flags_payload,
@@ -1829,27 +1791,6 @@ class Messageable:
         """
         channel = await self._get_channel()
         await self._state.http.send_typing(channel.id)
-
-    def typing(self) -> Typing:
-        """Returns a context manager that allows you to type for an indefinite period of time.
-
-        This is useful for denoting long computations in your bot.
-
-        .. note::
-
-            This is both a regular context manager and an async context manager.
-            This means that both ``with`` and ``async with`` work with this.
-
-        Example Usage: ::
-
-            async with channel.typing():
-                # simulate something heavy
-                await asyncio.sleep(10)
-
-            await channel.send('done!')
-
-        """
-        return Typing(self)
 
     async def fetch_message(self, id: int, /) -> Message:
         """|coro|
@@ -2008,98 +1949,3 @@ class Messageable:
         return HistoryIterator(
             self, limit=limit, before=before, after=after, around=around, oldest_first=oldest_first
         )
-
-
-class Connectable(Protocol):
-    """An ABC that details the common operations on a channel that can
-    connect to a voice server.
-
-    The following classes implement this ABC:
-
-    - :class:`~disnake.VoiceChannel`
-    - :class:`~disnake.StageChannel`
-
-    Note
-    ----
-    This ABC is not decorated with :func:`typing.runtime_checkable`, so will fail :func:`isinstance`/:func:`issubclass`
-    checks.
-    """
-
-    __slots__ = ()
-    _state: ConnectionState
-    guild: Guild
-    id: int
-
-    def _get_voice_client_key(self) -> tuple[int, str]:
-        raise NotImplementedError
-
-    def _get_voice_state_pair(self) -> tuple[int, int]:
-        raise NotImplementedError
-
-    async def connect(
-        self,
-        *,
-        timeout: float = 60.0,
-        reconnect: bool = True,
-        cls: Callable[[Client, Connectable], VoiceProtocolT] = VoiceClient,
-    ) -> VoiceProtocolT:
-        r"""|coro|
-
-        Connects to voice and creates a :class:`VoiceClient` to establish
-        your connection to the voice server.
-
-        This requires :attr:`Intents.voice_states`.
-
-        Parameters
-        ----------
-        timeout: :class:`float`
-            The timeout in seconds to wait for the voice endpoint.
-        reconnect: :class:`bool`
-            Whether the bot should automatically attempt
-            a reconnect if a part of the handshake fails
-            or the gateway goes down.
-        cls: :class:`type`\[:class:`VoiceProtocol`]
-            A type that subclasses :class:`VoiceProtocol` to connect with.
-            Defaults to :class:`VoiceClient`.
-
-        Raises
-        ------
-        asyncio.TimeoutError
-            Could not connect to the voice channel in time.
-        ClientException
-            You are already connected to a voice channel.
-        opus.OpusNotLoaded
-            The opus library has not been loaded.
-
-        Returns
-        -------
-        :class:`VoiceProtocol`
-            A voice client that is fully connected to the voice server.
-        """
-        key_id, _ = self._get_voice_client_key()
-        state = self._state
-
-        if state._get_voice_client(key_id):
-            msg = "Already connected to a voice channel."
-            raise ClientException(msg)
-
-        client = state._get_client()
-        voice = cls(client, self)
-
-        if not isinstance(voice, VoiceProtocol):
-            msg = "Type must meet VoiceProtocol abstract base class."
-            raise TypeError(msg)
-
-        state._add_voice_client(key_id, voice)
-
-        try:
-            await voice.connect(timeout=timeout, reconnect=reconnect)
-        except asyncio.TimeoutError:
-            try:
-                await voice.disconnect(force=True)
-            except Exception:
-                # we don't care if disconnect failed because connection failed
-                pass
-            raise  # re-raise
-
-        return voice

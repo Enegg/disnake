@@ -5,13 +5,11 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-import struct
 import sys
 import threading
 import time
 import traceback
 import zlib
-from collections import deque
 from collections.abc import Callable
 from typing import (
     TYPE_CHECKING,
@@ -27,7 +25,6 @@ import aiohttp
 
 from . import utils
 from .activity import BaseActivity
-from .enums import SpeakingState
 from .errors import ConnectionClosed
 
 if TYPE_CHECKING:
@@ -42,20 +39,9 @@ if TYPE_CHECKING:
         PresenceUpdateCommand,
         RequestMembersCommand,
         ResumeCommand,
-        VoiceDaveMlsInvalidCommitWelcomeCommand,
-        VoiceDaveTransitionReadyCommand,
         VoiceHeartbeatData,
-        VoiceIdentifyCommand,
-        VoicePayload,
-        VoiceReadyPayload,
-        VoiceResumeCommand,
-        VoiceSelectProtocolCommand,
-        VoiceSessionDescriptionPayload,
-        VoiceSpeakingCommand,
         VoiceStateCommand,
     )
-    from .types.voice import SupportedModes
-    from .voice_client import VoiceClient
 
     T = TypeVar("T")
 
@@ -74,13 +60,7 @@ if TYPE_CHECKING:
         async def __call__(self, *args: Any) -> None: ...
 
 
-__all__ = (
-    "DiscordWebSocket",
-    "KeepAliveHandler",
-    "VoiceKeepAliveHandler",
-    "DiscordVoiceWebSocket",
-    "ReconnectWebSocket",
-)
+__all__ = ("DiscordWebSocket", "KeepAliveHandler", "ReconnectWebSocket")
 
 _VOICE_VERSION = 8
 
@@ -249,22 +229,6 @@ class KeepAliveHandler(threading.Thread):
         self.latency = ack_time - self._last_send
         if self.latency > 10:
             _log.warning(self.behind_msg, self.shard_id, self.latency)
-
-
-class VoiceKeepAliveHandler(KeepAliveHandler):
-    def __init__(self, *args: Any, ws: HeartbeatWebSocket, interval: float, **kwargs: Any) -> None:
-        super().__init__(*args, ws=ws, interval=interval, **kwargs)
-        self.recent_ack_latencies: deque[float] = deque(maxlen=20)
-        self.msg = "Keeping shard ID %s voice websocket alive with timestamp %s."
-        self.block_msg = "Shard ID %s voice heartbeat blocked for more than %s seconds"
-        self.behind_msg = "High socket latency, shard ID %s heartbeat is %.1fs behind"
-
-    def ack(self) -> None:
-        ack_time = time.perf_counter()
-        self._last_ack = ack_time
-        self._last_recv = ack_time
-        self.latency = ack_time - self._last_send
-        self.recent_ack_latencies.append(self.latency)
 
 
 class DiscordClientWebSocketResponse(aiohttp.ClientWebSocketResponse):
@@ -441,8 +405,6 @@ class DiscordWebSocket:
 
         if client._enable_gateway_error_handler:
             ws._dispatch_gateway_error = client._dispatch_gateway_error
-
-        client._connection._update_references(ws)
 
         _log.debug("Created websocket connected to %s", gateway)
 
@@ -855,377 +817,3 @@ class DiscordWebSocket:
 
         self._close_code = code
         await self.socket.close(code=code)
-
-
-class DiscordVoiceWebSocket:
-    """Implements the websocket protocol for handling voice connections.
-
-    Attributes
-    ----------
-    IDENTIFY
-        Send only. Starts a new voice session.
-    SELECT_PROTOCOL
-        Send only. Tells discord what encryption mode and how to connect for voice.
-    READY
-        Receive only. Tells the websocket that the initial connection has completed.
-    HEARTBEAT
-        Send only. Keeps your websocket connection alive.
-    SESSION_DESCRIPTION
-        Receive only. Gives you the secret key required for voice.
-    SPEAKING
-        Send only. Notifies the client if you are currently speaking.
-    HEARTBEAT_ACK
-        Receive only. Tells you your heartbeat has been acknowledged.
-    RESUME
-        Sent only. Tells the client to resume its session.
-    HELLO
-        Receive only. Tells you that your websocket connection was acknowledged.
-    RESUMED
-        Receive only. Tells you that your RESUME request has succeeded.
-    CLIENTS_CONNECT
-        Receive only. Indicates one or more users has connected to voice.
-    CLIENT_DISCONNECT
-        Receive only. Indicates a user has disconnected from voice.
-
-    DAVE_PREPARE_TRANSITION
-        Receive only. Indicates that a DAVE protocol downgrade is upcoming.
-    DAVE_EXECUTE_TRANSITION
-        Receive only. Tells you to execute a previously announced transition.
-    DAVE_TRANSITION_READY
-        Sent only. Notifies the gateway that you're ready to execute an announced transition.
-    DAVE_MLS_PREPARE_EPOCH
-        Receive only. Indicates a protocol version change or group change is upcoming.
-    DAVE_MLS_EXTERNAL_SENDER
-        Receive only. Gives you credentials for MLS external sender.
-    DAVE_MLS_KEY_PACKAGE
-        Sent only. Provides your MLS key package to the gateway.
-    DAVE_MLS_PROPOSALS
-        Receive only. Gives you MLS proposals to be appended or revoked.
-    DAVE_MLS_COMMIT_WELCOME
-        Sent only.
-    DAVE_MLS_ANNOUNCE_COMMIT_TRANSITION
-        Receive only. Gives you an MLS commit to process for an upcoming transition.
-    DAVE_MLS_WELCOME
-        Receive only. Gives you an MLS welcome for an upcoming transition.
-    DAVE_MLS_INVALID_COMMIT_WELCOME
-        Sent only. Notifies the gateway of an invalid commit or welcome, requests being re-added.
-    """
-
-    IDENTIFY: Final[Literal[0]] = 0
-    SELECT_PROTOCOL: Final[Literal[1]] = 1
-    READY: Final[Literal[2]] = 2
-    HEARTBEAT: Final[Literal[3]] = 3
-    SESSION_DESCRIPTION: Final[Literal[4]] = 4
-    SPEAKING: Final[Literal[5]] = 5
-    HEARTBEAT_ACK: Final[Literal[6]] = 6
-    RESUME: Final[Literal[7]] = 7
-    HELLO: Final[Literal[8]] = 8
-    RESUMED: Final[Literal[9]] = 9
-    CLIENTS_CONNECT: Final[Literal[11]] = 11
-    CLIENT_DISCONNECT: Final[Literal[13]] = 13
-
-    # DAVE-specific opcodes
-    DAVE_PREPARE_TRANSITION: Final[Literal[21]] = 21
-    DAVE_EXECUTE_TRANSITION: Final[Literal[22]] = 22
-    DAVE_TRANSITION_READY: Final[Literal[23]] = 23
-    DAVE_MLS_PREPARE_EPOCH: Final[Literal[24]] = 24
-    DAVE_MLS_EXTERNAL_SENDER: Final[Literal[25]] = 25
-    DAVE_MLS_KEY_PACKAGE: Final[Literal[26]] = 26
-    DAVE_MLS_PROPOSALS: Final[Literal[27]] = 27
-    DAVE_MLS_COMMIT_WELCOME: Final[Literal[28]] = 28
-    DAVE_MLS_ANNOUNCE_COMMIT_TRANSITION: Final[Literal[29]] = 29
-    DAVE_MLS_WELCOME: Final[Literal[30]] = 30
-    DAVE_MLS_INVALID_COMMIT_WELCOME: Final[Literal[31]] = 31
-
-    def __init__(
-        self,
-        socket: aiohttp.ClientWebSocketResponse,
-        loop: asyncio.AbstractEventLoop,
-        *,
-        hook: HookFunc | None = None,
-    ) -> None:
-        self.ws: aiohttp.ClientWebSocketResponse = socket
-        self.loop: asyncio.AbstractEventLoop = loop
-
-        self._keep_alive: VoiceKeepAliveHandler | None = None
-        self.sequence: int = -1
-
-        self._ready: asyncio.Event = asyncio.Event()
-        self._resumed: asyncio.Event = asyncio.Event()
-
-        self._close_code: int | None = None
-        self.thread_id: int = threading.get_ident()
-        if hook:
-            self._hook = hook
-
-        # set in `from_client`
-        self.gateway: str
-        self._connection: VoiceClient
-        self._max_heartbeat_timeout: float
-
-    async def _hook(self, *args: Any) -> None:
-        pass
-
-    async def send_as_json(self, data: Any) -> None:
-        _log.debug("Sending voice websocket frame: %s.", data)
-        await self.ws.send_str(utils._to_json(data))
-
-    async def send_as_bytes(self, data: bytes) -> None:
-        _log.debug("Sending voice websocket frame (binary): %s.", data.hex())
-        await self.ws.send_bytes(data)
-
-    send_heartbeat = send_as_json
-
-    def get_heartbeat_data(self) -> VoiceHeartbeatData:
-        return {"t": int(time.time() * 1000), "seq_ack": self.sequence}
-
-    async def resume(self) -> None:
-        state = self._connection
-        payload: VoiceResumeCommand = {
-            "op": self.RESUME,
-            "d": {
-                "token": state.token,
-                "server_id": str(state.server_id),
-                "session_id": state.session_id,
-                "seq_ack": self.sequence,
-            },
-        }
-        await self.send_as_json(payload)
-
-    async def identify(self) -> None:
-        state = self._connection
-        payload: VoiceIdentifyCommand = {
-            "op": self.IDENTIFY,
-            "d": {
-                "server_id": str(state.server_id),
-                "user_id": str(state.user.id),
-                "session_id": state.session_id,
-                "token": state.token,
-                "max_dave_protocol_version": self._connection.dave_max_version,
-            },
-        }
-        await self.send_as_json(payload)
-
-    @classmethod
-    async def from_client(
-        cls,
-        client: VoiceClient,
-        *,
-        resume: bool = False,
-        sequence: int | None = None,
-        hook: HookFunc | None = None,
-    ) -> Self:
-        """Creates a voice websocket for the :class:`VoiceClient`."""
-        gateway = f"wss://{client.endpoint}/?v={_VOICE_VERSION}"
-        http = client._state.http
-        socket = await http.ws_connect(gateway, compress=15)
-        ws = cls(socket, loop=client.loop, hook=hook)
-        ws.gateway = gateway
-        ws._connection = client
-        ws._max_heartbeat_timeout = 60.0
-
-        if sequence is not None:
-            ws.sequence = sequence
-
-        if resume:
-            await ws.resume()
-        else:
-            await ws.identify()
-
-        return ws
-
-    async def select_protocol(self, ip: str, port: int, mode: SupportedModes) -> None:
-        payload: VoiceSelectProtocolCommand = {
-            "op": self.SELECT_PROTOCOL,
-            "d": {
-                "protocol": "udp",
-                "data": {"address": ip, "port": port, "mode": mode},
-            },
-        }
-
-        await self.send_as_json(payload)
-
-    async def speak(self, state: SpeakingState | bool = SpeakingState.voice) -> None:
-        if isinstance(state, bool):
-            state = SpeakingState.voice if state else SpeakingState.none
-        payload: VoiceSpeakingCommand = {
-            "op": self.SPEAKING,
-            "d": {
-                "speaking": int(state),
-                "delay": 0,
-                "ssrc": self._connection.ssrc,
-            },
-        }
-
-        await self.send_as_json(payload)
-
-    async def send_dave_mls_key_package(self, key_package: bytes) -> None:
-        data = struct.pack(">B", self.DAVE_MLS_KEY_PACKAGE) + key_package
-        await self.send_as_bytes(data)
-
-    async def send_dave_transition_ready(self, transition_id: int) -> None:
-        payload: VoiceDaveTransitionReadyCommand = {
-            "op": self.DAVE_TRANSITION_READY,
-            "d": {"transition_id": transition_id},
-        }
-        await self.send_as_json(payload)
-
-    async def send_dave_mls_commit_welcome(self, commit_welcome: bytes) -> None:
-        data = struct.pack(">B", self.DAVE_MLS_COMMIT_WELCOME) + commit_welcome
-        await self.send_as_bytes(data)
-
-    async def send_dave_mls_invalid_commit_welcome(self, transition_id: int) -> None:
-        payload: VoiceDaveMlsInvalidCommitWelcomeCommand = {
-            "op": self.DAVE_MLS_INVALID_COMMIT_WELCOME,
-            "d": {"transition_id": transition_id},
-        }
-        await self.send_as_json(payload)
-
-    async def received_message(self, msg: VoicePayload) -> None:
-        _log.debug("Voice websocket frame received: %s", msg)
-        op = msg["op"]
-        data: Any = msg.get("d")
-
-        seq = msg.get("seq")
-        if seq is not None:
-            self.sequence = seq
-
-        if op == self.READY:
-            await self.initial_connection(data)
-        elif op == self.HEARTBEAT_ACK:
-            if self._keep_alive:
-                self._keep_alive.ack()
-        elif op == self.RESUMED:
-            self._resumed.set()
-            # also set _ready as a general indicator of the session being valid
-            self._ready.set()
-        elif op == self.SESSION_DESCRIPTION:
-            self._connection.mode = data["mode"]
-            await self.load_secret_key(data)
-            if (
-                self._connection.dave
-                and (dave_version := data.get("dave_protocol_version")) is not None
-            ):
-                await self._connection.dave.reinit_state(dave_version)
-            self._ready.set()
-        elif op == self.HELLO:
-            interval: float = data["heartbeat_interval"] / 1000.0
-            self._keep_alive = VoiceKeepAliveHandler(ws=self, interval=min(interval, 5.0))
-            self._keep_alive.start()
-        elif dave_state := self._connection.dave:
-            if op == self.CLIENTS_CONNECT:
-                for user_id in map(int, data["user_ids"]):
-                    dave_state.add_recognized_user(user_id)
-            elif op == self.CLIENT_DISCONNECT:
-                dave_state.remove_recognized_user(int(data["user_id"]))
-            elif op == self.DAVE_PREPARE_TRANSITION:
-                await dave_state.prepare_transition(data["transition_id"], data["protocol_version"])
-            elif op == self.DAVE_EXECUTE_TRANSITION:
-                dave_state.execute_transition(data["transition_id"])
-            elif op == self.DAVE_MLS_PREPARE_EPOCH:
-                await dave_state.prepare_epoch(data["epoch"], data["protocol_version"])
-
-        await self._hook(self, msg)
-
-    async def received_message_binary(self, msg: bytes) -> None:
-        _log.debug("Voice websocket frame (binary) received: %s", msg.hex())
-        if len(msg) < 3:
-            _log.error("Voice websocket received invalid frame (length %d)", len(msg))
-            return  # this should not happen.
-
-        # always update current seq just in case, even if we don't support dave
-        self.sequence = int.from_bytes(msg[0:2], "big", signed=False)
-        if self._connection.dave is None:
-            return
-
-        op = msg[2]
-        if op == self.DAVE_MLS_EXTERNAL_SENDER:
-            self._connection.dave.handle_mls_external_sender(msg[3:])
-        elif op == self.DAVE_MLS_PROPOSALS:
-            await self._connection.dave.handle_mls_proposals(msg[3:])
-        elif op == self.DAVE_MLS_ANNOUNCE_COMMIT_TRANSITION:
-            transition_id = int.from_bytes(msg[3:5], "big", signed=False)
-            await self._connection.dave.handle_mls_announce_commit_transition(
-                transition_id, msg[5:]
-            )
-        elif op == self.DAVE_MLS_WELCOME:
-            transition_id = int.from_bytes(msg[3:5], "big", signed=False)
-            await self._connection.dave.handle_mls_welcome(transition_id, msg[5:])
-
-    async def initial_connection(self, data: VoiceReadyPayload) -> None:
-        state = self._connection
-        state.ssrc = data["ssrc"]
-        state.voice_port = data["port"]
-        state.endpoint_ip = data["ip"]
-
-        packet = bytearray(74)
-        struct.pack_into(">H", packet, 0, 1)  # 1 = Send
-        struct.pack_into(">H", packet, 2, 70)  # 70 = Length
-        struct.pack_into(">I", packet, 4, state.ssrc)
-        state.socket.sendto(packet, (state.endpoint_ip, state.voice_port))
-        recv = await self.loop.sock_recv(state.socket, 74)
-        _log.debug("received packet in initial_connection: %s", recv)
-
-        # the ip is ascii starting at the 8th byte and ending at the first null
-        ip_start = 8
-        ip_end = recv.index(0, ip_start)
-        state.ip = recv[ip_start:ip_end].decode("ascii")
-
-        state.port = struct.unpack_from(">H", recv, len(recv) - 2)[0]
-        _log.debug("detected ip: %s port: %s", state.ip, state.port)
-
-        # there *should* always be at least one supported mode
-        modes: list[SupportedModes] = [
-            mode for mode in data["modes"] if mode in self._connection.supported_modes
-        ]
-        _log.debug("received supported encryption modes: %s", ", ".join(modes))
-
-        mode = modes[0]
-        await self.select_protocol(state.ip, state.port, mode)
-        _log.info("selected the voice protocol for use (%s)", mode)
-
-    @property
-    def latency(self) -> float:
-        """:class:`float`: Latency between a HEARTBEAT and its HEARTBEAT_ACK in seconds."""
-        heartbeat = self._keep_alive
-        return float("inf") if heartbeat is None else heartbeat.latency
-
-    @property
-    def average_latency(self) -> float:
-        """:class:`list`: Average of last 20 HEARTBEAT latencies."""
-        heartbeat = self._keep_alive
-        if heartbeat is None or not heartbeat.recent_ack_latencies:
-            return float("inf")
-
-        return sum(heartbeat.recent_ack_latencies) / len(heartbeat.recent_ack_latencies)
-
-    async def load_secret_key(self, data: VoiceSessionDescriptionPayload) -> None:
-        _log.info("received secret key for voice connection")
-        self._connection.secret_key = data["secret_key"]
-        # need to send this at least once to set the ssrc
-        await self.speak(False)
-
-    async def poll_event(self) -> None:
-        # This exception is handled up the chain
-        msg = await asyncio.wait_for(self.ws.receive(), timeout=30.0)
-        if msg.type is aiohttp.WSMsgType.TEXT:
-            await self.received_message(utils._from_json(msg.data))
-        elif msg.type is aiohttp.WSMsgType.BINARY:
-            await self.received_message_binary(msg.data)
-        elif msg.type is aiohttp.WSMsgType.ERROR:
-            _log.debug("Received %s", msg)
-            raise ConnectionClosed(self.ws, shard_id=None, voice=True) from msg.data
-        elif msg.type in (
-            aiohttp.WSMsgType.CLOSED,
-            aiohttp.WSMsgType.CLOSE,
-            aiohttp.WSMsgType.CLOSING,
-        ):
-            _log.debug("Received %s", msg)
-            raise ConnectionClosed(self.ws, shard_id=None, code=self._close_code, voice=True)
-
-    async def close(self, code: int = 1000) -> None:
-        if self._keep_alive is not None:
-            self._keep_alive.stop()
-
-        self._close_code = code
-        await self.ws.close(code=code)

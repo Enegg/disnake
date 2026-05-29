@@ -40,7 +40,6 @@ from .mixins import Hashable
 from .partial_emoji import PartialEmoji
 from .poll import Poll
 from .reaction import Reaction
-from .sticker import StickerItem
 from .threads import Thread
 from .user import User
 from .utils import MISSING, _get_as_snowflake, assert_never, deprecated, escape_mentions
@@ -1230,9 +1229,6 @@ class Message(Hashable):
         self.tts: bool = data["tts"]
         self.content: str = data["content"]
         self.nonce: int | str | None = data.get("nonce")
-        self.stickers: list[StickerItem] = [
-            StickerItem(data=d, state=state) for d in data.get("sticker_items", [])
-        ]
         self.components: list[MessageTopLevelComponent] = [
             _message_component_factory(d) for d in data.get("components", [])
         ]
@@ -3002,9 +2998,6 @@ class ForwardedMessage:
             data["edited_timestamp"]
         )
         self.flags: MessageFlags = MessageFlags._from_value(data.get("flags", 0))
-        self.stickers: list[StickerItem] = [
-            StickerItem(data=d, state=state) for d in data.get("sticker_items", [])
-        ]
         self.components: list[MessageTopLevelComponent] = [
             _message_component_factory(d) for d in data.get("components", [])
         ]

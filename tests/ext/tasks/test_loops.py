@@ -5,18 +5,15 @@ from typing import Any
 
 import pytest
 
-from disnake.ext import commands
 from disnake.ext.tasks import LF, Loop, loop
 
 
 class TestLoops:
     def test_decorator(self) -> None:
-        class Cog(commands.Cog):
-            @loop(seconds=30, minutes=0, hours=0)
-            async def task(self) -> None: ...
+        @loop(seconds=30, minutes=0, hours=0)
+        async def task1() -> None: ...
 
-        for c in (Cog, Cog()):
-            assert c.task.seconds == 30
+        assert task1.seconds == 30
 
         with pytest.raises(TypeError, match="must be a coroutine function"):
 
@@ -50,7 +47,6 @@ class TestLoops:
                 instance._before_loop = self._before_loop
                 instance._after_loop = self._after_loop
                 instance._error = self._error
-                instance._injected = self._injected
                 return instance
 
         async def callback() -> None:
@@ -58,12 +54,10 @@ class TestLoops:
 
         HyperLoop(callback, (1, 2, 3))
 
-        class Cog(commands.Cog):
-            @loop(cls=HyperLoop[Any], time_tup=(1, 2, 3))
-            async def task(self) -> None: ...
+        @loop(cls=HyperLoop[Any], time_tup=(1, 2, 3))
+        async def task(self) -> None: ...
 
-        for c in (Cog, Cog()):
-            assert (c.task.seconds, c.task.minutes, c.task.hours) == (1, 2, 3)
+        assert (task.seconds, task.minutes, task.hours) == (1, 2, 3)
 
     def test_factory(self) -> None:
         with pytest.raises(TypeError, match="must be callable"):

@@ -19,9 +19,9 @@ from disnake.i18n import Localized
 from disnake.interactions import ApplicationCommandInteraction
 from disnake.permissions import Permissions
 
-from .base_core import InvokableApplicationCommand, _get_overridden_method
+from .base_core import InvokableApplicationCommand
 from .errors import CommandError, CommandInvokeError
-from .params import call_param_func, classify_autocompleter, expand_params
+from .params import call_param_func, expand_params
 
 if TYPE_CHECKING:
     from disnake.app_commands import Choices
@@ -49,7 +49,6 @@ def _autocomplete(
         raise ValueError(msg)
 
     def decorator(func: Callable) -> Callable:
-        classify_autocompleter(func)
         self.autocompleters[option_name] = func
         return func
 
@@ -68,25 +67,13 @@ async def _call_autocompleter(
     if not callable(autocomp):
         return autocomp
 
-    try:
-        requires_cog_param = autocomp.__has_cog_param__
-    except AttributeError:
-        requires_cog_param = False
-
-    cog = self.root_parent.cog if isinstance(self, SubCommand) else self.cog
     filled = inter.filled_options
     del filled[inter.data.focused_option.name]
 
     try:
-        if requires_cog_param:
-            choices = autocomp(cog, inter, user_input, **filled)
-        else:
-            choices = autocomp(inter, user_input, **filled)
+        choices = autocomp(inter, user_input, **filled)
     except TypeError:
-        if requires_cog_param:
-            choices = autocomp(cog, inter, user_input)
-        else:
-            choices = autocomp(inter, user_input)
+        choices = autocomp(inter, user_input)
 
     if inspect.isawaitable(choices):
         return await choices
@@ -372,7 +359,7 @@ class SubCommand(InvokableApplicationCommand):
         await self.prepare(inter)
 
         try:
-            await call_param_func(self.callback, inter, self.cog, **kwargs)
+            await call_param_func(self.callback, inter, None, **kwargs)
         except CommandError:
             inter.command_failed = True
             raise
@@ -681,17 +668,7 @@ class InvokableSlashCommand(InvokableApplicationCommand):
     async def _call_external_error_handlers(
         self, inter: ApplicationCommandInteraction, error: CommandError
     ) -> None:
-        stop_propagation = False
-        cog = self.cog
-        try:
-            if cog is not None:
-                local = _get_overridden_method(cog.cog_slash_command_error)
-                if local is not None:
-                    stop_propagation = await local(inter, error)
-                    # User has an option to cancel the global error handler by returning True
-        finally:
-            if not stop_propagation:
-                inter.bot.dispatch("slash_command_error", inter, error)
+        inter.bot.dispatch("slash_command_error", inter, error)
 
     async def _call_autocompleter(
         self, param: str, inter: ApplicationCommandInteraction, user_input: str
@@ -772,7 +749,7 @@ class InvokableSlashCommand(InvokableApplicationCommand):
                 for k, v in self.connectors.items():
                     if k in kwargs:
                         kwargs[v] = kwargs.pop(k)
-                await call_param_func(self.callback, inter, self.cog, **kwargs)
+                await call_param_func(self.callback, inter, None, **kwargs)
         except CommandError:
             inter.command_failed = True
             raise
