@@ -45,7 +45,7 @@ from ..permissions import Permissions
 from ..role import Role
 from ..ui.action_row import normalize_components, normalize_components_to_dict
 from ..user import ClientUser, User
-from ..webhook.async_ import Webhook, async_context, handle_message_parameters
+from ..webhook import Webhook, async_context, handle_message_parameters
 
 __all__ = (
     "Interaction",

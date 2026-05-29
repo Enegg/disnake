@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from typing_extensions import Self
 
     from .state import ConnectionState
-    from .webhook.async_ import BaseWebhook, _WebhookState
+    from .webhook import BaseWebhook, _WebhookState
 
     ValidStaticFormatTypes: TypeAlias = Literal["webp", "jpeg", "jpg", "png"]
     ValidAssetFormatTypes: TypeAlias = Literal["webp", "jpeg", "jpg", "png", "gif"]

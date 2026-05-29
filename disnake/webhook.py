@@ -22,18 +22,18 @@ from urllib.parse import quote as urlquote
 
 import aiohttp
 
-from .. import utils
-from ..asset import Asset
-from ..channel import PartialMessageable
-from ..enums import WebhookType, try_enum
-from ..errors import DiscordServerError, Forbidden, HTTPException, NotFound, WebhookTokenMissing
-from ..flags import MessageFlags
-from ..http import Route, set_attachments, to_multipart, to_multipart_with_attachments
-from ..message import Message
-from ..mixins import Hashable
-from ..object import Object
-from ..ui.action_row import normalize_components_to_dict
-from ..user import BaseUser, ClientUser, User
+from . import utils
+from .asset import Asset
+from .channel import PartialMessageable
+from .enums import WebhookType, try_enum
+from .errors import DiscordServerError, Forbidden, HTTPException, NotFound, WebhookTokenMissing
+from .flags import MessageFlags
+from .http import Route, set_attachments, to_multipart, to_multipart_with_attachments
+from .message import Message
+from .mixins import Hashable
+from .object import Object
+from .ui.action_row import normalize_components_to_dict
+from .user import BaseUser, ClientUser, User
 
 __all__ = (
     "Webhook",
@@ -50,20 +50,20 @@ if TYPE_CHECKING:
 
     from typing_extensions import Self
 
-    from ..abc import Snowflake
-    from ..asset import AssetBytes
-    from ..channel import ForumChannel, MediaChannel, StageChannel, TextChannel, VoiceChannel
-    from ..embeds import Embed
-    from ..file import File
-    from ..guild import Guild
-    from ..http import HTTPClient, Response
-    from ..mentions import AllowedMentions
-    from ..message import Attachment
-    from ..poll import Poll
-    from ..state import ConnectionState
-    from ..types.message import Message as MessagePayload
-    from ..types.webhook import Webhook as WebhookPayload
-    from ..ui._types import MessageComponents
+    from .abc import Snowflake
+    from .asset import AssetBytes
+    from .channel import ForumChannel, MediaChannel, StageChannel, TextChannel, VoiceChannel
+    from .embeds import Embed
+    from .file import File
+    from .guild import Guild
+    from .http import HTTPClient, Response
+    from .mentions import AllowedMentions
+    from .message import Attachment
+    from .poll import Poll
+    from .state import ConnectionState
+    from .types.message import Message as MessagePayload
+    from .types.webhook import Webhook as WebhookPayload
+    from .ui._types import MessageComponents
 
 MISSING = utils.MISSING
 
@@ -643,7 +643,8 @@ def handle_message_parameters(
 
 
 async_context: ContextVar[AsyncWebhookAdapter] = ContextVar(
-    "async_webhook_context", default=AsyncWebhookAdapter()
+    "async_webhook_context",
+    default=AsyncWebhookAdapter(),  # noqa: B039
 )
 
 
