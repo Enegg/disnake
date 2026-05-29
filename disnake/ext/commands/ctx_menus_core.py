@@ -75,7 +75,6 @@ class InvokableUserCommand(InvokableApplicationCommand):
         func: InteractionCommandCallback[UserCommandInteraction, P],
         *,
         name: LocalizedOptional = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -89,22 +88,13 @@ class InvokableUserCommand(InvokableApplicationCommand):
         self.guild_ids: tuple[int, ...] | None = None if guild_ids is None else tuple(guild_ids)
         self.auto_sync: bool = True if auto_sync is None else auto_sync
 
-        try:
-            default_member_permissions = func.__default_member_permissions__
-        except AttributeError:
-            pass
-        try:
-            install_types = func.__install_types__
-        except AttributeError:
-            pass
-        try:
-            contexts = func.__contexts__
-        except AttributeError:
-            pass
-
+        default_member_permissions = getattr(
+            func, "__default_member_permissions__", default_member_permissions
+        )
+        install_types = getattr(func, "__install_types__", install_types)
+        contexts = getattr(func, "__contexts__", contexts)
         self.body = UserCommand(
             name=name_loc._upgrade(self.name),
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
@@ -173,7 +163,6 @@ class InvokableMessageCommand(InvokableApplicationCommand):
         func: InteractionCommandCallback[MessageCommandInteraction, P],
         *,
         name: LocalizedOptional = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -187,22 +176,13 @@ class InvokableMessageCommand(InvokableApplicationCommand):
         self.guild_ids: tuple[int, ...] | None = None if guild_ids is None else tuple(guild_ids)
         self.auto_sync: bool = True if auto_sync is None else auto_sync
 
-        try:
-            default_member_permissions = func.__default_member_permissions__
-        except AttributeError:
-            pass
-        try:
-            install_types = func.__install_types__
-        except AttributeError:
-            pass
-        try:
-            contexts = func.__contexts__
-        except AttributeError:
-            pass
-
+        default_member_permissions = getattr(
+            func, "__default_member_permissions__", default_member_permissions
+        )
+        install_types = getattr(func, "__install_types__", install_types)
+        contexts = getattr(func, "__contexts__", contexts)
         self.body = MessageCommand(
             name=name_loc._upgrade(self.name),
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
@@ -231,7 +211,6 @@ class InvokableMessageCommand(InvokableApplicationCommand):
 def user_command(
     *,
     name: LocalizedOptional = None,
-    dm_permission: bool | None = None,  # deprecated
     default_member_permissions: Permissions | int | None = None,
     nsfw: bool | None = None,
     install_types: ApplicationInstallTypes | None = None,
@@ -250,14 +229,6 @@ def user_command(
 
         .. versionchanged:: 2.5
             Added support for localizations.
-
-    dm_permission: :class:`bool`
-        Whether this command can be used in DMs.
-        Defaults to ``True``.
-
-        .. deprecated:: 2.10
-            Use ``contexts`` instead.
-            This is equivalent to the :attr:`.InteractionContextTypes.bot_dm` flag.
 
     default_member_permissions: :class:`.Permissions` | :class:`int` | :data:`None`
         The default required permissions for this command.
@@ -322,7 +293,6 @@ def user_command(
         return InvokableUserCommand(
             func,
             name=name,
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
@@ -339,7 +309,6 @@ def user_command(
 def message_command(
     *,
     name: LocalizedOptional = None,
-    dm_permission: bool | None = None,  # deprecated
     default_member_permissions: Permissions | int | None = None,
     nsfw: bool | None = None,
     install_types: ApplicationInstallTypes | None = None,
@@ -361,14 +330,6 @@ def message_command(
 
         .. versionchanged:: 2.5
             Added support for localizations.
-
-    dm_permission: :class:`bool`
-        Whether this command can be used in DMs.
-        Defaults to ``True``.
-
-        .. deprecated:: 2.10
-            Use ``contexts`` instead.
-            This is equivalent to the :attr:`.InteractionContextTypes.bot_dm` flag.
 
     default_member_permissions: :class:`.Permissions` | :class:`int` | :data:`None`
         The default required permissions for this command.
@@ -433,7 +394,6 @@ def message_command(
         return InvokableMessageCommand(
             func,
             name=name,
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,

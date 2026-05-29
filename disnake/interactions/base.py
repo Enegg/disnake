@@ -1451,52 +1451,6 @@ class InteractionResponse:
         if modal is not None:
             parent._state.store_modal(parent.author.id, modal)
 
-    @utils.deprecated("premium buttons")
-    async def require_premium(self) -> None:
-        """|coro|
-
-        Responds to this interaction with a message containing an upgrade button.
-
-        Only available for applications with monetization enabled.
-
-        .. versionadded:: 2.10
-
-        .. deprecated:: 2.11
-            Use premium buttons (:class:`ui.Button` with :attr:`~ui.Button.sku_id`) instead.
-
-        Example
-        -------
-        Require an application subscription for a command: ::
-
-            @bot.slash_command()
-            async def cool_command(inter: disnake.ApplicationCommandInteraction):
-                if not inter.entitlements:
-                    await inter.response.require_premium()
-                    return  # skip remaining code
-                ...
-
-        Raises
-        ------
-        HTTPException
-            Sending the response has failed.
-        InteractionResponded
-            This interaction has already been responded to before.
-        """
-        if self._response_type is not None:
-            raise InteractionResponded(self._parent)
-
-        parent = self._parent
-        adapter = async_context.get()
-        response_type = InteractionResponseType.premium_required
-        await adapter.create_interaction_response(
-            parent.id,
-            parent.token,
-            session=parent._session,
-            type=response_type.value,
-        )
-
-        self._response_type = response_type
-
 
 class _InteractionMessageState:
     __slots__ = ("_parent", "_interaction")

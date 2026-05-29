@@ -21,7 +21,7 @@ from disnake.app_commands import ApplicationCommand, Option
 from disnake.custom_warnings import SyncWarning
 from disnake.enums import ApplicationCommandType
 from disnake.flags import ApplicationInstallTypes, InteractionContextTypes
-from disnake.utils import iscoroutinefunction, warn_deprecated
+from disnake.utils import iscoroutinefunction
 
 from . import errors
 from .base_core import InvokableApplicationCommand
@@ -137,9 +137,6 @@ class InteractionBotBase(CommonBotBase):
         self,
         *,
         command_sync_flags: CommandSyncFlags | None = None,
-        sync_commands: bool = MISSING,
-        sync_commands_debug: bool = MISSING,
-        sync_commands_on_cog_unload: bool = MISSING,
         test_guilds: Sequence[int] | None = None,
         default_install_types: ApplicationInstallTypes | None = None,
         default_contexts: InteractionContextTypes | None = None,
@@ -154,42 +151,11 @@ class InteractionBotBase(CommonBotBase):
         test_guilds = None if test_guilds is None else tuple(test_guilds)
         self._test_guilds: tuple[int, ...] | None = test_guilds
 
-        if command_sync_flags is not None and (
-            sync_commands is not MISSING
-            or sync_commands_debug is not MISSING
-            or sync_commands_on_cog_unload is not MISSING
-        ):
-            msg = "cannot set 'command_sync_flags' and any of 'sync_commands', 'sync_commands_debug', 'sync_commands_on_cog_unload' at the same time."
-            raise TypeError(msg)
-
         if command_sync_flags is not None:
             # this makes a copy so it cannot be changed after setting
             command_sync_flags = CommandSyncFlags._from_value(command_sync_flags.value)
         if command_sync_flags is None:
             command_sync_flags = CommandSyncFlags.default()
-
-            if sync_commands is not MISSING:
-                warn_deprecated(
-                    "sync_commands is deprecated and will be removed in a future version. "
-                    "Use `command_sync_flags` with an `CommandSyncFlags` instance as a replacement.",
-                    stacklevel=3,
-                )
-                command_sync_flags.sync_commands = sync_commands
-            if sync_commands_debug is not MISSING:
-                warn_deprecated(
-                    "sync_commands_debug is deprecated and will be removed in a future version. "
-                    "Use `command_sync_flags` with an `CommandSyncFlags` instance as a replacement.",
-                    stacklevel=3,
-                )
-                command_sync_flags.sync_commands_debug = sync_commands_debug
-
-            if sync_commands_on_cog_unload is not MISSING:
-                warn_deprecated(
-                    "sync_commands_on_cog_unload is deprecated and will be removed in a future version. "
-                    "Use `command_sync_flags` with an `CommandSyncFlags` instance as a replacement.",
-                    stacklevel=3,
-                )
-                command_sync_flags.sync_on_cog_actions = sync_commands_on_cog_unload
 
         self._command_sync_flags = command_sync_flags
         self._sync_queued: asyncio.Lock = asyncio.Lock()
@@ -493,7 +459,6 @@ class InteractionBotBase(CommonBotBase):
         *,
         name: LocalizedOptional = None,
         description: LocalizedOptional = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -525,14 +490,6 @@ class InteractionBotBase(CommonBotBase):
         options: :class:`list`\[:class:`.Option`]
             The list of slash command options. The options will be visible in Discord.
             This is the old way of specifying options. Consider using :ref:`param_syntax` instead.
-        dm_permission: :class:`bool`
-            Whether this command can be used in DMs.
-            Defaults to ``True``.
-
-            .. deprecated:: 2.10
-                Use ``contexts`` instead.
-                This is equivalent to the :attr:`.InteractionContextTypes.bot_dm` flag.
-
         default_member_permissions: :class:`.Permissions` | :class:`int` | :data:`None`
             The default required permissions for this command.
             See :attr:`.ApplicationCommand.default_member_permissions` for details.
@@ -592,7 +549,6 @@ class InteractionBotBase(CommonBotBase):
                 name=name,
                 description=description,
                 options=options,
-                dm_permission=dm_permission,
                 default_member_permissions=default_member_permissions,
                 nsfw=nsfw,
                 install_types=install_types,
@@ -612,7 +568,6 @@ class InteractionBotBase(CommonBotBase):
         self,
         *,
         name: LocalizedOptional = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -634,14 +589,6 @@ class InteractionBotBase(CommonBotBase):
 
             .. versionchanged:: 2.5
                 Added support for localizations.
-
-        dm_permission: :class:`bool`
-            Whether this command can be used in DMs.
-            Defaults to ``True``.
-
-            .. deprecated:: 2.10
-                Use ``contexts`` instead.
-                This is equivalent to the :attr:`.InteractionContextTypes.bot_dm` flag.
 
         default_member_permissions: :class:`.Permissions` | :class:`int` | :data:`None`
             The default required permissions for this command.
@@ -696,7 +643,6 @@ class InteractionBotBase(CommonBotBase):
         ) -> InvokableUserCommand:
             result = user_command(
                 name=name,
-                dm_permission=dm_permission,
                 default_member_permissions=default_member_permissions,
                 nsfw=nsfw,
                 install_types=install_types,
@@ -715,7 +661,6 @@ class InteractionBotBase(CommonBotBase):
         self,
         *,
         name: LocalizedOptional = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -737,14 +682,6 @@ class InteractionBotBase(CommonBotBase):
 
             .. versionchanged:: 2.5
                 Added support for localizations.
-
-        dm_permission: :class:`bool`
-            Whether this command can be used in DMs.
-            Defaults to ``True``.
-
-            .. deprecated:: 2.10
-                Use ``contexts`` instead.
-                This is equivalent to the :attr:`.InteractionContextTypes.bot_dm` flag.
 
         default_member_permissions: :class:`.Permissions` | :class:`int` | :data:`None`
             The default required permissions for this command.
@@ -799,7 +736,6 @@ class InteractionBotBase(CommonBotBase):
         ) -> InvokableMessageCommand:
             result = message_command(
                 name=name,
-                dm_permission=dm_permission,
                 default_member_permissions=default_member_permissions,
                 nsfw=nsfw,
                 install_types=install_types,

@@ -40,7 +40,7 @@ from .poll import Poll
 from .reaction import Reaction
 from .threads import Thread
 from .user import User
-from .utils import MISSING, _get_as_snowflake, assert_never, deprecated, escape_mentions
+from .utils import MISSING, _get_as_snowflake, assert_never, escape_mentions
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -61,7 +61,6 @@ if TYPE_CHECKING:
     )
     from .types.interactions import (
         AuthorizingIntegrationOwners as AuthorizingIntegrationOwnersPayload,
-        InteractionMessageReference as InteractionMessageReferencePayload,
         InteractionMetadata as InteractionMetadataPayload,
     )
     from .types.member import Member as MemberPayload, UserWithMember as UserWithMemberPayload
@@ -88,7 +87,6 @@ __all__ = (
     "PartialMessage",
     "DeletedReferencedMessage",
     "MessageReference",
-    "InteractionReference",
     "InteractionMetadata",
     "AuthorizingIntegrationOwners",
     "RoleSubscriptionData",
@@ -209,7 +207,6 @@ async def _edit_handler(
             for f in files:
                 f.close()
     return Message(state=msg._state, channel=msg.channel, data=data)
-
 
 
 class Attachment(Hashable):
@@ -708,76 +705,6 @@ class MessageReference:
     to_message_reference_dict = to_dict
 
 
-class InteractionReference:
-    """Represents an interaction being referenced in a message.
-
-    This means responses to message components do not include this property,
-    instead including a message reference object as components always exist on preexisting messages.
-
-    .. versionadded:: 2.1
-
-    .. deprecated:: 2.10
-        Use :attr:`Message.interaction_metadata` instead.
-
-    Attributes
-    ----------
-    id: :class:`int`
-        The ID of the interaction.
-    type: :class:`InteractionType`
-        The type of interaction.
-    name: :class:`str`
-        The name of the application command, including group and subcommand name if applicable
-        (separated by spaces).
-
-        .. note::
-
-            For interaction references created before July 18th, 2022, this will not include group or subcommand names.
-
-    user: :class:`User` | :class:`Member`
-        The user or member that triggered the referenced interaction.
-
-        .. versionchanged:: 2.10
-            This is now a :class:`Member` when in a guild, if the message was received via a
-            gateway event or the member is cached.
-    """
-
-    __slots__ = ("id", "type", "name", "user")
-
-    def __init__(
-        self,
-        *,
-        state: ConnectionState,
-        guild: Guild | None,
-        data: InteractionMessageReferencePayload,
-    ) -> None:
-        self.id: int = int(data["id"])
-        self.type: InteractionType = try_enum(InteractionType, int(data["type"]))
-        self.name: str = data["name"]
-
-        user: User | Member | None = None
-        if guild:
-            if isinstance(guild, Guild):  # this can be a placeholder object in interactions
-                user = guild.get_member(int(data["user"]["id"]))
-
-            # If not cached, try data from event.
-            # This is only available via gateway (message_create/_edit), not HTTP
-            if not user and (member := data.get("member")):
-                user = Member(data=member, user_data=data["user"], guild=guild, state=state)
-
-        # If still none, deserialize user
-        if not user:
-            user = state.store_user(data["user"])
-
-        self.user: User | Member = user
-
-    def __repr__(self) -> str:
-        return f"<InteractionReference id={self.id!r} type={self.type!r} name={self.name!r} user={self.user!r}>"
-
-    @property
-    def author(self) -> User | Member:
-        return self.user
-
-
 class InteractionMetadata:
     """Represents metadata about the interaction that caused a particular message.
 
@@ -1138,7 +1065,6 @@ class Message(Hashable):
         "flags",
         "reactions",
         "reference",
-        "_interaction",
         "interaction_metadata",
         "message_snapshots",
         "application",
@@ -1211,11 +1137,6 @@ class Message(Hashable):
         except AttributeError:
             self.guild = state._get_guild(utils._get_as_snowflake(data, "guild_id"))
 
-        self._interaction: InteractionReference | None = (
-            InteractionReference(state=state, guild=self.guild, data=interaction)
-            if (interaction := data.get("interaction"))
-            else None
-        )
         self.interaction_metadata: InteractionMetadata | None = (
             InteractionMetadata(state=state, data=interaction)
             if (interaction := data.get("interaction_metadata")) is not None
@@ -1455,8 +1376,6 @@ class Message(Hashable):
         # updated later in _update_member_references, after re-chunking
         if isinstance(self.author, Member):
             self.author.guild = new_guild
-        if self._interaction and isinstance(self._interaction.user, Member):
-            self._interaction.user.guild = new_guild
 
     @utils.cached_slot_property("_cs_raw_mentions")
     def raw_mentions(self) -> list[int]:
@@ -1822,19 +1741,6 @@ class Message(Hashable):
 
         # in the event of an unknown or unsupported message type, we return nothing
         return None
-
-    @property
-    @deprecated("interaction_metadata")
-    def interaction(self) -> InteractionReference | None:
-        """:class:`~disnake.InteractionReference` | :data:`None`: The interaction that this message references.
-        This exists only when the message is a response to an interaction without an existing message.
-
-        .. versionadded:: 2.1
-
-        .. deprecated:: 2.10
-            Use :attr:`interaction_metadata` instead.
-        """
-        return self._interaction
 
     async def delete(self) -> None:
         """|coro|

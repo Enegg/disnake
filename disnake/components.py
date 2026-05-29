@@ -943,12 +943,6 @@ class TextInput(Component):
     ----------
     style: :class:`TextInputStyle`
         The style of the text input.
-    label: :class:`str` | :data:`None`
-        The label of the text input.
-
-        .. deprecated:: 2.11
-            Deprecated in favor of :class:`Label`.
-
     custom_id: :class:`str`
         The ID of the text input that gets received during an interaction.
     placeholder: :class:`str` | :data:`None`
@@ -973,7 +967,6 @@ class TextInput(Component):
     __slots__: tuple[str, ...] = (
         "style",
         "custom_id",
-        "label",
         "placeholder",
         "value",
         "required",
@@ -991,7 +984,6 @@ class TextInput(Component):
         self.style: TextInputStyle = try_enum(
             TextInputStyle, data.get("style", TextInputStyle.short.value)
         )
-        self.label: str | None = data.get("label")  # deprecated
         self.placeholder: str | None = data.get("placeholder")
         self.value: str | None = data.get("value")
         self.required: bool = data.get("required", True)
@@ -1003,7 +995,6 @@ class TextInput(Component):
             "type": self.type.value,
             "id": self.id,
             "style": self.style.value,
-            "label": self.label,
             "custom_id": self.custom_id,
             "required": self.required,
         }

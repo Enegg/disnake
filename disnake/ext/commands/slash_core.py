@@ -439,7 +439,6 @@ class InvokableSlashCommand(InvokableApplicationCommand):
         name: LocalizedOptional = None,
         description: LocalizedOptional = None,
         options: list[Option] | None = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -473,26 +472,17 @@ class InvokableSlashCommand(InvokableApplicationCommand):
         self.docstring = utils.parse_docstring(func)
         desc_loc = Localized._cast(description, False)
 
-        try:
-            default_member_permissions = func.__default_member_permissions__
-        except AttributeError:
-            pass
-        try:
-            install_types = func.__install_types__
-        except AttributeError:
-            pass
-        try:
-            contexts = func.__contexts__
-        except AttributeError:
-            pass
-
+        default_member_permissions = getattr(
+            func, "__default_member_permissions__", default_member_permissions
+        )
+        install_types = getattr(func, "__install_types__", install_types)
+        contexts = getattr(func, "__contexts__", contexts)
         self.body: SlashCommand = SlashCommand(
             name=name_loc._upgrade(self.name, key=self.docstring["localization_key_name"]),
             description=desc_loc._upgrade(
                 self.docstring["description"] or "-", key=self.docstring["localization_key_desc"]
             ),
             options=options or [],
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
@@ -770,7 +760,6 @@ def slash_command(
     *,
     name: LocalizedOptional = None,
     description: LocalizedOptional = None,
-    dm_permission: bool | None = None,  # deprecated
     default_member_permissions: Permissions | int | None = None,
     nsfw: bool | None = None,
     install_types: ApplicationInstallTypes | None = None,
@@ -826,14 +815,6 @@ def slash_command(
     options: :class:`list`\[:class:`.Option`]
         The list of slash command options. The options will be visible in Discord.
         This is the old way of specifying options. Consider using :ref:`param_syntax` instead.
-    dm_permission: :class:`bool`
-        Whether this command can be used in DMs.
-        Defaults to ``True``.
-
-        .. deprecated:: 2.10
-            Use ``contexts`` instead.
-            This is equivalent to the :attr:`.InteractionContextTypes.bot_dm` flag.
-
     default_member_permissions: :class:`.Permissions` | :class:`int` | :data:`None`
         The default required permissions for this command.
         See :attr:`.ApplicationCommand.default_member_permissions` for details.
@@ -878,7 +859,6 @@ def slash_command(
             name=name,
             description=description,
             options=options,
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,

@@ -448,7 +448,6 @@ class Guild(Hashable):
             self._member_count: int = member_count
 
         self.name: str = guild.get("name", "")
-        self._region: str = guild.get("region", "")
         self.verification_level: VerificationLevel = try_enum(
             VerificationLevel, guild.get("verification_level")
         )
@@ -864,23 +863,6 @@ class Guild(Hashable):
             return self._member_count
         except AttributeError:
             return len(self._members)
-
-    @property
-    def region(self) -> str:
-        """:class:`str` | :data:`None`: The region the guild belongs on.
-
-        .. deprecated:: 2.5
-
-            VoiceRegion is no longer set on the guild, and is set on the individual voice channels instead.
-            See :attr:`VoiceChannel.rtc_region` and :attr:`StageChannel.rtc_region` instead.
-
-        .. versionchanged:: 2.5
-            No longer a ``VoiceRegion`` instance.
-        """
-        utils.warn_deprecated(
-            "Guild.region is deprecated and will be removed in a future version.", stacklevel=2
-        )
-        return self._region
 
     @property
     def chunked(self) -> bool:

@@ -245,21 +245,6 @@ class _BaseRange(ABC):
 
         name = cls.__name__
 
-        if len(params) == 2:
-            # backwards compatibility for `Range[1, 2]`
-
-            # FIXME: the warning context is incorrect when used with stringified annotations,
-            # and points to the eval frame instead of user code
-            disnake.utils.warn_deprecated(
-                f"Using `{name}` without an explicit type argument is deprecated, "
-                "as this form does not work well with modern type-checkers. "
-                f"Use `{name}[<type>, <min>, <max>]` instead.",
-                stacklevel=2,
-            )
-
-            # infer type from min/max values
-            params = (cls._infer_type(params), *params)
-
         if len(params) != 3:
             msg = f"`{name}` expects 3 type arguments ({name}[<type>, <min>, <max>]), got {len(params)}"
             raise TypeError(msg)

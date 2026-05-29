@@ -35,7 +35,6 @@ from ..utils import SequenceProxy, assert_never, copy_doc
 from ._types import (
     ActionRowChildT,
     ActionRowMessageComponent,
-    ActionRowModalComponent,
     ComponentInput,
     MessageTopLevelComponent,
     NonActionRowChildT,
@@ -72,33 +71,13 @@ __all__ = (
     "ActionRow",
     "Components",
     "MessageUIComponent",
-    "ModalUIComponent",
     "walk_components",
     "components_from_message",
 )
 
 # FIXME(3.0): legacy
 MessageUIComponent: TypeAlias = ActionRowMessageComponent
-ModalUIComponent: TypeAlias = ActionRowModalComponent
 Components: TypeAlias = ComponentInput[ActionRowChildT, NoReturn]
-
-StrictActionRowChildT = TypeVar(
-    "StrictActionRowChildT", ActionRowMessageComponent, ActionRowModalComponent
-)
-
-# this is cursed
-ButtonCompatibleActionRowT = TypeVar(
-    "ButtonCompatibleActionRowT",
-    bound="ActionRow[ActionRowMessageComponent] | ActionRow[WrappedComponent]",
-)
-SelectCompatibleActionRowT = TypeVar(
-    "SelectCompatibleActionRowT",
-    bound="ActionRow[ActionRowMessageComponent] | ActionRow[WrappedComponent]",
-)
-TextInputCompatibleActionRowT = TypeVar(
-    "TextInputCompatibleActionRowT",
-    bound="ActionRow[ActionRowModalComponent] | ActionRow[WrappedComponent]",
-)
 
 
 class ActionRow(UIComponent, Generic[ActionRowChildT]):

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from ..components import TextInput as TextInputComponent
 from ..enums import ComponentType, TextInputStyle
-from ..utils import MISSING, deprecated
+from ..utils import MISSING
 from .item import WrappedComponent
 
 if TYPE_CHECKING:
@@ -25,13 +25,6 @@ class TextInput(WrappedComponent):
 
     Parameters
     ----------
-    label: :class:`str` | :data:`None`
-        The label of the text input.
-
-        .. deprecated:: 2.11
-            This is deprecated in favor of :attr:`Label.text <.ui.Label.text>` and
-            :attr:`.description <.ui.Label.description>`.
-
     custom_id: :class:`str`
         The ID of the text input that gets received during an interaction.
         If not given then one is generated for you.
@@ -71,7 +64,6 @@ class TextInput(WrappedComponent):
     def __init__(
         self,
         *,
-        label: str | None = None,
         custom_id: str = MISSING,
         style: TextInputStyle = TextInputStyle.short,
         placeholder: str | None = None,
@@ -86,7 +78,6 @@ class TextInput(WrappedComponent):
             type=ComponentType.text_input,
             id=id,
             style=style,
-            label=label,
             custom_id=custom_id,
             placeholder=placeholder,
             value=value,
@@ -107,21 +98,6 @@ class TextInput(WrappedComponent):
     @style.setter
     def style(self, value: TextInputStyle) -> None:
         self._underlying.style = value
-
-    @property
-    @deprecated('ui.Label("<text>", ui.TextInput(...))')
-    def label(self) -> str | None:
-        """:class:`str`: The label of the text input.
-
-        .. deprecated:: 2.11
-            This is deprecated in favor of :class:`.ui.Label`.
-        """
-        return self._underlying.label
-
-    @label.setter
-    @deprecated('ui.Label("<text>", ui.TextInput(...))')
-    def label(self, value: str) -> None:
-        self._underlying.label = value
 
     @property
     def custom_id(self) -> str:
@@ -180,7 +156,6 @@ class TextInput(WrappedComponent):
     @classmethod
     def from_component(cls, text_input: TextInputComponent) -> Self:
         return cls(
-            label=text_input.label or "",
             custom_id=text_input.custom_id,
             style=text_input.style,
             placeholder=text_input.placeholder,

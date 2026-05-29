@@ -17,23 +17,10 @@ from typing import (
 from . import utils
 from .colour import Colour
 from .file import File
-from .utils import MISSING, classproperty, warn_deprecated
+from .utils import MISSING
 
 __all__ = ("Embed",)
 
-
-# backwards compatibility, hidden from type-checkers to have them show errors when accessed
-if not TYPE_CHECKING:
-
-    def __getattr__(name: str) -> None:
-        if name == "EmptyEmbed":
-            warn_deprecated(
-                "`EmptyEmbed` is deprecated and will be removed in a future version. Use `None` instead.",
-                stacklevel=2,
-            )
-            return None  # noqa: RET501
-        msg = f"module '{__name__}' has no attribute '{name}'"
-        raise AttributeError(msg)
 
 
 class EmbedProxy:
@@ -218,17 +205,6 @@ class Embed:
         self._fields: list[EmbedFieldPayload] | None = None
 
         self._files: dict[_FileKey, File] = {}
-
-    # see `EmptyEmbed` above
-    if not TYPE_CHECKING:
-        # n.b. this is the only use site of classproperty
-        @classproperty
-        def Empty(self) -> None:
-            warn_deprecated(
-                "`Embed.Empty` is deprecated and will be removed in a future version. Use `None` instead.",
-                stacklevel=3,
-            )
-            return None  # noqa: RET501
 
     @classmethod
     def from_dict(cls, data: EmbedData) -> Self:

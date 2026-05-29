@@ -1602,9 +1602,6 @@ class ConnectionState:
             animated=data.get("animated", False),
         )
 
-    # deprecated
-    get_reaction_emoji = _get_emoji_from_data
-
     def _get_emoji_from_fields(
         self,
         *,
@@ -1894,11 +1891,6 @@ class AutoShardedConnectionState(ConnectionState):
             new_author = msg.guild.get_member(msg.author.id)
             if new_author is not None and new_author is not msg.author:
                 msg.author = new_author
-
-            if msg._interaction is not None and isinstance(msg._interaction.user, Member):
-                new_author = msg.guild.get_member(msg._interaction.user.id)
-                if new_author is not None and new_author is not msg._interaction.user:
-                    msg._interaction.user = new_author
 
     async def chunker(
         self,

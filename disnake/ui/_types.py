@@ -30,7 +30,6 @@ AnySelect: TypeAlias = Union[
 
 # valid `ActionRow.components` item types in a message/modal
 ActionRowMessageComponent: TypeAlias = Union["Button", "AnySelect"]
-ActionRowModalComponent: TypeAlias = "TextInput"  # deprecated
 
 # valid message component types (v1/v2)
 MessageTopLevelComponentV1: TypeAlias = "ActionRow[ActionRowMessageComponent]"
@@ -45,19 +44,15 @@ MessageTopLevelComponentV2: TypeAlias = Union[
 MessageTopLevelComponent: TypeAlias = Union[MessageTopLevelComponentV1, MessageTopLevelComponentV2]  # noqa: UP007
 
 # valid modal component types (separate type with ActionRow until fully deprecated)
-ModalTopLevelComponent_: TypeAlias = Union[
+ModalTopLevelComponent: TypeAlias = Union[
     "TextDisplay",
     "Label",
-]
-ModalTopLevelComponent: TypeAlias = Union[
-    ModalTopLevelComponent_,
-    "ActionRow[ActionRowModalComponent]",  # deprecated
 ]
 
 ActionRowChildT = TypeVar("ActionRowChildT", bound="WrappedComponent")
 NonActionRowChildT = TypeVar(
     "NonActionRowChildT",
-    bound=MessageTopLevelComponentV2 | ModalTopLevelComponent_,
+    bound=MessageTopLevelComponentV2 | ModalTopLevelComponent,
 )
 
 # generic utility type for any single ui component (within some generic bounds)
@@ -78,6 +73,6 @@ ComponentInput: TypeAlias = (
 MessageComponents = ComponentInput[ActionRowMessageComponent, MessageTopLevelComponentV2]
 
 ModalComponents = ComponentInput[
-    ActionRowModalComponent,  # deprecated
-    ModalTopLevelComponent_,
+    "TextInput",  # deprecated
+    ModalTopLevelComponent,
 ]

@@ -21,7 +21,7 @@ from .enums import (
 from .flags import ApplicationInstallTypes, InteractionContextTypes
 from .i18n import Localized
 from .permissions import Permissions
-from .utils import MISSING, _get_as_snowflake, _maybe_cast, deprecated, warn_deprecated
+from .utils import MISSING, _get_as_snowflake, _maybe_cast
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -526,7 +526,6 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
         self,
         type: ApplicationCommandType,
         name: LocalizedRequired,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -561,28 +560,7 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
         # it'll do until the presumably soon-ish refactor of the entire commands framework.
         self._default_install_types: ApplicationInstallTypes | None = None
         self._default_contexts: InteractionContextTypes | None = None
-
         self._always_synced: bool = False
-
-        # reset `default_permission` if set before
-        self._default_permission: bool = True
-
-        self._dm_permission: bool | None = dm_permission
-        if self._dm_permission is not None:
-            warn_deprecated(
-                "dm_permission is deprecated, use contexts instead.",
-                stacklevel=2,
-                # the call stack can have different depths, depending on how the
-                # user created the command, so we can't reliably set a fixed stacklevel
-                skip_internal_frames=True,
-            )
-
-            # if both are provided, raise an exception
-            # (n.b. these can be assigned to later, in which case no exception will be raised.
-            # assume the user knows what they're doing, in that case)
-            if self.contexts is not None:
-                msg = "Cannot use both `dm_permission` and `contexts` at the same time"
-                raise ValueError(msg)
 
     @property
     def default_member_permissions(self) -> Permissions | None:
@@ -602,26 +580,6 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
             return None
         return Permissions(self._default_member_permissions)
 
-    @property
-    @deprecated("contexts")
-    def dm_permission(self) -> bool:
-        """
-        Whether this command can be used in DMs with the bot.
-
-        .. versionadded:: 2.5
-
-        .. deprecated:: 2.10
-            Use :attr:`contexts` instead.
-            This is equivalent to the :attr:`InteractionContextTypes.bot_dm` flag.
-        """
-        # a `None` value is equivalent to `True` here
-        return self._dm_permission is not False
-
-    @dm_permission.setter
-    @deprecated("contexts")
-    def dm_permission(self, value: bool) -> None:
-        self._dm_permission = value
-
     def __repr__(self) -> str:
         attrs = " ".join(f"{key}={getattr(self, key)!r}" for key in self.__repr_attributes__)
         return f"<{type(self).__name__} {attrs}>"
@@ -639,7 +597,6 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
             and self.name_localizations == other.name_localizations
             and self.nsfw == other.nsfw
             and self._default_member_permissions == other._default_member_permissions
-            and self._default_permission == other._default_permission
         ):
             return False
 
@@ -655,12 +612,8 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
             # since the API returns both even when only `contexts` was provided
             self_contexts = self._contexts_with_default
             other_contexts = other._contexts_with_default
-            if self_contexts is not None or other_contexts is not None:
+            if self_contexts is not None or other_contexts is not None:  # noqa: SIM102
                 if self_contexts != other_contexts:
-                    return False
-            else:
-                # this is a bit awkward; `None` is equivalent to `True` in this case
-                if (self._dm_permission is not False) != (other._dm_permission is not False):
                     return False
 
         return True
@@ -689,8 +642,6 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
             self.contexts is None
             and not isinstance(self, _APIApplicationCommandMixin)
             and self._default_contexts is not None
-            # only use default if legacy `dm_permission` wasn't set
-            and self._dm_permission is None
         ):
             return self._default_contexts
 
@@ -721,10 +672,6 @@ class ApplicationCommand(ABC):  # noqa: B024  # this will get refactored eventua
         )
         data["contexts"] = contexts
 
-        # don't set `dm_permission` if `contexts` is set
-        if contexts is None:
-            data["dm_permission"] = self._dm_permission is not False
-
         if (loc := self.name_localizations.data) is not None:
             data["name_localizations"] = loc
 
@@ -746,12 +693,6 @@ class _APIApplicationCommandMixin:
         self.application_id: int = int(data["application_id"])
         self.guild_id: int | None = _get_as_snowflake(data, "guild_id")
         self.version: int = int(data["version"])
-
-        # deprecated, but kept until API stops returning this field
-        self._default_permission = data.get("default_permission") is not False
-
-        # same deal, also deprecated.
-        self._dm_permission = data.get("dm_permission")
 
 
 class UserCommand(ApplicationCommand):
@@ -793,7 +734,6 @@ class UserCommand(ApplicationCommand):
     def __init__(
         self,
         name: LocalizedRequired,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -802,7 +742,6 @@ class UserCommand(ApplicationCommand):
         super().__init__(
             type=ApplicationCommandType.user,
             name=name,
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
@@ -922,7 +861,6 @@ class MessageCommand(ApplicationCommand):
     def __init__(
         self,
         name: LocalizedRequired,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -931,7 +869,6 @@ class MessageCommand(ApplicationCommand):
         super().__init__(
             type=ApplicationCommandType.message,
             name=name,
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
@@ -1065,7 +1002,6 @@ class SlashCommand(ApplicationCommand):
         name: LocalizedRequired,
         description: LocalizedRequired,
         options: list[Option] | None = None,
-        dm_permission: bool | None = None,  # deprecated
         default_member_permissions: Permissions | int | None = None,
         nsfw: bool | None = None,
         install_types: ApplicationInstallTypes | None = None,
@@ -1074,7 +1010,6 @@ class SlashCommand(ApplicationCommand):
         super().__init__(
             type=ApplicationCommandType.chat_input,
             name=name,
-            dm_permission=dm_permission,
             default_member_permissions=default_member_permissions,
             nsfw=nsfw,
             install_types=install_types,
