@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -16,35 +16,26 @@ from typing import (
 from ...components import AnySelectMenu, SelectDefaultValue
 from ...enums import ComponentType, SelectDefaultValueType
 from ...object import Object
-from ...utils import MISSING, humanize_list, iscoroutinefunction
-from ..item import DecoratedItem, Item
+from ...utils import MISSING, humanize_list
+from ..item import WrappedComponent
 
 __all__ = ("BaseSelect",)
 
 if TYPE_CHECKING:
-    from typing_extensions import ParamSpec, Self
+    from typing_extensions import Self
 
     from ...abc import Snowflake
-    from ...interactions import MessageInteraction
-    from ..item import ItemCallbackType
-    from ..view import View
-
-else:
-    ParamSpec = TypeVar
 
 
-S_co = TypeVar("S_co", bound="BaseSelect", covariant=True)
-V_co = TypeVar("V_co", bound="View | None", covariant=True)
 SelectMenuT = TypeVar("SelectMenuT", bound=AnySelectMenu)
 SelectValueT = TypeVar("SelectValueT")
-P = ParamSpec("P")
 
 SelectDefaultValueMultiInputType: TypeAlias = SelectValueT | SelectDefaultValue
 # almost the same as above, but with `Object`; used for selects where the type isn't ambiguous (i.e. all except mentionable select)
 SelectDefaultValueInputType: TypeAlias = SelectDefaultValueMultiInputType[SelectValueT] | Object
 
 
-class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
+class BaseSelect(Generic[SelectMenuT, SelectValueT], WrappedComponent, ABC):
     """Represents an abstract UI select menu.
 
     This is usually represented as a drop down menu.
@@ -86,7 +77,6 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
         default_values: Sequence[SelectDefaultValueInputType[SelectValueT]] | None,
         required: bool,
         id: int,
-        row: int | None,
     ) -> None:
         super().__init__()
         self._selected_values: list[SelectValueT] = []
@@ -103,7 +93,6 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
             default_values=self._transform_default_values(default_values) if default_values else [],
             required=required,
         )
-        self.row = row
 
     @property
     def custom_id(self) -> str:
@@ -195,20 +184,10 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
     def refresh_component(self, component: SelectMenuT) -> None:
         self._underlying = component
 
-    def refresh_state(self, interaction: MessageInteraction) -> None:
-        self._selected_values = interaction.resolved_values  # pyright: ignore[reportAttributeAccessIssue]
-
     @classmethod
     @abstractmethod
     def from_component(cls, component: SelectMenuT) -> Self:
         raise NotImplementedError
-
-    def is_dispatchable(self) -> bool:
-        """Whether the select menu is dispatchable. This will always return ``True``.
-
-        :return type: :class:`bool`
-        """
-        return True
 
     @classmethod
     def _transform_default_values(
@@ -245,31 +224,3 @@ class BaseSelect(Generic[SelectMenuT, SelectValueT, V_co], Item[V_co], ABC):
             result.append(SelectDefaultValue(value.id, value_type))
 
         return result
-
-
-def _create_decorator(
-    # FIXME(3.0): rename `cls` parameter to more closely represent any callable argument type
-    cls: Callable[P, S_co],
-    /,
-    *args: P.args,
-    **kwargs: P.kwargs,
-) -> Callable[[ItemCallbackType[V_co, S_co]], DecoratedItem[S_co]]:
-    if args:
-        # the `*args` def above is just to satisfy the typechecker
-        msg = "expected no *args"
-        raise RuntimeError(msg)
-
-    if not callable(cls):
-        msg = "cls argument must be callable"
-        raise TypeError(msg)
-
-    def decorator(func: ItemCallbackType[V_co, S_co]) -> DecoratedItem[S_co]:
-        if not iscoroutinefunction(func):
-            msg = "select function must be a coroutine function"
-            raise TypeError(msg)
-
-        func.__discord_ui_model_type__ = cls
-        func.__discord_ui_model_kwargs__ = kwargs
-        return func  # pyright: ignore[reportReturnType]
-
-    return decorator

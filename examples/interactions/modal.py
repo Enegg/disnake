@@ -10,7 +10,7 @@ import os
 import disnake
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # One way of sending modals is using a "high-level" implementation similar to views,

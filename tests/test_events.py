@@ -15,11 +15,8 @@ def client() -> disnake.Client:
 
 
 @pytest.fixture
-def bot() -> commands.Bot:
-    return commands.Bot(
-        command_prefix=commands.when_mentioned,
-        command_sync_flags=commands.CommandSyncFlags.none(),
-    )
+def bot() -> commands.InteractionBot:
+    return commands.InteractionBot(command_sync_flags=commands.CommandSyncFlags.none())
 
 
 @pytest.fixture(params=["client", "bot"])
@@ -91,19 +88,15 @@ def test_listen__implicit(client_or_bot: disnake.Client) -> None:
 
 # @commands.Cog.listener
 @pytest.mark.parametrize("event", ["on_automod_rule_update", Event.automod_rule_update])
-def test_listener(bot: commands.Bot, event) -> None:
-    class Cog(commands.Cog):
-        @commands.Cog.listener(event)
-        async def callback(self, *args: Any) -> None: ...
+def test_listener(bot: commands.InteractionBot, event) -> None:
+    @bot.listen(event)
+    async def callback(*args: Any) -> None: ...
 
-    bot.add_cog(Cog())
     assert len(bot.extra_events["on_automod_rule_update"]) == 1
 
 
-def test_listener__implicit(bot: commands.Bot) -> None:
-    class Cog(commands.Cog):
-        @commands.Cog.listener()
-        async def on_automod_rule_update(self, *args: Any) -> None: ...
+def test_listener__implicit(bot: commands.InteractionBot) -> None:
+    @bot.listen()
+    async def on_automod_rule_update(self, *args: Any) -> None: ...
 
-    bot.add_cog(Cog())
     assert len(bot.extra_events["on_automod_rule_update"]) == 1

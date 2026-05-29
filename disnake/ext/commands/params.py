@@ -177,15 +177,6 @@ class Injection(Generic[P, T_]):
         self.function: InjectionCallback[P, T_] = function
         self.autocompleters: dict[str, Callable] = autocompleters or {}
 
-    def __get__(self, obj: Any | None, _: type[object]) -> Self:
-        if obj is None:
-            return self
-
-        copy = type(self)(function=self.function, autocompleters=self.autocompleters)
-        setattr(obj, self.function.__name__, copy)
-
-        return copy
-
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> T_:
         """Calls the underlying function that the injection holds.
 
@@ -890,31 +881,30 @@ def isolate_self(
     parameters = dict(parameters)  # shallow copy
     parametersl = list(parameters.values())
 
-    cog_param: inspect.Parameter | None = None
     inter_param: inspect.Parameter | None = None
 
     if signature_has_self_param(function):
-        cog_param = parameters.pop(parametersl[0].name)
+        parameters.pop(parametersl[0].name)
         parametersl.pop(0)
     if parametersl:
         annot = parametersl[0].annotation
         if issubclass_(annot, ApplicationCommandInteraction) or annot is inspect.Parameter.empty:
             inter_param = parameters.pop(parametersl[0].name)
 
-    return (cog_param, inter_param), parameters
+    return (None, inter_param), parameters
 
 
 def collect_params(
     function: Callable[..., Any],
     parameters: dict[str, inspect.Parameter] | None = None,
-) -> tuple[str | None, str | None, list[ParamInfo], dict[str, Injection]]:
+) -> tuple[str | None, list[ParamInfo], dict[str, Injection]]:
     """Collect all parameters in a function.
 
     Optionally accepts a `{str: inspect.Parameter}` dict as an optimization.
 
     Returns: (`cog parameter`, `interaction parameter`, `param infos`, `injections`)
     """
-    (cog_param, inter_param), parameters = isolate_self(function, parameters)
+    (_, inter_param), parameters = isolate_self(function, parameters)
 
     doc = disnake.utils.parse_docstring(function)["params"]
 
@@ -944,7 +934,6 @@ def collect_params(
             paraminfos.append(paraminfo)
 
     return (
-        cog_param.name if cog_param else None,
         inter_param.name if inter_param else None,
         paraminfos,
         injections,
@@ -954,7 +943,7 @@ def collect_params(
 def collect_nested_params(function: Callable[..., Any]) -> list[ParamInfo]:
     """Collect all options from a function"""
     # TODO: Have these be actually sorted properly and not have injections always at the end
-    _, _, paraminfos, injections = collect_params(function)
+    _, paraminfos, injections = collect_params(function)
 
     for injection in injections.values():
         paraminfos += collect_nested_params(injection.function)
@@ -964,7 +953,6 @@ def collect_nested_params(function: Callable[..., Any]) -> list[ParamInfo]:
 
 def format_kwargs(
     interaction: ApplicationCommandInteraction,
-    cog_param: str | None = None,
     inter_param: str | None = None,
     /,
     *args: Any,
@@ -1005,8 +993,8 @@ async def call_param_func(
     **kwargs: Any,
 ) -> T:
     """Call a function utilizing ParamInfo"""
-    cog_param, inter_param, paraminfos, injections = collect_params(function)
-    formatted_kwargs = format_kwargs(interaction, cog_param, inter_param, *args, **kwargs)
+    inter_param, paraminfos, injections = collect_params(function)
+    formatted_kwargs = format_kwargs(interaction, inter_param, *args, **kwargs)
     formatted_kwargs.update(await run_injections(injections, interaction, *args, **kwargs))
     kwargs = formatted_kwargs
 
@@ -1029,7 +1017,7 @@ def expand_params(command: AnySlashCommand) -> list[Option]:
     parameters = get_signature_parameters(command.callback)
     # pass `parameters` down to avoid having to call `get_signature_parameters(func)` another time,
     # which may cause side effects with deferred annotations and warnings
-    _, inter_param, params, injections = collect_params(command.callback, parameters)
+    inter_param, params, injections = collect_params(command.callback, parameters)
 
     if inter_param is None:
         msg = f"Couldn't find an interaction parameter in {command.callback}"

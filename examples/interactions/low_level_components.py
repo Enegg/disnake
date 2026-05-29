@@ -7,7 +7,7 @@ import os
 import disnake
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # As an alternative to using views, it is possible to use a more low-level approach to components.
@@ -19,16 +19,16 @@ bot = commands.Bot(command_prefix=commands.when_mentioned)
 # Because of this, their memory footprint will generally be smaller than that of an equivalent view.
 
 
-@bot.command()
-async def send_button(ctx: commands.Context):
+@bot.slash_command()
+async def send_button(ctx: disnake.CommandInteraction):
     await ctx.send(
         "Here's a button!",
         components=disnake.ui.Button(label="Click me!", custom_id="cool_button"),
     )
 
 
-@bot.command()
-async def send_select(ctx: commands.Context):
+@bot.slash_command()
+async def send_select(ctx: disnake.CommandInteraction):
     await ctx.send(
         "Here's a select!",
         components=disnake.ui.StringSelect(options=["1", "2", "3"], custom_id="cool_select"),
@@ -40,8 +40,8 @@ async def send_select(ctx: commands.Context):
 # row ordering is desired, simply store them in a list of lists or `disnake.ui.ActionRow`s instead:
 
 
-@bot.command()
-async def send_all_the_buttons(ctx: commands.Context):
+@bot.slash_command()
+async def send_all_the_buttons(ctx: disnake.CommandInteraction):
     buttons = []
     for y in range(4):
         row = disnake.ui.ActionRow()

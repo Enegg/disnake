@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from typing import (
@@ -28,7 +27,6 @@ from ..enums import (
     try_enum,
 )
 from ..errors import (
-    HTTPException,
     InteractionNotEditable,
     InteractionNotResponded,
     InteractionResponded,
@@ -83,7 +81,6 @@ if TYPE_CHECKING:
     from ..types.webhook import Webhook as WebhookPayload
     from ..ui._types import MessageComponents, ModalComponents, ModalTopLevelComponent
     from ..ui.modal import Modal
-    from ..ui.view import View
     from .message import MessageInteraction
     from .modal import ModalInteraction
 
@@ -439,13 +436,11 @@ class Interaction(Generic[ClientT]):
         file: File = MISSING,
         files: list[File] = MISSING,
         attachments: list[Attachment] | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
         poll: Poll = MISSING,
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions | None = None,
-        delete_after: float | None = None,
     ) -> InteractionMessage:
         r"""|coro|
 
@@ -497,9 +492,6 @@ class Interaction(Generic[ClientT]):
             .. versionchanged:: 2.5
                 Supports passing :data:`None` to clear attachments.
 
-        view: :class:`~disnake.ui.View` | :data:`None`
-            The updated view to update this message with. This cannot be mixed with ``components``.
-            If :data:`None` is passed then the view is removed.
         components: |components_type| | :data:`None`
             A list of components to update this message with. This cannot be mixed with ``view``.
             If :data:`None` is passed then the components are removed.
@@ -540,16 +532,6 @@ class Interaction(Generic[ClientT]):
 
             .. versionadded:: 2.9
 
-        delete_after: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just edited. If the deletion fails,
-            then it is silently ignored.
-
-            Can be up to 15 minutes after the interaction was created
-            (see also :attr:`Interaction.expires_at`/:attr:`~Interaction.is_expired`).
-
-            .. versionadded:: 2.10
-
         Raises
         ------
         HTTPException
@@ -580,7 +562,6 @@ class Interaction(Generic[ClientT]):
             attachments=attachments,
             embed=embed,
             embeds=embeds,
-            view=view,
             components=components,
             poll=poll,
             suppress_embeds=suppress_embeds,
@@ -609,17 +590,9 @@ class Interaction(Generic[ClientT]):
 
         # The message channel types should always match
         state = _InteractionMessageState(self, self._state)
-        message = InteractionMessage(state=state, channel=self.channel, data=data)  # pyright: ignore[reportArgumentType]
+        return InteractionMessage(state=state, channel=self.channel, data=data)  # pyright: ignore[reportArgumentType]
 
-        if view and not view.is_finished():
-            self._state.store_view(view, message.id)
-
-        if delete_after is not None:
-            await self.delete_original_response(delay=delete_after)
-
-        return message
-
-    async def delete_original_response(self, *, delay: float | None = None) -> None:
+    async def delete_original_response(self) -> None:
         """|coro|
 
         Deletes the original interaction response message.
@@ -631,16 +604,6 @@ class Interaction(Generic[ClientT]):
 
             This function was renamed from ``delete_original_message``.
 
-        Parameters
-        ----------
-        delay: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the original response message. If the deletion fails,
-            then it is silently ignored.
-
-            Can be up to 15 minutes after the interaction was created
-            (see also :attr:`Interaction.expires_at`/:attr:`~Interaction.is_expired`).
-
         Raises
         ------
         HTTPException
@@ -649,26 +612,12 @@ class Interaction(Generic[ClientT]):
             Deleted a message that is not yours.
         """
         adapter = async_context.get()
-        deleter = adapter.delete_original_interaction_response(
-            self.application_id,
-            self.token,
-            session=self._session,
-        )
-
-        if delay is not None:
-
-            async def delete(delay: float) -> None:
-                await asyncio.sleep(delay)
-                try:
-                    await deleter
-                except HTTPException:
-                    pass
-
-            asyncio.create_task(delete(delay))
-            return
-
         try:
-            await deleter
+            await adapter.delete_original_interaction_response(
+                self.application_id,
+                self.token,
+                session=self._session,
+            )
         except NotFound as e:
             if e.code == 10015:
                 raise InteractionNotResponded(self) from e
@@ -689,13 +638,11 @@ class Interaction(Generic[ClientT]):
         file: File = MISSING,
         files: list[File] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
-        view: View = MISSING,
         components: MessageComponents = MISSING,
         tts: bool = False,
         ephemeral: bool = MISSING,
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
-        delete_after: float = MISSING,
         poll: Poll = MISSING,
     ) -> None:
         r"""|coro|
@@ -735,10 +682,8 @@ class Interaction(Generic[ClientT]):
             are used instead.
         tts: :class:`bool`
             Whether the message should be sent using text-to-speech.
-        view: :class:`disnake.ui.View`
-            The view to send with the message. This cannot be mixed with ``components``.
         components: |components_type|
-            A list of components to send with the message. This cannot be mixed with ``view``.
+            A list of components to send with the message.
 
             .. versionadded:: 2.4
 
@@ -768,17 +713,6 @@ class Interaction(Generic[ClientT]):
 
             .. versionadded:: 2.9
 
-        delete_after: :class:`float`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just sent. If the deletion fails,
-            then it is silently ignored.
-
-            Can be up to 15 minutes after the interaction was created
-            (see also :attr:`expires_at`/:attr:`is_expired`).
-
-            .. versionchanged:: 2.7
-                Added support for ephemeral responses.
-
         poll: :class:`Poll`
             The poll to send with the message.
 
@@ -805,13 +739,11 @@ class Interaction(Generic[ClientT]):
             file=file,
             files=files,
             allowed_mentions=allowed_mentions,
-            view=view,
             components=components,
             tts=tts,
             ephemeral=ephemeral,
             suppress_embeds=suppress_embeds,
             flags=flags,
-            delete_after=delete_after,
             poll=poll,
         )
 
@@ -979,13 +911,11 @@ class InteractionResponse:
         file: File = MISSING,
         files: list[File] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
-        view: View = MISSING,
         components: MessageComponents = MISSING,
         tts: bool = False,
         ephemeral: bool = MISSING,
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
-        delete_after: float = MISSING,
         poll: Poll = MISSING,
     ) -> None:
         r"""|coro|
@@ -1009,10 +939,8 @@ class InteractionResponse:
             This cannot be mixed with the ``file`` parameter.
         allowed_mentions: :class:`AllowedMentions`
             Controls the mentions being processed in this message.
-        view: :class:`disnake.ui.View`
-            The view to send with the message. This cannot be mixed with ``components``.
         components: |components_type|
-            A list of components to send with the message. This cannot be mixed with ``view``.
+            A list of components to send with the message.
 
             .. versionadded:: 2.4
 
@@ -1027,16 +955,6 @@ class InteractionResponse:
             Whether the message should only be visible to the user who started the interaction.
             If a view is sent with an ephemeral message and it has no timeout set then the timeout
             is set to 15 minutes.
-        delete_after: :class:`float`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just sent. If the deletion fails,
-            then it is silently ignored.
-
-            Can be up to 15 minutes after the interaction was created
-            (see also :attr:`Interaction.expires_at`/:attr:`~Interaction.is_expired`).
-
-            .. versionchanged:: 2.7
-                Added support for ephemeral responses.
 
         suppress_embeds: :class:`bool`
             Whether to suppress embeds for the message. This hides
@@ -1088,10 +1006,6 @@ class InteractionResponse:
             msg = "cannot mix file and files keyword arguments"
             raise TypeError(msg)
 
-        if view is not MISSING and components is not MISSING:
-            msg = "cannot mix view and components keyword arguments"
-            raise TypeError(msg)
-
         if file is not MISSING:
             files = [file]
 
@@ -1127,9 +1041,7 @@ class InteractionResponse:
             payload["content"] = str(content)
 
         is_v2 = False
-        if view is not MISSING:
-            payload["components"] = view.to_components()
-        elif components is not MISSING:
+        if components is not MISSING:
             payload["components"], is_v2 = normalize_components_to_dict(components)
 
         # set cv2 flag automatically
@@ -1176,15 +1088,6 @@ class InteractionResponse:
 
         self._response_type = response_type
 
-        if view is not MISSING:
-            if ephemeral and view.timeout is None:
-                view.timeout = 15 * 60.0
-
-            self._parent._state.store_view(view)
-
-        if delete_after is not MISSING:
-            await self._parent.delete_original_response(delay=delete_after)
-
     async def edit_message(
         self,
         content: str | None = MISSING,
@@ -1194,11 +1097,9 @@ class InteractionResponse:
         file: File = MISSING,
         files: list[File] = MISSING,
         attachments: list[Attachment] | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
-        delete_after: float | None = None,
     ) -> None:
         r"""|coro|
 
@@ -1250,11 +1151,8 @@ class InteractionResponse:
             .. versionchanged:: 2.5
                 Supports passing :data:`None` to clear attachments.
 
-        view: :class:`~disnake.ui.View` | :data:`None`
-            The updated view to update this message with. This cannot be mixed with ``components``.
-            If :data:`None` is passed then the view is removed.
         components: |components_type| | :data:`None`
-            A list of components to update this message with. This cannot be mixed with ``view``.
+            A list of components to update this message with.
             If :data:`None` is passed then the components are removed.
 
             .. versionadded:: 2.4
@@ -1275,16 +1173,6 @@ class InteractionResponse:
         allowed_mentions: :class:`AllowedMentions`
             Controls the mentions being processed in this message.
 
-        delete_after: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just edited. If the deletion fails,
-            then it is silently ignored.
-
-            Can be up to 15 minutes after the interaction was created
-            (see also :attr:`Interaction.expires_at`/:attr:`~Interaction.is_expired`).
-
-            .. versionadded:: 2.10
-
         Raises
         ------
         HTTPException
@@ -1300,7 +1188,6 @@ class InteractionResponse:
             raise InteractionResponded(self._parent)
 
         parent = self._parent
-        state = parent._state
 
         if parent.type not in (InteractionType.component, InteractionType.modal_submit):
             raise InteractionNotEditable(parent)
@@ -1358,15 +1245,8 @@ class InteractionResponse:
                 [] if attachments is None else [a.to_dict() for a in attachments]
             )
 
-        if view is not MISSING and components is not MISSING:
-            msg = "cannot mix view and components keyword arguments"
-            raise TypeError(msg)
-
         is_v2 = False
-        if view is not MISSING:
-            state.prevent_view_updates_for(message.id)
-            payload["components"] = [] if view is None else view.to_components()
-        elif components is not MISSING:
+        if components is not MISSING:
             if components:
                 payload["components"], is_v2 = normalize_components_to_dict(components)
             else:
@@ -1400,13 +1280,7 @@ class InteractionResponse:
                 for f in files:
                     f.close()
 
-        if view and not view.is_finished():
-            state.store_view(view, message.id)
-
         self._response_type = response_type
-
-        if delete_after is not None:
-            await self._parent.delete_original_response(delay=delete_after)
 
     async def autocomplete(self, *, choices: Choices) -> None:
         r"""|coro|
@@ -1737,9 +1611,7 @@ class InteractionMessage(Message):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> InteractionMessage: ...
 
     @overload
@@ -1753,9 +1625,7 @@ class InteractionMessage(Message):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> InteractionMessage: ...
 
     @overload
@@ -1769,9 +1639,7 @@ class InteractionMessage(Message):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> InteractionMessage: ...
 
     @overload
@@ -1785,9 +1653,7 @@ class InteractionMessage(Message):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> InteractionMessage: ...
 
     async def edit(
@@ -1802,9 +1668,7 @@ class InteractionMessage(Message):
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
-        delete_after: float | None = None,
     ) -> Message:
         r"""|coro|
 
@@ -1846,11 +1710,8 @@ class InteractionMessage(Message):
             .. versionchanged:: 2.5
                 Supports passing :data:`None` to clear attachments.
 
-        view: :class:`~disnake.ui.View` | :data:`None`
-            The updated view to update this message with. This cannot be mixed with ``components``.
-            If :data:`None` is passed then the view is removed.
         components: |components_type| | :data:`None`
-            A list of components to update this message with. This cannot be mixed with ``view``.
+            A list of components to update this message with.
             If :data:`None` is passed then the components are removed.
 
             .. versionadded:: 2.4
@@ -1882,15 +1743,6 @@ class InteractionMessage(Message):
         allowed_mentions: :class:`AllowedMentions`
             Controls the mentions being processed in this message.
             See :meth:`.abc.Messageable.send` for more information.
-        delete_after: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just edited. If the deletion fails,
-            then it is silently ignored.
-
-            Can be up to 15 minutes after the interaction was created
-            (see also :attr:`Interaction.expires_at`/:attr:`~Interaction.is_expired`).
-
-            .. versionadded:: 2.10
 
         Raises
         ------
@@ -1923,9 +1775,7 @@ class InteractionMessage(Message):
                 suppress_embeds=suppress_embeds,
                 flags=flags,
                 allowed_mentions=allowed_mentions,
-                view=view,
                 components=components,
-                delete_after=delete_after,
                 **params,
             )
 
@@ -1945,21 +1795,13 @@ class InteractionMessage(Message):
             suppress_embeds=suppress_embeds,
             flags=flags,
             allowed_mentions=allowed_mentions,
-            view=view,
             components=components,
-            delete_after=delete_after,
         )
 
-    async def delete(self, *, delay: float | None = None) -> None:
+    async def delete(self) -> None:
         """|coro|
 
         Deletes the message.
-
-        Parameters
-        ----------
-        delay: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait before deleting the message.
-            The waiting is done in the background and deletion failures are ignored.
 
         Raises
         ------
@@ -1971,18 +1813,7 @@ class InteractionMessage(Message):
             Deleting the message failed.
         """
         if self._state._interaction.is_expired():
-            await super().delete(delay=delay)
-            return
-        if delay is not None:
-
-            async def inner_call(delay: float = delay) -> None:
-                await asyncio.sleep(delay)
-                try:
-                    await self._state._interaction.delete_original_response()
-                except HTTPException:
-                    pass
-
-            asyncio.create_task(inner_call())
+            await super().delete()
         else:
             await self._state._interaction.delete_original_response()
 

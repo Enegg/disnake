@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import datetime
 import io
 import re
@@ -31,7 +30,6 @@ from .enums import (
     try_enum,
     try_enum_to_int,
 )
-from .errors import HTTPException
 from .file import File
 from .flags import AttachmentFlags, MessageFlags
 from .guild import Guild
@@ -81,7 +79,6 @@ if TYPE_CHECKING:
     from .types.threads import ThreadArchiveDurationLiteral
     from .types.user import User as UserPayload
     from .ui._types import MessageComponents
-    from .ui.view import View
 
     EmojiInputType: TypeAlias = Emoji | PartialEmoji | str
 
@@ -125,7 +122,6 @@ async def _edit_handler(
     *,
     default_flags: int,
     previous_allowed_mentions: AllowedMentions | None,
-    delete_after: float | None,
     # these are the actual edit kwargs,
     # all of which can be set to `MISSING`
     content: str | None,
@@ -134,11 +130,9 @@ async def _edit_handler(
     file: File,
     files: list[File],
     attachments: list[Attachment] | None,
-    suppress: bool,  # deprecated
     suppress_embeds: bool,
     flags: MessageFlags,
     allowed_mentions: AllowedMentions | None,
-    view: View | None,
     components: MessageComponents | None,
 ) -> Message:
     if embed is not MISSING and embeds is not MISSING:
@@ -147,18 +141,6 @@ async def _edit_handler(
     if file is not MISSING and files is not MISSING:
         err = "Cannot mix file and files keyword arguments."
         raise TypeError(err)
-    if view is not MISSING and components is not MISSING:
-        err = "Cannot mix view and components keyword arguments."
-        raise TypeError(err)
-    if suppress is not MISSING:
-        suppress_deprecated_msg = "'suppress' is deprecated in favour of 'suppress_embeds'."
-        if suppress_embeds is not MISSING:
-            raise TypeError(
-                "Cannot mix suppress and suppress_embeds keyword arguments.\n"
-                + suppress_deprecated_msg
-            )
-        utils.warn_deprecated(suppress_deprecated_msg, stacklevel=3)
-        suppress_embeds = suppress
 
     payload: dict[str, Any] = {}
     if content is not MISSING:
@@ -194,13 +176,6 @@ async def _edit_handler(
     if attachments is not MISSING:
         payload["attachments"] = [] if attachments is None else [a.to_dict() for a in attachments]
 
-    if view is not MISSING:
-        msg._state.prevent_view_updates_for(msg.id)
-        if view:
-            payload["components"] = view.to_components()
-        else:
-            payload["components"] = []
-
     is_v2 = False
     if components is not MISSING:
         from .ui.action_row import normalize_components_to_dict
@@ -233,15 +208,8 @@ async def _edit_handler(
         if files:
             for f in files:
                 f.close()
-    message = Message(state=msg._state, channel=msg.channel, data=data)
+    return Message(state=msg._state, channel=msg.channel, data=data)
 
-    if view and not view.is_finished():
-        msg._state.store_view(view, msg.id)
-
-    if delete_after is not None:
-        await msg.delete(delay=delete_after)
-
-    return message
 
 
 class Attachment(Hashable):
@@ -1868,7 +1836,7 @@ class Message(Hashable):
         """
         return self._interaction
 
-    async def delete(self, *, delay: float | None = None) -> None:
+    async def delete(self) -> None:
         """|coro|
 
         Deletes the message.
@@ -1880,33 +1848,16 @@ class Message(Hashable):
         .. versionchanged:: 1.1
             Added the new ``delay`` keyword-only parameter.
 
-        Parameters
-        ----------
-        delay: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the message. If the deletion fails then it is silently ignored.
-
         Raises
         ------
         Forbidden
             You do not have proper permissions to delete the message.
         NotFound
-            The message was deleted already
+            The message was deleted already.
         HTTPException
             Deleting the message failed.
         """
-        if delay is not None:
-
-            async def delete(delay: float) -> None:
-                await asyncio.sleep(delay)
-                try:
-                    await self._state.http.delete_message(self.channel.id, self.id)
-                except HTTPException:
-                    pass
-
-            asyncio.create_task(delete(delay))
-        else:
-            await self._state.http.delete_message(self.channel.id, self.id)
+        await self._state.http.delete_message(self.channel.id, self.id)
 
     @overload
     async def edit(
@@ -1919,9 +1870,7 @@ class Message(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     @overload
@@ -1935,9 +1884,7 @@ class Message(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     @overload
@@ -1951,9 +1898,7 @@ class Message(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     @overload
@@ -1967,9 +1912,7 @@ class Message(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     async def edit(
@@ -1981,13 +1924,10 @@ class Message(Hashable):
         file: File = MISSING,
         files: list[File] = MISSING,
         attachments: list[Attachment] | None = MISSING,
-        suppress: bool = MISSING,  # deprecated
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
-        delete_after: float | None = None,
     ) -> Message:
         r"""|coro|
 
@@ -2070,10 +2010,6 @@ class Message(Hashable):
 
             .. versionadded:: 2.9
 
-        delete_after: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just edited. If the deletion fails,
-            then it is silently ignored.
         allowed_mentions: :class:`~disnake.AllowedMentions` | :data:`None`
             Controls the mentions being processed in this message. If this is
             passed, then the object is merged with :attr:`Client.allowed_mentions`.
@@ -2140,13 +2076,10 @@ class Message(Hashable):
             file=file,
             files=files,
             attachments=attachments,
-            suppress=suppress,
             suppress_embeds=suppress_embeds,
             flags=flags,
             allowed_mentions=allowed_mentions,
-            view=view,
             components=components,
-            delete_after=delete_after,
         )
 
     async def add_reaction(self, emoji: EmojiInputType) -> None:
@@ -2612,9 +2545,7 @@ class PartialMessage(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     @overload
@@ -2628,9 +2559,7 @@ class PartialMessage(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     @overload
@@ -2644,9 +2573,7 @@ class PartialMessage(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     @overload
@@ -2660,9 +2587,7 @@ class PartialMessage(Hashable):
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions | None = ...,
-        view: View | None = ...,
         components: MessageComponents | None = ...,
-        delete_after: float | None = ...,
     ) -> Message: ...
 
     async def edit(
@@ -2674,13 +2599,10 @@ class PartialMessage(Hashable):
         file: File = MISSING,
         files: list[File] = MISSING,
         attachments: list[Attachment] | None = MISSING,
-        suppress: bool = MISSING,  # deprecated
         suppress_embeds: bool = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
-        delete_after: float | None = None,
     ) -> Message:
         r"""|coro|
 
@@ -2765,10 +2687,6 @@ class PartialMessage(Hashable):
 
             .. versionadded:: 2.9
 
-        delete_after: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just edited. If the deletion fails,
-            then it is silently ignored.
         allowed_mentions: :class:`~disnake.AllowedMentions` | :data:`None`
             Controls the mentions being processed in this message. If this is
             passed, then the object is merged with :attr:`Client.allowed_mentions`.
@@ -2830,13 +2748,10 @@ class PartialMessage(Hashable):
             file=file,
             files=files,
             attachments=attachments,
-            suppress=suppress,
             suppress_embeds=suppress_embeds,
             flags=flags,
             allowed_mentions=allowed_mentions,
-            view=view,
             components=components,
-            delete_after=delete_after,
         )
 
 

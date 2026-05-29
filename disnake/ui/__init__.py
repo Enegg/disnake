@@ -28,4 +28,3 @@ from .separator import *
 from .text_display import *
 from .text_input import *
 from .thumbnail import *
-from .view import *

@@ -65,7 +65,6 @@ from .role import Role
 from .subscription import Subscription
 from .threads import Thread, ThreadMember
 from .ui.modal import Modal, ModalStore
-from .ui.view import View, ViewStore
 from .user import ClientUser, User
 from .utils import MISSING
 from .webhook import Webhook
@@ -271,9 +270,7 @@ class ConnectionState:
 
         self.clear()
 
-    def clear(
-        self, *, views: bool = True, application_commands: bool = True, modals: bool = True
-    ) -> None:
+    def clear(self, *, application_commands: bool = True, modals: bool = True) -> None:
         self.user: ClientUser = MISSING
         # NOTE: without weakrefs, these user objects would otherwise be kept in memory indefinitely.
         # However, using weakrefs here unfortunately has a few drawbacks:
@@ -286,9 +283,6 @@ class ConnectionState:
         if application_commands:
             self._global_application_commands: dict[int, APIApplicationCommand] = {}
             self._guild_application_commands: dict[int, dict[int, APIApplicationCommand]] = {}
-
-        if views:
-            self._view_store: ViewStore = ViewStore(self)
 
         if modals:
             self._modal_store: ModalStore = ModalStore(self)
@@ -367,18 +361,8 @@ class ConnectionState:
         self._emojis[emoji_id] = emoji = Emoji(guild=guild, state=self, data=data)
         return emoji
 
-    def store_view(self, view: View, message_id: int | None = None) -> None:
-        self._view_store.add_view(view, message_id)
-
     def store_modal(self, user_id: int, modal: Modal) -> None:
         self._modal_store.add_modal(user_id, modal)
-
-    def prevent_view_updates_for(self, message_id: int) -> View | None:
-        return self._view_store.remove_message_tracking(message_id)
-
-    @property
-    def persistent_views(self) -> Sequence[View]:
-        return self._view_store.persistent_views
 
     @property
     def guilds(self) -> list[Guild]:
@@ -676,7 +660,7 @@ class ConnectionState:
             self._ready_task.cancel()
 
         self._ready_state: asyncio.Queue[Guild] = asyncio.Queue()
-        self.clear(views=False, application_commands=False, modals=False)
+        self.clear(application_commands=False, modals=False)
         self.user = ClientUser(state=self, data=data["user"])
         # self._users is a list of Users, we're setting a ClientUser
         self._users[self.user.id] = self.user  # pyright: ignore[reportArgumentType]
@@ -788,9 +772,6 @@ class ConnectionState:
             self.dispatch("message_edit", older_message, message)
         else:
             self.dispatch("raw_message_edit", raw)
-
-        if "components" in data and self._view_store.is_message_tracked(raw.message_id):
-            self._view_store.update_from_message(raw.message_id, data["components"])
 
     def parse_message_reaction_add(self, data: gateway.MessageReactionAddEvent) -> None:
         emoji = data["emoji"]
@@ -938,7 +919,6 @@ class ConnectionState:
 
         elif data["type"] == 3:
             interaction = MessageInteraction(data=data, state=self)
-            self._view_store.dispatch(interaction)
             self.dispatch("message_interaction", interaction)
             if interaction.data.component_type is ComponentType.button:
                 self.dispatch("button_click", interaction)

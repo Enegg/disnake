@@ -10,7 +10,7 @@ import disnake
 import pytz
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 # Instead of repeating boiler-plate code you may use injections.
 # Here we give each command a config with a few default options.

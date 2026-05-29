@@ -7,14 +7,14 @@ import os
 import disnake
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # Classic commands.Converter classes have been replaced by more user-friendly converter functions,
 # which can be set using `Param` and the `converter` argument.
 @bot.slash_command()
 async def clean_command(
-    inter: disnake.CommandInteraction[commands.Bot],
+    inter: disnake.CommandInteraction,
     text: str = commands.Param(converter=lambda inter, text: text.replace("@", "\\@")),
 ): ...
 

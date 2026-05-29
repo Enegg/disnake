@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias, cast
+from typing import TYPE_CHECKING, ClassVar, TypeAlias, cast
 
 from ..components import Label as LabelComponent
 from ..enums import ComponentType
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from .text_input import TextInput
 
     LabelChildUIComponent: TypeAlias = (
-        TextInput | FileUpload | AnySelect[Any] | RadioGroup | CheckboxGroup | Checkbox
+        TextInput | FileUpload | AnySelect | RadioGroup | CheckboxGroup | Checkbox
     )
 
 __all__ = ("Label",)

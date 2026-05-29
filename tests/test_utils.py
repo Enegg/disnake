@@ -489,7 +489,6 @@ def test_resolve_invite(url, params, expected, with_params) -> None:
 @pytest.mark.parametrize(
     ("url", "expected"),
     [
-        (mock.Mock(disnake.Template, code="uwu"), "uwu"),
         ("uwu", "uwu"),
         ("http://discord.com/disnake", "http://discord.com/disnake"),
         ("http://discord.new/disnake", "disnake"),

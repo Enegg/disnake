@@ -10,7 +10,7 @@ import os
 import disnake
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # The decorated function only has one required parameter, the interaction.

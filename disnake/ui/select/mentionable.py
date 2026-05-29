@@ -2,14 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    TypeVar,
-    overload,
-)
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, ClassVar
 
 from ...abc import Snowflake
 from ...components import MentionableSelectMenu
@@ -18,21 +12,16 @@ from ...member import Member
 from ...role import Role
 from ...user import ClientUser, User
 from ...utils import MISSING
-from .base import BaseSelect, P, SelectDefaultValueMultiInputType, V_co, _create_decorator
+from .base import BaseSelect, SelectDefaultValueMultiInputType
 
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from ..item import DecoratedItem, ItemCallbackType
+
+__all__ = ("MentionableSelect",)
 
 
-__all__ = (
-    "MentionableSelect",
-    "mentionable_select",
-)
-
-
-class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role, V_co]):
+class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role]):
     r"""Represents a UI mentionable (user/member/role) select menu.
 
     This is usually represented as a drop down menu.
@@ -75,12 +64,6 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role, 
         sequential identifiers to the components in the message or modal.
 
         .. versionadded:: 2.11
-    row: :class:`int` | :data:`None`
-        The relative row this select menu belongs to. A Discord component can only have 5
-        rows. By default, items are arranged automatically into those 5 rows. If you'd
-        like to control the relative positioning of the row then passing an index is advised.
-        For example, row=1 will show up before row=2. Defaults to :data:`None`, which is automatic
-        ordering. The row number must be between 0 and 4 (i.e. zero indexed).
 
     Attributes
     ----------
@@ -95,38 +78,6 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role, 
         SelectDefaultValueType.role: (Role,),
     }
 
-    @overload
-    def __init__(
-        self: MentionableSelect[None],
-        *,
-        custom_id: str = ...,
-        placeholder: str | None = None,
-        min_values: int = 1,
-        max_values: int = 1,
-        disabled: bool = False,
-        default_values: Sequence[SelectDefaultValueMultiInputType[User | Member | Role]]
-        | None = None,
-        required: bool = True,
-        id: int = 0,
-        row: int | None = None,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self: MentionableSelect[V_co],
-        *,
-        custom_id: str = ...,
-        placeholder: str | None = None,
-        min_values: int = 1,
-        max_values: int = 1,
-        disabled: bool = False,
-        default_values: Sequence[SelectDefaultValueMultiInputType[User | Member | Role]]
-        | None = None,
-        required: bool = True,
-        id: int = 0,
-        row: int | None = None,
-    ) -> None: ...
-
     def __init__(
         self,
         *,
@@ -139,7 +90,6 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role, 
         | None = None,
         required: bool = True,
         id: int = 0,
-        row: int | None = None,
     ) -> None:
         super().__init__(
             MentionableSelectMenu,
@@ -152,7 +102,6 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role, 
             default_values=default_values,
             required=required,
             id=id,
-            row=row,
         )
 
     @classmethod
@@ -166,92 +115,4 @@ class MentionableSelect(BaseSelect[MentionableSelectMenu, User | Member | Role, 
             default_values=component.default_values,
             required=component.required,
             id=component.id,
-            row=None,
         )
-
-
-S_co = TypeVar("S_co", bound="MentionableSelect", covariant=True)
-
-
-@overload
-def mentionable_select(
-    *,
-    placeholder: str | None = None,
-    custom_id: str = ...,
-    min_values: int = 1,
-    max_values: int = 1,
-    disabled: bool = False,
-    default_values: Sequence[SelectDefaultValueMultiInputType[User | Member | Role]] | None = None,
-    id: int = 0,
-    row: int | None = None,
-) -> Callable[
-    [ItemCallbackType[V_co, MentionableSelect[V_co]]], DecoratedItem[MentionableSelect[V_co]]
-]: ...
-
-
-@overload
-def mentionable_select(
-    cls: Callable[P, S_co], *_: P.args, **kwargs: P.kwargs
-) -> Callable[[ItemCallbackType[V_co, S_co]], DecoratedItem[S_co]]: ...
-
-
-def mentionable_select(
-    cls: Callable[..., S_co] = MentionableSelect[Any], **kwargs: Any
-) -> Callable[[ItemCallbackType[V_co, S_co]], DecoratedItem[S_co]]:
-    r"""A decorator that attaches a mentionable (user/member/role) select menu to a component.
-
-    The function being decorated should have three parameters: ``self`` representing
-    the :class:`disnake.ui.View`, the :class:`disnake.ui.MentionableSelect` that was
-    interacted with, and the :class:`disnake.MessageInteraction`.
-
-    In order to get the selected items that the user has chosen within the callback
-    use :attr:`MentionableSelect.values`.
-
-    .. versionadded:: 2.7
-
-    Parameters
-    ----------
-    cls: :class:`~collections.abc.Callable`\[..., :class:`MentionableSelect`]
-        A callable (such as a :class:`MentionableSelect` subclass) returning an instance of a :class:`MentionableSelect`.
-        If provided, the other parameters described below do not apply.
-        Instead, this decorator will accept the same keyword arguments as the passed callable does.
-    placeholder: :class:`str` | :data:`None`
-        The placeholder text that is shown if nothing is selected, if any.
-    custom_id: :class:`str`
-        The ID of the select menu that gets received during an interaction.
-        It is recommended not to set this parameter to prevent conflicts.
-    min_values: :class:`int`
-        The minimum number of items that must be chosen for this select menu.
-        Defaults to 1 and must be between 1 and 25.
-    max_values: :class:`int`
-        The maximum number of items that must be chosen for this select menu.
-        Defaults to 1 and must be between 1 and 25.
-    disabled: :class:`bool`
-        Whether the select is disabled. Defaults to ``False``.
-    default_values: :class:`~collections.abc.Sequence`\[:class:`~disnake.User` | :class:`.Member` | :class:`.Role` | :class:`.SelectDefaultValue`] | :data:`None`
-        The list of values (users/roles) that are selected by default.
-        If set, the number of items must be within the bounds set by ``min_values`` and ``max_values``.
-
-        Note that unlike other select menu types, this does not support :class:`.Object`\s due to ambiguities.
-
-        .. versionadded:: 2.10
-    id: :class:`int`
-        The numeric identifier for the component. Must be unique within a view.
-        If set to ``0`` (the default) when sending a component, the API will assign
-        sequential identifiers to the components in the view.
-
-        .. versionadded:: 2.11
-    row: :class:`int` | :data:`None`
-        The relative row this select menu belongs to. A Discord component can only have 5
-        rows. By default, items are arranged automatically into those 5 rows. If you'd
-        like to control the relative positioning of the row then passing an index is advised.
-        For example, row=1 will show up before row=2. Defaults to :data:`None`, which is automatic
-        ordering. The row number must be between 0 and 4 (i.e. zero indexed).
-
-    Raises
-    ------
-    TypeError
-        The decorated function was not a coroutine function,
-        or the ``cls`` parameter was not a callable or a subclass of :class:`MentionableSelect`.
-    """
-    return _create_decorator(cls, **kwargs)

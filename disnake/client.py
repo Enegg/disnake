@@ -57,7 +57,6 @@ from .object import Object
 from .sku import SKU
 from .state import ConnectionState
 from .threads import Thread
-from .ui.view import View
 from .user import ClientUser, User
 from .utils import MISSING
 from .webhook import Webhook
@@ -2174,49 +2173,6 @@ class Client:
 
         data = await state.http.start_private_message(user.id)
         return state.add_dm_channel(data)
-
-    def add_view(self, view: View, *, message_id: int | None = None) -> None:
-        """Registers a :class:`~disnake.ui.View` for persistent listening.
-
-        This method should be used for when a view is comprised of components
-        that last longer than the lifecycle of the program.
-
-        .. versionadded:: 2.0
-
-        Parameters
-        ----------
-        view: :class:`disnake.ui.View`
-            The view to register for dispatching.
-        message_id: :class:`int` | :data:`None`
-            The message ID that the view is attached to. This is currently used to
-            refresh the view's state during message update events. If not given
-            then message update events are not propagated for the view.
-
-        Raises
-        ------
-        TypeError
-            A view was not passed.
-        ValueError
-            The view is not persistent. A persistent view has no timeout
-            and all their components have an explicitly provided custom_id.
-        """
-        if not isinstance(view, View):
-            msg = f"expected an instance of View not {view.__class__!r}"
-            raise TypeError(msg)
-
-        if not view.is_persistent():
-            msg = "View is not persistent. Items need to have a custom_id set and View must have no timeout"
-            raise ValueError(msg)
-
-        self._connection.store_view(view, message_id)
-
-    @property
-    def persistent_views(self) -> Sequence[View]:
-        r""":class:`~collections.abc.Sequence`\[:class:`.View`]: A sequence of persistent views added to the client.
-
-        .. versionadded:: 2.0
-        """
-        return self._connection.persistent_views
 
     # Application commands (global)
 

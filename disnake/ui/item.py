@@ -3,39 +3,17 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    Generic,
-    Protocol,
-    TypeVar,
-    overload,
-)
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
-__all__ = (
-    "UIComponent",
-    "WrappedComponent",
-    "Item",
-)
-
-I = TypeVar("I", bound="Item[Any]")  # noqa: E741
-V_co = TypeVar("V_co", bound="View | None", covariant=True)
+__all__ = ("UIComponent", "WrappedComponent")
 
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from ..client import Client
     from ..components import ActionRowChildComponent, Component
     from ..enums import ComponentType
-    from ..interactions import MessageInteraction
     from ..types.components import ActionRowChildComponent as ActionRowChildComponentPayload
-    from .view import View
 
-    ItemCallbackType = Callable[[V_co, I, MessageInteraction], Coroutine[Any, Any, Any]]
-
-ClientT = TypeVar("ClientT", bound="Client")
 UIComponentT = TypeVar("UIComponentT", bound="UIComponent")
 
 
@@ -142,97 +120,3 @@ class WrappedComponent(UIComponent):
     @property
     @abstractmethod
     def width(self) -> int: ...
-
-
-class Item(WrappedComponent, Generic[V_co]):
-    """Represents the base UI item that all interactive UI items inherit from.
-
-    This class adds more functionality on top of the :class:`WrappedComponent` base class.
-    This functionality mostly relates to :class:`disnake.ui.View`.
-
-    The current UI items supported are:
-
-    - :class:`disnake.ui.Button`
-    - subtypes of :class:`disnake.ui.BaseSelect` (:class:`disnake.ui.ChannelSelect`, :class:`disnake.ui.MentionableSelect`, :class:`disnake.ui.RoleSelect`, :class:`disnake.ui.StringSelect`, :class:`disnake.ui.UserSelect`)
-
-    .. versionadded:: 2.0
-    """
-
-    __repr_attributes__: ClassVar[tuple[str, ...]] = ("row",)
-
-    @overload
-    def __init__(self: Item[None]) -> None: ...
-
-    @overload
-    def __init__(self: Item[V_co]) -> None: ...
-
-    def __init__(self) -> None:
-        self._view: V_co = None  # pyright: ignore[reportAttributeAccessIssue]
-        self._row: int | None = None
-        self._rendered_row: int | None = None
-        # This works mostly well but there is a gotcha with
-        # the interaction with from_component, since that technically provides
-        # a custom_id most dispatchable items would get this set to True even though
-        # it might not be provided by the library user. However, this edge case doesn't
-        # actually affect the intended purpose of this check because from_component is
-        # only called upon edit and we're mainly interested during initial creation time.
-        self._provided_custom_id: bool = False
-
-    def refresh_component(self, component: ActionRowChildComponent) -> None:
-        return None
-
-    def refresh_state(self, interaction: MessageInteraction) -> None:
-        return None
-
-    def is_dispatchable(self) -> bool:
-        return False
-
-    def is_persistent(self) -> bool:
-        return self._provided_custom_id
-
-    @property
-    def row(self) -> int | None:
-        return self._row
-
-    @row.setter
-    def row(self, value: int | None) -> None:
-        if value is None:
-            self._row = None
-        elif 5 > value >= 0:
-            self._row = value
-        else:
-            msg = "row cannot be negative or greater than or equal to 5"
-            raise ValueError(msg)
-
-    @property
-    def view(self) -> V_co:
-        """:class:`View` | :data:`None`: The underlying view for this item."""
-        return self._view
-
-    async def callback(self, interaction: MessageInteraction[ClientT], /) -> None:
-        """|coro|
-
-        The callback associated with this UI item.
-
-        This can be overridden by subclasses.
-
-        Parameters
-        ----------
-        interaction: :class:`.MessageInteraction`
-            The interaction that triggered this UI item.
-        """
-        pass
-
-
-SelfViewT = TypeVar("SelfViewT", bound="View | None")
-
-
-# While the decorators don't actually return a descriptor that matches this protocol,
-# this protocol ensures that type checkers don't complain about statements like `self.button.disabled = True`,
-# which work as `View.__init__` replaces the handler with the item.
-class DecoratedItem(Protocol[I]):
-    @overload
-    def __get__(self, obj: None, objtype: type[SelfViewT]) -> ItemCallbackType[SelfViewT, I]: ...
-
-    @overload
-    def __get__(self, obj: Any, objtype: Any) -> I: ...

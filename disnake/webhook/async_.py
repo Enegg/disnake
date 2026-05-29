@@ -64,7 +64,6 @@ if TYPE_CHECKING:
     from ..types.message import Message as MessagePayload
     from ..types.webhook import Webhook as WebhookPayload
     from ..ui._types import MessageComponents
-    from ..ui.view import View
 
 MISSING = utils.MISSING
 
@@ -505,7 +504,6 @@ def handle_message_parameters_dict(
     attachments: list[Attachment] | None = MISSING,
     embed: Embed | None = MISSING,
     embeds: list[Embed] = MISSING,
-    view: View | None = MISSING,
     components: MessageComponents | None = MISSING,
     allowed_mentions: AllowedMentions | None = MISSING,
     previous_allowed_mentions: AllowedMentions | None = None,
@@ -519,9 +517,6 @@ def handle_message_parameters_dict(
         raise TypeError(msg)
     if embeds is not MISSING and embed is not MISSING:
         msg = "Cannot mix embed and embeds keyword arguments."
-        raise TypeError(msg)
-    if view is not MISSING and components is not MISSING:
-        msg = "Cannot mix view and components keyword arguments."
         raise TypeError(msg)
 
     if file is not MISSING:
@@ -544,8 +539,6 @@ def handle_message_parameters_dict(
         payload["content"] = str(content) if content is not None else None
 
     is_v2 = False
-    if view is not MISSING:
-        payload["components"] = view.to_components() if view is not None else []
     if components is not MISSING:
         if components:
             payload["components"], is_v2 = normalize_components_to_dict(components)
@@ -613,7 +606,6 @@ def handle_message_parameters(
     attachments: list[Attachment] | None = MISSING,
     embed: Embed | None = MISSING,
     embeds: list[Embed] = MISSING,
-    view: View | None = MISSING,
     components: MessageComponents | None = MISSING,
     allowed_mentions: AllowedMentions | None = MISSING,
     previous_allowed_mentions: AllowedMentions | None = None,
@@ -635,7 +627,6 @@ def handle_message_parameters(
         attachments=attachments,
         embed=embed,
         embeds=embeds,
-        view=view,
         components=components,
         allowed_mentions=allowed_mentions,
         previous_allowed_mentions=previous_allowed_mentions,
@@ -800,7 +791,6 @@ class WebhookMessage(Message):
         file: File = MISSING,
         files: list[File] = MISSING,
         attachments: list[Attachment] | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions | None = None,
@@ -854,12 +844,6 @@ class WebhookMessage(Message):
 
             .. versionchanged:: 2.5
                 Supports passing :data:`None` to clear attachments.
-
-        view: :class:`~disnake.ui.View` | :data:`None`
-            The view to update this message with. This cannot be mixed with ``components``.
-            If :data:`None` is passed then the view is removed.
-
-            .. versionadded:: 2.0
 
         components: |components_type| | :data:`None`
             A list of components to update the message with. This cannot be mixed with ``view``.
@@ -916,23 +900,16 @@ class WebhookMessage(Message):
             file=file,
             files=files,
             attachments=attachments,
-            view=view,
             components=components,
             flags=flags,
             allowed_mentions=allowed_mentions,
             thread=self._state._thread,
         )
 
-    async def delete(self, *, delay: float | None = None) -> None:
+    async def delete(self) -> None:
         """|coro|
 
         Deletes the message.
-
-        Parameters
-        ----------
-        delay: :class:`float` | :data:`None`
-            If provided, the number of seconds to wait before deleting the message.
-            The waiting is done in the background and deletion failures are ignored.
 
         Raises
         ------
@@ -943,18 +920,7 @@ class WebhookMessage(Message):
         HTTPException
             Deleting the message failed.
         """
-        if delay is not None:
-
-            async def inner_call(delay: float = delay) -> None:
-                await asyncio.sleep(delay)
-                try:
-                    await self._state._webhook.delete_message(self.id, thread=self._state._thread)
-                except HTTPException:
-                    pass
-
-            asyncio.create_task(inner_call())
-        else:
-            await self._state._webhook.delete_message(self.id, thread=self._state._thread)
+        await self._state._webhook.delete_message(self.id, thread=self._state._thread)
 
 
 class BaseWebhook(Hashable):
@@ -1538,14 +1504,12 @@ class Webhook(BaseWebhook):
         embed: Embed = ...,
         embeds: list[Embed] = ...,
         allowed_mentions: AllowedMentions = ...,
-        view: View = ...,
         components: MessageComponents = ...,
         poll: Poll = ...,
         thread: Snowflake = ...,
         thread_name: str = ...,
         applied_tags: Sequence[Snowflake] = ...,
         wait: Literal[True],
-        delete_after: float = ...,
     ) -> WebhookMessage: ...
 
     @overload
@@ -1564,14 +1528,12 @@ class Webhook(BaseWebhook):
         embed: Embed = ...,
         embeds: list[Embed] = ...,
         allowed_mentions: AllowedMentions = ...,
-        view: View = ...,
         components: MessageComponents = ...,
         poll: Poll = ...,
         thread: Snowflake = ...,
         thread_name: str = ...,
         applied_tags: Sequence[Snowflake] = ...,
         wait: Literal[False] = ...,
-        delete_after: float = ...,
     ) -> None: ...
 
     async def send(
@@ -1589,13 +1551,11 @@ class Webhook(BaseWebhook):
         embed: Embed = MISSING,
         embeds: list[Embed] = MISSING,
         allowed_mentions: AllowedMentions = MISSING,
-        view: View = MISSING,
         components: MessageComponents = MISSING,
         thread: Snowflake = MISSING,
         thread_name: str = MISSING,
         applied_tags: Sequence[Snowflake] = MISSING,
         wait: bool = False,
-        delete_after: float = MISSING,
         poll: Poll = MISSING,
     ) -> WebhookMessage | None:
         r"""|coro|
@@ -1659,14 +1619,6 @@ class Webhook(BaseWebhook):
 
             .. versionadded:: 1.4
 
-        view: :class:`disnake.ui.View`
-            The view to send with the message. You can only send a view
-            if this webhook is not partial and has state attached. A
-            webhook has state attached if the webhook is managed by the
-            library. This cannot be mixed with ``components``.
-
-            .. versionadded:: 2.0
-
         components: |components_type|
             A list of components to include in the message. This cannot be mixed with ``view``.
 
@@ -1706,15 +1658,6 @@ class Webhook(BaseWebhook):
             means that the return type of this function changes from :data:`None` to
             a :class:`WebhookMessage` if set to ``True``. If the type of webhook
             is :attr:`WebhookType.application` then this is always set to ``True``.
-        delete_after: :class:`float`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just sent. If the deletion fails,
-            then it is silently ignored.
-
-            .. versionadded:: 2.1
-
-            .. versionchanged:: 2.7
-                Added support for ephemeral interaction responses.
 
         suppress_embeds: :class:`bool`
             Whether to suppress embeds for the message. This hides
@@ -1776,15 +1719,8 @@ class Webhook(BaseWebhook):
             msg = "ephemeral messages can only be sent from application webhooks"
             raise TypeError(msg)
 
-        if application_webhook or delete_after is not MISSING:
+        if application_webhook:
             wait = True
-
-        if view is not MISSING:
-            if isinstance(self._state, _WebhookState):
-                msg = "Webhook views require an associated state with the webhook"
-                raise TypeError(msg)
-            if ephemeral is True and view.timeout is None:
-                view.timeout = 15 * 60.0
 
         thread_id: int | None = None
         if thread is not MISSING:
@@ -1805,7 +1741,6 @@ class Webhook(BaseWebhook):
             ephemeral=ephemeral,
             suppress_embeds=suppress_embeds,
             flags=flags,
-            view=view,
             components=components,
             thread_name=thread_name,
             applied_tags=applied_tags,
@@ -1836,12 +1771,6 @@ class Webhook(BaseWebhook):
         if wait:
             assert data is not None
             msg = self._create_message(data, thread=thread, thread_name=thread_name)
-            if delete_after is not MISSING:
-                await msg.delete(delay=delete_after)
-
-        if view is not MISSING and not view.is_finished():
-            message_id = None if msg is None else msg.id
-            self._state.store_view(view, message_id)
 
         return msg
 
@@ -1904,7 +1833,6 @@ class Webhook(BaseWebhook):
         file: File = MISSING,
         files: list[File] = MISSING,
         attachments: list[Attachment] | None = MISSING,
-        view: View | None = MISSING,
         components: MessageComponents | None = MISSING,
         flags: MessageFlags = MISSING,
         allowed_mentions: AllowedMentions | None = None,
@@ -1969,13 +1897,6 @@ class Webhook(BaseWebhook):
             .. versionchanged:: 2.5
                 Supports passing :data:`None` to clear attachments.
 
-        view: :class:`~disnake.ui.View` | :data:`None`
-            The updated view to update this message with. If :data:`None` is passed then
-            the view is removed. The webhook must have state attached, similar to
-            :meth:`send`. This cannot be mixed with ``components``.
-
-            .. versionadded:: 2.0
-
         components: |components_type| | :data:`None`
             A list of components to update this message with. This cannot be mixed with ``view``.
             If :data:`None` is passed then the components are removed.
@@ -2028,13 +1949,6 @@ class Webhook(BaseWebhook):
             msg = "This webhook does not have a token associated with it"
             raise WebhookTokenMissing(msg)
 
-        if view is not MISSING:
-            if isinstance(self._state, _WebhookState):
-                msg = "This webhook does not have state associated with it"
-                raise TypeError(msg)
-
-            self._state.prevent_view_updates_for(message_id)
-
         # if no attachment list was provided but we're uploading new files,
         # use current attachments as the base
         if attachments is MISSING and (file or files):
@@ -2048,7 +1962,6 @@ class Webhook(BaseWebhook):
             attachments=attachments,
             embed=embed,
             embeds=embeds,
-            view=view,
             components=components,
             flags=flags,
             allowed_mentions=allowed_mentions,
@@ -2071,10 +1984,7 @@ class Webhook(BaseWebhook):
                 for f in params.files:
                     f.close()
 
-        message = self._create_message(data, thread=thread)
-        if view and not view.is_finished():
-            self._state.store_view(view, message_id)
-        return message
+        return self._create_message(data, thread=thread)
 
     async def delete_message(self, message_id: int, /, *, thread: Snowflake | None = None) -> None:
         """|coro|

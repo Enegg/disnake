@@ -2,14 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    TypeVar,
-    overload,
-)
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, ClassVar
 
 from ...abc import Snowflake
 from ...components import UserSelectMenu
@@ -18,21 +12,16 @@ from ...member import Member
 from ...object import Object
 from ...user import ClientUser, User
 from ...utils import MISSING
-from .base import BaseSelect, P, SelectDefaultValueInputType, V_co, _create_decorator
+from .base import BaseSelect, SelectDefaultValueInputType
 
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from ..item import DecoratedItem, ItemCallbackType
+
+__all__ = ("UserSelect",)
 
 
-__all__ = (
-    "UserSelect",
-    "user_select",
-)
-
-
-class UserSelect(BaseSelect[UserSelectMenu, "User | Member", V_co]):
+class UserSelect(BaseSelect[UserSelectMenu, "User | Member"]):
     r"""Represents a UI user select menu.
 
     This is usually represented as a drop down menu.
@@ -73,12 +62,6 @@ class UserSelect(BaseSelect[UserSelectMenu, "User | Member", V_co]):
         sequential identifiers to the components in the message or modal.
 
         .. versionadded:: 2.11
-    row: :class:`int` | :data:`None`
-        The relative row this select menu belongs to. A Discord component can only have 5
-        rows. By default, items are arranged automatically into those 5 rows. If you'd
-        like to control the relative positioning of the row then passing an index is advised.
-        For example, row=1 will show up before row=2. Defaults to :data:`None`, which is automatic
-        ordering. The row number must be between 0 and 4 (i.e. zero indexed).
 
     Attributes
     ----------
@@ -92,36 +75,6 @@ class UserSelect(BaseSelect[UserSelectMenu, "User | Member", V_co]):
         SelectDefaultValueType.user: (Member, User, ClientUser, Object),
     }
 
-    @overload
-    def __init__(
-        self: UserSelect[None],
-        *,
-        custom_id: str = ...,
-        placeholder: str | None = None,
-        min_values: int = 1,
-        max_values: int = 1,
-        disabled: bool = False,
-        default_values: Sequence[SelectDefaultValueInputType[User | Member]] | None = None,
-        required: bool = True,
-        id: int = 0,
-        row: int | None = None,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self: UserSelect[V_co],
-        *,
-        custom_id: str = ...,
-        placeholder: str | None = None,
-        min_values: int = 1,
-        max_values: int = 1,
-        disabled: bool = False,
-        default_values: Sequence[SelectDefaultValueInputType[User | Member]] | None = None,
-        required: bool = True,
-        id: int = 0,
-        row: int | None = None,
-    ) -> None: ...
-
     def __init__(
         self,
         *,
@@ -133,7 +86,6 @@ class UserSelect(BaseSelect[UserSelectMenu, "User | Member", V_co]):
         default_values: Sequence[SelectDefaultValueInputType[User | Member]] | None = None,
         required: bool = True,
         id: int = 0,
-        row: int | None = None,
     ) -> None:
         super().__init__(
             UserSelectMenu,
@@ -146,7 +98,6 @@ class UserSelect(BaseSelect[UserSelectMenu, "User | Member", V_co]):
             default_values=default_values,
             required=required,
             id=id,
-            row=row,
         )
 
     @classmethod
@@ -160,88 +111,4 @@ class UserSelect(BaseSelect[UserSelectMenu, "User | Member", V_co]):
             default_values=component.default_values,
             required=component.required,
             id=component.id,
-            row=None,
         )
-
-
-S_co = TypeVar("S_co", bound="UserSelect", covariant=True)
-
-
-@overload
-def user_select(
-    *,
-    placeholder: str | None = None,
-    custom_id: str = ...,
-    min_values: int = 1,
-    max_values: int = 1,
-    disabled: bool = False,
-    default_values: Sequence[SelectDefaultValueInputType[User | Member]] | None = None,
-    id: int = 0,
-    row: int | None = None,
-) -> Callable[[ItemCallbackType[V_co, UserSelect[V_co]]], DecoratedItem[UserSelect[V_co]]]: ...
-
-
-@overload
-def user_select(
-    cls: Callable[P, S_co], *_: P.args, **kwargs: P.kwargs
-) -> Callable[[ItemCallbackType[V_co, S_co]], DecoratedItem[S_co]]: ...
-
-
-def user_select(
-    cls: Callable[..., S_co] = UserSelect[Any], **kwargs: Any
-) -> Callable[[ItemCallbackType[V_co, S_co]], DecoratedItem[S_co]]:
-    r"""A decorator that attaches a user select menu to a component.
-
-    The function being decorated should have three parameters: ``self`` representing
-    the :class:`disnake.ui.View`, the :class:`disnake.ui.UserSelect` that was
-    interacted with, and the :class:`disnake.MessageInteraction`.
-
-    In order to get the selected items that the user has chosen within the callback
-    use :attr:`UserSelect.values`.
-
-    .. versionadded:: 2.7
-
-    Parameters
-    ----------
-    cls: :class:`~collections.abc.Callable`\[..., :class:`UserSelect`]
-        A callable (such as a :class:`UserSelect` subclass) returning an instance of a :class:`UserSelect`.
-        If provided, the other parameters described below do not apply.
-        Instead, this decorator will accept the same keyword arguments as the passed callable does.
-    placeholder: :class:`str` | :data:`None`
-        The placeholder text that is shown if nothing is selected, if any.
-    custom_id: :class:`str`
-        The ID of the select menu that gets received during an interaction.
-        It is recommended not to set this parameter to prevent conflicts.
-    min_values: :class:`int`
-        The minimum number of items that must be chosen for this select menu.
-        Defaults to 1 and must be between 1 and 25.
-    max_values: :class:`int`
-        The maximum number of items that must be chosen for this select menu.
-        Defaults to 1 and must be between 1 and 25.
-    disabled: :class:`bool`
-        Whether the select is disabled. Defaults to ``False``.
-    default_values: :class:`~collections.abc.Sequence`\[:class:`~disnake.User` | :class:`.Member` | :class:`.SelectDefaultValue` | :class:`.Object`] | :data:`None`
-        The list of values (users/members) that are selected by default.
-        If set, the number of items must be within the bounds set by ``min_values`` and ``max_values``.
-
-        .. versionadded:: 2.10
-    id: :class:`int`
-        The numeric identifier for the component. Must be unique within a view.
-        If set to ``0`` (the default) when sending a component, the API will assign
-        sequential identifiers to the components in the view.
-
-        .. versionadded:: 2.11
-    row: :class:`int` | :data:`None`
-        The relative row this select menu belongs to. A Discord component can only have 5
-        rows. By default, items are arranged automatically into those 5 rows. If you'd
-        like to control the relative positioning of the row then passing an index is advised.
-        For example, row=1 will show up before row=2. Defaults to :data:`None`, which is automatic
-        ordering. The row number must be between 0 and 4 (i.e. zero indexed).
-
-    Raises
-    ------
-    TypeError
-        The decorated function was not a coroutine function,
-        or the ``cls`` parameter was not a callable or a subclass of :class:`UserSelect`.
-    """
-    return _create_decorator(cls, **kwargs)

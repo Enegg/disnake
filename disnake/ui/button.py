@@ -3,37 +3,23 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, overload
+from typing import TYPE_CHECKING, ClassVar
 
 from ..components import Button as ButtonComponent
 from ..enums import ButtonStyle, ComponentType
 from ..partial_emoji import PartialEmoji, _EmojiTag
-from ..utils import MISSING, iscoroutinefunction
-from .item import DecoratedItem, Item
+from ..utils import MISSING
+from .item import WrappedComponent
 
-__all__ = (
-    "Button",
-    "button",
-)
+__all__ = ("Button",)
 
 if TYPE_CHECKING:
-    from typing_extensions import ParamSpec, Self
+    from typing_extensions import Self
 
     from ..emoji import Emoji
-    from .item import ItemCallbackType
-    from .view import View
-
-else:
-    ParamSpec = TypeVar
-
-B = TypeVar("B", bound="Button")
-B_co = TypeVar("B_co", bound="Button", covariant=True)
-V_co = TypeVar("V_co", bound="View | None", covariant=True)
-P = ParamSpec("P")
 
 
-class Button(Item[V_co]):
+class Button(WrappedComponent):
     """Represents a UI button.
 
     .. versionadded:: 2.0
@@ -85,36 +71,6 @@ class Button(Item[V_co]):
     # We have to set this to MISSING in order to overwrite the abstract property from UIComponent
     _underlying: ButtonComponent = MISSING
 
-    @overload
-    def __init__(
-        self: Button[None],
-        *,
-        style: ButtonStyle = ButtonStyle.secondary,
-        label: str | None = None,
-        disabled: bool = False,
-        custom_id: str | None = None,
-        url: str | None = None,
-        emoji: str | Emoji | PartialEmoji | None = None,
-        sku_id: int | None = None,
-        id: int = 0,
-        row: int | None = None,
-    ) -> None: ...
-
-    @overload
-    def __init__(
-        self: Button[V_co],
-        *,
-        style: ButtonStyle = ButtonStyle.secondary,
-        label: str | None = None,
-        disabled: bool = False,
-        custom_id: str | None = None,
-        url: str | None = None,
-        emoji: str | Emoji | PartialEmoji | None = None,
-        sku_id: int | None = None,
-        id: int = 0,
-        row: int | None = None,
-    ) -> None: ...
-
     def __init__(
         self,
         *,
@@ -126,7 +82,6 @@ class Button(Item[V_co]):
         emoji: str | Emoji | PartialEmoji | None = None,
         sku_id: int | None = None,
         id: int = 0,
-        row: int | None = None,
     ) -> None:
         super().__init__()
 
@@ -164,7 +119,6 @@ class Button(Item[V_co]):
             emoji=emoji,
             sku_id=sku_id,
         )
-        self.row = row
 
     @property
     def width(self) -> int:
@@ -269,108 +223,4 @@ class Button(Item[V_co]):
             emoji=button.emoji,
             sku_id=button.sku_id,
             id=button.id,
-            row=None,
         )
-
-    def is_dispatchable(self) -> bool:
-        return self.custom_id is not None
-
-    def is_persistent(self) -> bool:
-        if self.style is ButtonStyle.link:
-            return self.url is not None
-        elif self.style is ButtonStyle.premium:
-            return self.sku_id is not None
-        return super().is_persistent()
-
-    def refresh_component(self, button: ButtonComponent) -> None:
-        self._underlying = button
-
-
-@overload
-def button(
-    *,
-    label: str | None = None,
-    custom_id: str | None = None,
-    disabled: bool = False,
-    style: ButtonStyle = ButtonStyle.secondary,
-    emoji: str | Emoji | PartialEmoji | None = None,
-    id: int = 0,
-    row: int | None = None,
-) -> Callable[[ItemCallbackType[V_co, Button[V_co]]], DecoratedItem[Button[V_co]]]: ...
-
-
-@overload
-def button(
-    cls: Callable[P, B_co], *_: P.args, **kwargs: P.kwargs
-) -> Callable[[ItemCallbackType[V_co, B_co]], DecoratedItem[B_co]]: ...
-
-
-def button(
-    cls: Callable[..., B_co] = Button[Any], **kwargs: Any
-) -> Callable[[ItemCallbackType[V_co, B_co]], DecoratedItem[B_co]]:
-    r"""A decorator that attaches a button to a component.
-
-    The function being decorated should have three parameters: ``self`` representing
-    the :class:`disnake.ui.View`, the :class:`disnake.ui.Button` that was
-    interacted with, and the :class:`disnake.MessageInteraction`.
-
-    .. note::
-
-        Link/Premium buttons cannot be created with this function,
-        since these buttons do not have a callback associated with them.
-        Consider creating a :class:`Button` manually instead, and adding it
-        using :meth:`View.add_item`.
-
-    Parameters
-    ----------
-    cls: :class:`~collections.abc.Callable`\[..., :class:`Button`]
-        A callable (such as a :class:`Button` subclass) returning an instance of a :class:`Button`.
-        If provided, the other parameters described below do not apply.
-        Instead, this decorator will accept the same keyword arguments as the passed callable does.
-
-        .. versionadded:: 2.6
-    label: :class:`str` | :data:`None`
-        The label of the button, if any.
-    custom_id: :class:`str` | :data:`None`
-        The ID of the button that gets received during an interaction.
-        It is recommended not to set this parameter to prevent conflicts.
-    style: :class:`.ButtonStyle`
-        The style of the button. Defaults to :attr:`.ButtonStyle.grey`.
-    disabled: :class:`bool`
-        Whether the button is disabled. Defaults to ``False``.
-    emoji: :class:`str` | :class:`.Emoji` | :class:`.PartialEmoji` | :data:`None`
-        The emoji of the button. This can be in string form or a :class:`.PartialEmoji`
-        or a full :class:`.Emoji`.
-    id: :class:`int`
-        The numeric identifier for the component. Must be unique within a view.
-        If set to ``0`` (the default) when sending a component, the API will assign
-        sequential identifiers to the components in the view.
-
-        .. versionadded:: 2.11
-    row: :class:`int` | :data:`None`
-        The relative row this button belongs to. A Discord component can only have 5
-        rows. By default, items are arranged automatically into those 5 rows. If you'd
-        like to control the relative positioning of the row then passing an index is advised.
-        For example, row=1 will show up before row=2. Defaults to :data:`None`, which is automatic
-        ordering. The row number must be between 0 and 4 (i.e. zero indexed).
-
-    Raises
-    ------
-    TypeError
-        The decorated function was not a coroutine function,
-        or the ``cls`` parameter was not a callable or a subclass of :class:`Button`.
-    """
-    if not callable(cls):
-        msg = "cls argument must be callable"
-        raise TypeError(msg)
-
-    def decorator(func: ItemCallbackType[V_co, B_co]) -> DecoratedItem[B_co]:
-        if not iscoroutinefunction(func):
-            msg = "button function must be a coroutine function"
-            raise TypeError(msg)
-
-        func.__discord_ui_model_type__ = cls
-        func.__discord_ui_model_kwargs__ = kwargs
-        return func  # pyright: ignore[reportReturnType]
-
-    return decorator

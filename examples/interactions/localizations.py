@@ -9,7 +9,7 @@ import disnake
 from disnake import Localized, OptionChoice
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # For more details, see https://docs.disnake.dev/en/stable/ext/commands/slash_commands.html#localizations

@@ -6,7 +6,7 @@ import os
 
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # Slash command subcommands differ from classic text subcommands & groups.
@@ -44,34 +44,31 @@ async def bar(inter, option: int):
 #   - /command bar b
 # Note that `/command`, `/command foo`, or `/command bar` cannot be
 # called directly by users.
-class MyCog(commands.Cog):
-    @commands.slash_command()
-    async def command(self, inter):
-        print("This code is ran every time any subcommand is invoked")
+@bot.slash_command()
+async def command(inter):
+    print("This code is ran every time any subcommand is invoked")
 
-    @command.sub_command_group()
-    async def foo(self, inter):
-        print("This code is ran every time any subcommand of `foo` is invoked")
+@command.sub_command_group()
+async def foos(inter):
+    print("This code is ran every time any subcommand of `foo` is invoked")
 
-    @foo.sub_command()
-    async def a(self, inter, option: int):
-        await inter.response.send_message(f"You ran `/command foo a` with {option}")
+@foos.sub_command()
+async def a(inter, option: int):
+    await inter.response.send_message(f"You ran `/command foo a` with {option}")
 
-    @command.sub_command_group()
-    async def bar(self, inter):
-        print("This code is ran every time any subcommand of `bar` is invoked")
+@command.sub_command_group()
+async def bars(inter):
+    print("This code is ran every time any subcommand of `bar` is invoked")
 
-    @bar.sub_command()
-    async def b(self, inter, option: float):
-        await inter.response.send_message(f"You ran `/command bar b` with {option}")
+@bars.sub_command()
+async def b(inter, option: float):
+    await inter.response.send_message(f"You ran `/command bar b` with {option}")
 
 
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})\n------")
 
-
-bot.add_cog(MyCog())
 
 if __name__ == "__main__":
     bot.run(os.getenv("BOT_TOKEN"))

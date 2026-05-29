@@ -7,7 +7,7 @@ import os
 import disnake
 from disnake.ext import commands
 
-bot = commands.Bot(command_prefix=commands.when_mentioned)
+bot = commands.InteractionBot()
 
 
 # disnake will parse the signatures of commands,
@@ -60,7 +60,7 @@ async def description(
 # by using `Param` and passing a callable.
 @bot.slash_command()
 async def defaults(
-    inter: disnake.CommandInteraction[commands.Bot],
+    inter: disnake.CommandInteraction,
     string: str = "this is a default value",
     user: disnake.User = commands.Param(lambda inter: inter.author),
 ): ...

@@ -51,7 +51,6 @@ if TYPE_CHECKING:
         PermissionOverwrite as PermissionOverwritePayload,
     )
     from .ui._types import MessageComponents
-    from .ui.view import View
     from .user import ClientUser
 
     MessageableChannel: TypeAlias = GuildMessageable | DMChannel | GroupChannel | PartialMessageable
@@ -622,14 +621,12 @@ class Messageable:
         tts: bool = ...,
         embed: Embed = ...,
         file: File = ...,
-        delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions = ...,
         reference: Message | MessageReference | PartialMessage = ...,
         mention_author: bool = ...,
-        view: View = ...,
         components: MessageComponents = ...,
         poll: Poll = ...,
     ) -> Message: ...
@@ -642,14 +639,12 @@ class Messageable:
         tts: bool = ...,
         embed: Embed = ...,
         files: list[File] = ...,
-        delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions = ...,
         reference: Message | MessageReference | PartialMessage = ...,
         mention_author: bool = ...,
-        view: View = ...,
         components: MessageComponents = ...,
         poll: Poll = ...,
     ) -> Message: ...
@@ -662,14 +657,12 @@ class Messageable:
         tts: bool = ...,
         embeds: list[Embed] = ...,
         file: File = ...,
-        delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions = ...,
         reference: Message | MessageReference | PartialMessage = ...,
         mention_author: bool = ...,
-        view: View = ...,
         components: MessageComponents = ...,
         poll: Poll = ...,
     ) -> Message: ...
@@ -682,14 +675,12 @@ class Messageable:
         tts: bool = ...,
         embeds: list[Embed] = ...,
         files: list[File] = ...,
-        delete_after: float = ...,
         nonce: str | int = ...,
         suppress_embeds: bool = ...,
         flags: MessageFlags = ...,
         allowed_mentions: AllowedMentions = ...,
         reference: Message | MessageReference | PartialMessage = ...,
         mention_author: bool = ...,
-        view: View = ...,
         components: MessageComponents = ...,
         poll: Poll = ...,
     ) -> Message: ...
@@ -703,14 +694,12 @@ class Messageable:
         embeds: list[Embed] | None = None,
         file: File | None = None,
         files: list[File] | None = None,
-        delete_after: float | None = None,
         nonce: str | int | None = None,
         suppress_embeds: bool | None = None,
         flags: MessageFlags | None = None,
         allowed_mentions: AllowedMentions | None = None,
         reference: Message | MessageReference | PartialMessage | None = None,
         mention_author: bool | None = None,
-        view: View | None = None,
         components: MessageComponents | None = None,
         poll: Poll | None = None,
     ):
@@ -759,10 +748,6 @@ class Messageable:
         nonce: :class:`str` | :class:`int`
             The nonce to use for sending this message. If the message was successfully sent,
             then the message will have a nonce with this value.
-        delete_after: :class:`float`
-            If provided, the number of seconds to wait in the background
-            before deleting the message we just sent. If the deletion fails,
-            then it is silently ignored.
         allowed_mentions: :class:`.AllowedMentions`
             Controls the mentions being processed in this message. If this is
             passed, then the object is merged with :attr:`.Client.allowed_mentions`.
@@ -791,11 +776,6 @@ class Messageable:
             If set, overrides the :attr:`.AllowedMentions.replied_user` attribute of ``allowed_mentions``.
 
             .. versionadded:: 1.6
-
-        view: :class:`.ui.View`
-            A Discord UI View to add to the message. This cannot be mixed with ``components``.
-
-            .. versionadded:: 2.0
 
         components: |components_type|
             A list of components to include in the message. This cannot be mixed with ``view``.
@@ -906,15 +886,7 @@ class Messageable:
                 raise TypeError(msg) from None
 
         is_v2 = False
-        if view is not None and components is not None:
-            msg = "cannot pass both view and components parameter to send()"
-            raise TypeError(msg)
-        elif view:
-            if not hasattr(view, "__discord_ui_view__"):
-                msg = f"view parameter must be View not {view.__class__!r}"
-                raise TypeError(msg)
-            components_payload = view.to_components()
-        elif components:
+        if components:
             from .ui.action_row import normalize_components_to_dict
 
             components_payload, is_v2 = normalize_components_to_dict(components)
@@ -976,13 +948,8 @@ class Messageable:
                 flags=flags_payload,
             )
 
-        ret = state.create_message(channel=channel, data=data)
-        if view:
-            state.store_view(view, ret.id)
+        return state.create_message(channel=channel, data=data)
 
-        if delete_after is not None:
-            await ret.delete(delay=delete_after)
-        return ret
 
     async def trigger_typing(self) -> None:
         """|coro|

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, Union
+from typing import TYPE_CHECKING, TypeAlias, TypeVar, Union
 
 if TYPE_CHECKING:
     from typing import TypeAlias
@@ -22,20 +22,14 @@ if TYPE_CHECKING:
     )
     from .item import WrappedComponent
     from .select import ChannelSelect, MentionableSelect, RoleSelect, StringSelect, UserSelect
-    from .view import View
 
-V_co = TypeVar("V_co", bound="View | None", covariant=True)
 
 AnySelect: TypeAlias = Union[
-    "ChannelSelect[V_co]",
-    "MentionableSelect[V_co]",
-    "RoleSelect[V_co]",
-    "StringSelect[V_co]",
-    "UserSelect[V_co]",
+    "ChannelSelect", "MentionableSelect", "RoleSelect", "StringSelect", "UserSelect"
 ]
 
 # valid `ActionRow.components` item types in a message/modal
-ActionRowMessageComponent: TypeAlias = Union["Button[Any]", "AnySelect[Any]"]
+ActionRowMessageComponent: TypeAlias = Union["Button", "AnySelect"]
 ActionRowModalComponent: TypeAlias = "TextInput"  # deprecated
 
 # valid message component types (v1/v2)
