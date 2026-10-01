@@ -43,7 +43,7 @@ class Container(UIComponent):
     ----------
     *components: :class:`~.ui.ActionRow` | :class:`~.ui.Section` | :class:`~.ui.TextDisplay` | :class:`~.ui.MediaGallery` | :class:`~.ui.File` | :class:`~.ui.Separator`
         The components in this container.
-    accent_colour: :class:`.Colour` | :data:`None`
+    accent_colour: :class:`int` | :class:`.Colour` | :data:`None`
         The accent colour of the container.
     spoiler: :class:`bool`
         Whether the container is marked as a spoiler. Defaults to ``False``.
@@ -73,7 +73,7 @@ class Container(UIComponent):
     def __init__(
         self,
         *components: ContainerChildUIComponent,
-        accent_colour: Colour | None = None,
+        accent_colour: int | Colour | None = None,
         spoiler: bool = False,
         id: int = 0,
     ) -> None:
@@ -83,7 +83,7 @@ class Container(UIComponent):
         self.children: list[ContainerChildUIComponent] = [
             ensure_ui_component(c, "components") for c in components
         ]
-        self._accent_colour: Colour | None = accent_colour
+        self.accent_colour = accent_colour
         self.spoiler: bool = spoiler
 
     # these are reimplemented here to store the value in a separate attribute,
