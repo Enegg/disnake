@@ -2151,8 +2151,7 @@ def has_permissions(**perms: bool) -> Callable[[T], T]:
             permissions = ctx.permissions
         else:
             ch = ctx.channel
-            assert isinstance(ctx.author, disnake.Member)
-            permissions = ch.permissions_for(ctx.author, ignore_timeout=False)
+            permissions = ch.permissions_for(ctx.author, ignore_timeout=False)  # pyright: ignore[reportArgumentType]
 
         missing = [perm for perm, value in perms.items() if getattr(permissions, perm) != value]
 
@@ -2258,8 +2257,7 @@ def bot_has_permissions(**perms: bool) -> Callable[[T], T]:
             permissions = ctx.app_permissions
         else:
             ch = ctx.channel
-            assert isinstance(ctx.me, disnake.Member)
-            permissions = ch.permissions_for(ctx.me, ignore_timeout=False)
+            permissions = ch.permissions_for(ctx.me, ignore_timeout=False)  # pyright: ignore[reportArgumentType]
 
         missing = [perm for perm, value in perms.items() if getattr(permissions, perm) != value]
 
