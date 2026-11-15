@@ -1599,6 +1599,179 @@ def make_repr(
     return wrapper
 
 
+def repr_from_init(
+    user_repr: bool = False, **attr_param_overrides: str
+) -> Callable[[type[T]], type[T]]:
+    def wrapper(cls: type[T], /) -> type[T]:
+        signature = inspect.signature(cls.__init__)
+
+        __repr__ = _make_repr_from_init(signature, attr_param_overrides, user_repr)
+        __rich_repr__ = _make_rich_repr_from_init(signature, attr_param_overrides, user_repr)
+
+        # signature of 'Callable[[object], str]' is lacking pos-or-kw 'self' param
+        cls.__repr__ = __repr__  # pyright: ignore[reportAttributeAccessIssue]
+        cls.__rich_repr__ = __rich_repr__  # pyright: ignore[reportAttributeAccessIssue]
+        return cls
+
+    return wrapper
+
+
+def _make_user_repr_from_init(
+    signature: inspect.Signature, overrides: Mapping[str, str] = {}
+) -> Callable[[object], str]:
+    iterable = iter(signature.parameters.items())
+    next(iterable)  # skip 'self'
+    locals: dict[str, Any] = {}
+
+    if any(param.kind is not param.empty for param in signature.parameters.values()):
+        # at least one parameter has a default
+        local_n: int = 0
+        positional: list[str] = []
+        lines: list[str] = ["parts = []"]
+
+        for name, param in iterable:
+            attr_name = overrides.get(name, name)
+
+            if param.kind is param.POSITIONAL_ONLY:
+                positional.append(f"{{self.{attr_name}!r}}")
+            elif param.kind is param.VAR_POSITIONAL:
+                lines.append(f"parts.extend(map(repr, self.{attr_name}))")
+            elif param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+                if param.default is param.empty:
+                    lines.append(f"parts.append(f'{name}={{self.{attr_name}!r}}')")
+                else:
+                    lines.append(
+                        f"if (_ := self.{attr_name}) != default{local_n}:"
+                        f" parts.append(f'{name}={{_!r}}')"
+                    )  # fmt: skip
+                    locals[f"default{local_n}"] = param.default
+                    local_n += 1
+
+        if positional:
+            lines[0] = f'parts = [f"{", ".join(positional)}"]'
+
+        lines.append("return f\"{{self.__class__.__name__}}({{''.join(parts)}})\"")
+        body = "\n".join(f"    {line}" for line in lines)
+
+    else:
+        positional: list[str] = []
+        var_args: str = ""
+        keyword: list[str] = []
+
+        for name, param in iterable:
+            attr_name = overrides.get(name, name)
+
+            if param.kind is param.POSITIONAL_ONLY:
+                positional.append(f"{{self.{attr_name}!r}}")
+            elif param.kind is param.VAR_POSITIONAL:
+                var_args = attr_name
+            elif param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+                keyword.append(f"{name}={{self.{attr_name}!r}}")
+
+        arg_parts: list[str] = []
+
+        if positional:
+            arg_parts.append(", ".join(positional))
+            if keyword:
+                arg_parts.append(", ")
+            elif var_args:
+                arg_parts.append(f'{{", " if self.{var_args} else ""}}')
+        if var_args:
+            arg_parts.append(f"', '.join(map(repr, self.{var_args}))")
+            if keyword:
+                arg_parts.append(f'{{", " if self.{var_args} else ""}}')
+        if keyword:
+            arg_parts.append(", ".join(keyword))
+
+        body = f'    return f"{{self.__class__.__name__}}({"".join(arg_parts)})"'
+
+    source = (
+        f"def __create_fn__({', '.join(locals)}):\n"
+        "  def __repr__(self) -> str:\n"
+        f"{body}\n"
+        "  return __repr__"
+    )  # fmt: skip
+
+    ns: dict[str, Any] = {}
+    exec(source, None, ns)  # noqa: S102
+    return ns["__create_fn__"](**locals)
+
+
+def _make_repr_from_init(
+    signature: inspect.Signature, overrides: Mapping[str, str] = {}, user_repr: bool = False
+) -> Callable[[object], str]:
+    iterable = iter(signature.parameters.items())
+    next(iterable)  # skip 'self'
+    locals: dict[str, Any] = {}
+    local: int = 0
+    parts: list[str] = ["{self.__class__.__name__}"]
+
+    for name, param in iterable:
+        attr_name = overrides.get(name, name)
+
+        if param.default is param.empty:
+            parts.append(f"{name}={{self.{attr_name}}}")
+        else:
+            locals[f"default{local}"] = param.default
+
+            local += 1
+
+    source = (
+        f"def __create_fn__({', '.join(locals)}):\n"
+        "  def __repr__(self) -> str:\n"
+        f"    return f'<{' '.join(parts)}>'"
+        "  return __repr__"
+    )  # fmt: skip
+    ns: dict[str, Any] = {}
+    exec(source, None, ns)  # noqa: S102
+    return ns["__create_fn__"](**locals)
+
+
+def _make_rich_repr_from_init(
+    signature: inspect.Signature, overrides: Mapping[str, str] = {}, user_repr: bool = False
+) -> Callable[
+    [object], Iterator[object | tuple[str | None, object] | tuple[str | None, object, object]]
+]:
+
+    iterable = iter(signature.parameters.items())
+    next(iterable)  # skip 'self'
+    locals: dict[str, Any] = {}
+    local: int = 0
+    lines: list[str] = []
+
+    for name, param in iterable:
+        attr_name = overrides.get(name, name)
+
+        if param.kind is param.POSITIONAL_ONLY:
+            lines.append(f"yield self.{attr_name}")
+        elif param.kind is param.VAR_POSITIONAL:
+            lines.append(f"yield from self.{attr_name}")
+        elif param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
+            if param.default is param.empty:
+                lines.append(f"yield {name!r}, self.{attr_name}")
+            else:
+                lines.append(f"yield {name!r}, self.{attr_name}, default{local}")
+                locals[f"default{local}"] = param.default
+                local += 1
+
+    if not lines:
+        lines.append("return iter(())")
+
+    body = "\n".join(f"    {line}" for line in lines)
+    source = (
+        f"def __create_fn__({', '.join(locals)}):\n"
+        "  def __rich_repr__(self):\n"
+        f"{body}\n"
+        "  return __rich_repr__"
+    )  # fmt: skip
+    ns: dict[str, Any] = {}
+    exec(source, None, ns)  # noqa: S102
+    fn = ns["__create_fn__"](**locals)
+    if not user_repr:
+        fn.angular = True
+    return fn
+
+
 def _make_init_repr_fn(
     positional_params: Sequence[str] = (),
     unpack_param: str = "",

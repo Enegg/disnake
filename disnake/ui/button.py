@@ -12,7 +12,7 @@ from typing_extensions import Self, TypeVar
 from ..components import Button as ButtonComponent
 from ..enums import ButtonStyle, ComponentType
 from ..partial_emoji import PartialEmoji, _EmojiTag
-from ..utils import MISSING, make_repr
+from ..utils import MISSING, repr_from_init
 from ._types import P, V_co, V_deco
 from .item import DecoratedItem, Item, ItemCallbackType
 
@@ -25,18 +25,7 @@ if TYPE_CHECKING:
     from ..emoji import Emoji
 
 
-@make_repr(
-    custom_id=...,
-    style=...,
-    url=...,
-    disabled=...,
-    label=...,
-    emoji=...,
-    sku_id=...,
-    id=...,
-    row=...,
-    _cast_to_str_={"style"},
-)
+@repr_from_init(user_repr=True)
 class Button(Item[V_co]):
     """Represents a UI button.
 
